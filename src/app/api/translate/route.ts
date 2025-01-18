@@ -17,7 +17,7 @@ export async function POST(request: Request) {
         messages: [
           {
             role: 'system',
-            content: `You are a translator. Translate the following German text to Russian. If it is a one word or a phrase, then provide all possible translations for it, provide IPA and approximation phonetic breakdown, and show how to use it in a sentence in German with translations in Russian. If the input is a sentence, provide only the translation without any additional comments.`
+            content: `You are a translator. Translate the following German text to Russian. If it is a one word or a phrase, then provide all possible translations for it, provide IPA transcription of a source word, and show how to use it in a sentence in German with translations in Russian. If the input is a sentence, provide only the translation without any additional comments.`
           },
           {
             role: 'user',
@@ -26,7 +26,6 @@ export async function POST(request: Request) {
         ],
       }),
     });
-    console.log("response", response);
 
     if (!response.ok) {
         const error = await response.json();
@@ -35,7 +34,6 @@ export async function POST(request: Request) {
       }
       
     const data = await response.json();
-    console.log(data);
 
     const translation = data.choices[0].message.content;
 
