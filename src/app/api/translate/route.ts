@@ -1,11 +1,10 @@
-import { NextResponse } from 'next/server';
+import {NextResponse} from 'next/server';
 
 export async function POST(request: Request) {
   try {
     const { text } = await request.json();
 
     const apiKey = process.env.OPENAI_API_KEY;
-    console.log("apiKey", apiKey);
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -18,7 +17,7 @@ export async function POST(request: Request) {
         messages: [
           {
             role: 'system',
-            content: 'You are a translator. Translate the following German text to Russian. If it is a one word or a phrase, then provide all possible translations for it and show how to use it in a sentence in German with translations in Russian. If the input is a sentence, provide only the translation without any additional comments.'
+            content: `You are a translator. Translate the following German text to Russian. If it is a one word or a phrase, then provide all possible translations for it, provide IPA and approximation phonetic breakdown, and show how to use it in a sentence in German with translations in Russian. If the input is a sentence, provide only the translation without any additional comments.`
           },
           {
             role: 'user',
