@@ -1,6 +1,6 @@
 'use client';
 
-import {useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import styles from './WordInput.module.css';
 import ReactMarkdown from 'react-markdown';
 
@@ -8,6 +8,20 @@ export function WordInput() {
   const [word, setWord] = useState('');
   const [translation, setTranslation] = useState()
   const [isLoading, setIsLoading] = useState(false);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+      // Move cursor to the end of the text:
+      // defer cursor placement to the next event loop cycle.
+      // This helps prevent React from interfering with cursor placement.
+      setTimeout(() => {
+        inputRef.current?.setSelectionRange(word.length, word.length);
+      }, 0);
+    }
+  }, [translation]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setWord(e.target.value);
@@ -43,12 +57,12 @@ export function WordInput() {
     <div className={styles.container}>
       <input
         className={styles.input}
+        ref={inputRef}
         type="text"
         value={word}
         onChange={handleInputChange}
         onKeyUp={handleKeyUp}
         placeholder="Enter a German word..."
-
         disabled={isLoading}
       />
       <div className={styles.translation}>
