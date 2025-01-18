@@ -1,6 +1,13 @@
-import type { Metadata } from "next";
+import type {Metadata} from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import {Sue_Ellen_Francisco} from 'next/font/google'
+
+const sueEllenFrancisco = Sue_Ellen_Francisco({
+  subsets: ['latin'],  // Specify the subset
+  weight: '400',       // Only one weight available for this font
+  variable: '--font-sue-ellen', // Optional: Define a CSS variable
+});
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -25,7 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${sueEllenFrancisco.variable}`}>
         {children}
       </body>
     </html>

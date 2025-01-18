@@ -161,8 +161,10 @@ a.secondary {
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .logo {
-    /*filter: invert();*/
-  }
+
+.logo {
+  font-family: var(--font-sue-ellen);
+  font-size: 64px !important;
+  /*filter: invert();*/
 }
+
