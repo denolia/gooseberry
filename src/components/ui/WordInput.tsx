@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import styles from './WordInput.module.css';
+import ReactMarkdown from 'react-markdown';
 
 export function WordInput() {
   const [word, setWord] = useState('');
+  const [translation, setTranslation] = useState()
   const [isLoading, setIsLoading] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -24,8 +26,11 @@ export function WordInput() {
         });
 
         const data = await response.json();
-        // Handle the translation result here
-        console.log('Translation:', data);
+
+        const translation =   data["translation"]
+        if (translation){
+          setTranslation(translation);
+        }
       } catch (error) {
         console.error('Translation error:', error);
       } finally {
@@ -45,7 +50,9 @@ export function WordInput() {
         className={styles.input}
         disabled={isLoading}
       />
-      {isLoading && <span>Translating...</span>}
+      {isLoading && <div>Translating...</div>}
+      {translation && <ReactMarkdown className={styles.translation}>{translation}</ReactMarkdown>}
+
     </div>
   );
 } 

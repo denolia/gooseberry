@@ -1,4 +1,3 @@
-import { log } from 'console';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
@@ -19,7 +18,7 @@ export async function POST(request: Request) {
         messages: [
           {
             role: 'system',
-            content: 'You are a translator. Translate the following German text to Russian. Provide only the translation without any additional comments.'
+            content: 'You are a translator. Translate the following German text to Russian. If it is a one word or a phrase, then provide all possible translations for it and show how to use it in a sentence in German with translations in Russian. If the input is a sentence, provide only the translation without any additional comments.'
           },
           {
             role: 'user',
