@@ -1,6 +1,6 @@
 import styles from "@/styles/page.module.css";
 
-export function HomeHero() {
+export function Logo() {
   return (
     <>
       <div

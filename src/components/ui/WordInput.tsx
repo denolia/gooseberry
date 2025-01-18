@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import {useState} from 'react';
 import styles from './WordInput.module.css';
 import ReactMarkdown from 'react-markdown';
 
@@ -41,17 +41,22 @@ export function WordInput() {
 
   return (
     <div className={styles.container}>
-      <input 
+      <input
+        className={styles.input}
         type="text"
         value={word}
         onChange={handleInputChange}
         onKeyUp={handleKeyUp}
         placeholder="Enter a German word..."
-        className={styles.input}
+
         disabled={isLoading}
       />
-      {isLoading && <div>Translating...</div>}
-      {translation && <ReactMarkdown className={styles.translation}>{translation}</ReactMarkdown>}
+      <div className={styles.translation}>
+        {isLoading && <div>Translating...</div>}
+
+        {translation && <ReactMarkdown >{translation}</ReactMarkdown>}
+      </div>
+
 
     </div>
   );
