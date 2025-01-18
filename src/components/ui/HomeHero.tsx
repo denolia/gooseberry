@@ -6,18 +6,12 @@ export function HomeHero() {
     <>
       <Image
         className={styles.logo}
-        src="/next.svg"
-        alt="Next.js logo"
+        src="/Learn_words_logo.png"
+        alt="App logo"
         width={180}
         height={38}
         priority
       />
-      <ol>
-        <li>
-          Get started by editing <code>src/app/page.tsx</code>
-        </li>
-        <li>ddddSave and see your changes instantly.</li>
-      </ol>
     </>
   );
 } 
