@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import {useEffect, useRef, useState} from 'react';
-import styles from './WordInput.module.css';
-import ReactMarkdown from 'react-markdown';
+import { useEffect, useRef, useState } from "react";
+import styles from "./WordInput.module.css";
+import ReactMarkdown from "react-markdown";
 
 export function WordInput() {
-  const [word, setWord] = useState('');
-  const [translation, setTranslation] = useState()
+  const [word, setWord] = useState("");
+  const [translation, setTranslation] = useState();
   const [isLoading, setIsLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -28,25 +28,25 @@ export function WordInput() {
   };
 
   const handleKeyUp = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && word.trim()) {
+    if (e.key === "Enter" && word.trim()) {
       setIsLoading(true);
       try {
-        const response = await fetch('/api/translate', {
-          method: 'POST',
+        const response = await fetch("/api/translate", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({ text: word }),
         });
 
         const data = await response.json();
 
-        const translation =   data["translation"]
-        if (translation){
+        const translation = data["translation"];
+        if (translation) {
           setTranslation(translation);
         }
       } catch (error) {
-        console.error('Translation error:', error);
+        console.error("Translation error:", error);
       } finally {
         setIsLoading(false);
       }
@@ -68,10 +68,8 @@ export function WordInput() {
       <div className={styles.translation}>
         {isLoading && <div>Translating...</div>}
 
-        {translation && <ReactMarkdown >{translation}</ReactMarkdown>}
+        {translation && <ReactMarkdown>{translation}</ReactMarkdown>}
       </div>
-
-
     </div>
   );
-} 
+}

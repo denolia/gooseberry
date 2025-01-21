@@ -1,8 +1,8 @@
-import {Logo} from "@/components/ui/Logo";
-import {CTASection} from "@/components/ui/CTASection";
-import {AppFooter} from "@/components/layout/AppFooter";
+import { Logo } from "@/components/ui/Logo";
+import { CTASection } from "@/components/ui/CTASection";
+import { AppFooter } from "@/components/layout/AppFooter";
 import styles from "@/styles/page.module.css";
-import {WordInput} from "@/components/ui/WordInput";
+import { WordInput } from "@/components/ui/WordInput";
 
 export default function Home() {
   return (
