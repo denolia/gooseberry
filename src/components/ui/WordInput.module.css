@@ -22,3 +22,9 @@
 .translation {
     margin-top: 1rem;
 }
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

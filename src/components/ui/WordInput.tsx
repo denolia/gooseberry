@@ -27,44 +27,53 @@ export function WordInput() {
     setWord(e.target.value);
   };
 
+  async function translate() {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/translate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text: word }),
+      });
+
+      const data = await response.json();
+
+      const translation = data["translation"];
+      if (translation) {
+        setTranslation(translation);
+      }
+    } catch (error) {
+      console.error("Translation error:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   const handleKeyUp = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && word.trim()) {
-      setIsLoading(true);
-      try {
-        const response = await fetch("/api/translate", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ text: word }),
-        });
-
-        const data = await response.json();
-
-        const translation = data["translation"];
-        if (translation) {
-          setTranslation(translation);
-        }
-      } catch (error) {
-        console.error("Translation error:", error);
-      } finally {
-        setIsLoading(false);
-      }
+      await translate();
     }
   };
 
   return (
     <div className={styles.container}>
-      <input
-        className={styles.input}
-        ref={inputRef}
-        type="text"
-        value={word}
-        onChange={handleInputChange}
-        onKeyUp={handleKeyUp}
-        placeholder="Enter a German word..."
-        disabled={isLoading}
-      />
+      <div className={styles.searchBar}>
+        <input
+          className={styles.input}
+          ref={inputRef}
+          type="text"
+          value={word}
+          onChange={handleInputChange}
+          onKeyUp={handleKeyUp}
+          placeholder="Enter a German word..."
+          disabled={isLoading}
+        />
+        <button onClick={translate} disabled={isLoading}>
+          Translate
+        </button>
+      </div>
       <div className={styles.translation}>
         {isLoading && <div>Translating...</div>}
 
