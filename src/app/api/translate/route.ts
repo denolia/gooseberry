@@ -12,7 +12,7 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         store: true,
         messages: [
           {
@@ -26,6 +26,8 @@ You are a professional translator and language assistant specializing in German-
    - All possible translations with nuances of meaning.
    - IPA transcription for correct pronunciation.
 
+   **If the word is not in its infinitive form**, provide its **infinitive form** before giving further details.
+
    **If it is a noun**:
    - Definite article (der/die/das).
    - Singular, plural, and Genitive case forms.
@@ -37,6 +39,13 @@ You are a professional translator and language assistant specializing in German-
    **Additional details**:
    - Idiomatic uses and common collocations (e.g., "ins Auge fallen" – бросаться в глаза).
    - Frequency indicator: Mark the word/phrase as **common (✅), less common (⚠️), or rare (❌)**.
+   - **CEFR level**: Indicate the level on which this word is supposed to be well known:  
+     - **A1** (Beginner)  
+     - **A2** (Elementary)  
+     - **B1** (Intermediate)  
+     - **B2** (Upper-Intermediate)  
+     - **C1** (Advanced)  
+     - **C2** (Proficient)  
    - Regional variations: If the word/phrase has different meanings or spellings in Germany, Austria, or Switzerland, mention them.
 
 3. **Example Sentences**:
