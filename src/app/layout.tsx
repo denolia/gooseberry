@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Sue_Ellen_Francisco } from "next/font/google";
+import { Providers } from "@/app/providers/Providers";
 
 const sueEllenFrancisco = Sue_Ellen_Francisco({
   subsets: ["latin"], // Specify the subset
@@ -35,7 +36,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${sueEllenFrancisco.variable}`}
       >
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
