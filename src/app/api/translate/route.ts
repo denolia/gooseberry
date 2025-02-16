@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const maxDuration = 60; // This function can run for a maximum of 60 seconds
+
 export async function POST(request: Request) {
   try {
     const { text } = await request.json();
@@ -8,7 +10,7 @@ export async function POST(request: Request) {
 
     // AbortController is needed for a custom timeout. But it will most probably not work due to Vercel's limit of 10 sec
     const controller = new AbortController();
-    const timeout = 30000; // Set timeout to 30 seconds (adjust as needed)
+    const timeout = 60000; // Set timeout to 60 seconds (adjust as needed)
 
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
