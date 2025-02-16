@@ -70,7 +70,11 @@ export function WordInput() {
           placeholder="Enter a German word..."
           disabled={isLoading}
         />
-        <button onClick={translate} disabled={isLoading}>
+        <button
+          className={styles.translateButton}
+          onClick={translate}
+          disabled={isLoading}
+        >
           Translate
         </button>
       </div>

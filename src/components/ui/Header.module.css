@@ -3,9 +3,8 @@
     display: flex;
     justify-content: space-between;
     /*align-items: center;*/
-
+    padding: 1rem;
     box-sizing: border-box;
-
 }
 
 
@@ -19,16 +18,16 @@
 
 
 .signInButton {
-    display: flex; /* Optional, for flexible alignment */
-    align-items: start; /* Center button content vertically */
-    padding: 8px 16px; /* Optional padding for the button */
-    /*background-color: #007bff; !* Example background color *!*/
-    color: white; /* Example text color */
-    border: none; /* Remove default border */
-    border-radius: 4px; /* Optional, make the button rounded */
-    cursor: pointer; /* Change cursor to pointer for interactivity */
+    display: flex;
+    align-items: start;
+    padding: 8px 16px;
+
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
 }
 
 .signInButton:hover {
-    background-color: #0056b3; /* Darken button for hover effect */
+    background-color: #0056b3;
 }

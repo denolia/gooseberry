@@ -1,6 +1,5 @@
 .container {
   width: 100%;
-  max-width: 500px;
   margin: 2rem 0;
   padding: 0 1rem;
 }
@@ -27,4 +26,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.translateButton {
+  display: flex;
+  align-items: start;
+  padding: 8px 16px;
+  margin-left: 1rem;
+
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.translateButton:hover {
+  background-color: #0056b3;
 }
