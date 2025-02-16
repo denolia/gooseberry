@@ -3,11 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./WordInput.module.css";
 import ReactMarkdown from "react-markdown";
-import { signIn, signOut, useSession } from "next-auth/react";
 
 export function WordInput() {
-  const { data: session } = useSession();
-
   const [word, setWord] = useState("");
   const [translation, setTranslation] = useState();
   const [isLoading, setIsLoading] = useState(false);
@@ -60,22 +57,9 @@ export function WordInput() {
     }
   };
 
-  if (!session)
-    return (
-      <div>
-        <h1>Please sign in</h1>
-        <button onClick={() => signIn("google")}>Sign in with Google</button>
-      </div>
-    );
-
   return (
     <div className={styles.container}>
       <div className={styles.searchBar}>
-        <div>
-          <h1>Welcome, {session.user?.name}</h1>
-          <button onClick={() => signOut()}>Sign out</button>
-        </div>
-
         <input
           className={styles.input}
           ref={inputRef}

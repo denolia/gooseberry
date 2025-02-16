@@ -1,0 +1,34 @@
+.container {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    /*align-items: center;*/
+
+    box-sizing: border-box;
+
+}
+
+
+
+.logo {
+    font-family: var(--font-sue-ellen);
+    font-size: 64px !important;
+    /*filter: invert();*/
+}
+
+
+
+.signInButton {
+    display: flex; /* Optional, for flexible alignment */
+    align-items: start; /* Center button content vertically */
+    padding: 8px 16px; /* Optional padding for the button */
+    /*background-color: #007bff; !* Example background color *!*/
+    color: white; /* Example text color */
+    border: none; /* Remove default border */
+    border-radius: 4px; /* Optional, make the button rounded */
+    cursor: pointer; /* Change cursor to pointer for interactivity */
+}
+
+.signInButton:hover {
+    background-color: #0056b3; /* Darken button for hover effect */
+}
