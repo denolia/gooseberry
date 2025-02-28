@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 const TranslationDetailsSchema = z.object({
-  article: z.string().nullable(),
-  plural: z.string().nullable(),
-  genitive: z.string().nullable(),
+  article: z.string().optional(),
+  plural: z.string().optional(),
+  genitive: z.string().optional(),
   verb_forms: z
     .object({
       infinitive: z.string(),
@@ -11,7 +11,7 @@ const TranslationDetailsSchema = z.object({
       preterite: z.string(),
       perfect: z.string(),
     })
-    .nullable(),
+    .optional(),
   alternative_translations: z.array(z.string()).optional(),
   common_phrases: z.array(z.string()).optional(),
   idioms: z.array(z.string()).optional(),

@@ -3,6 +3,13 @@ import styles from "./StructuredResponseDisplay.module.css";
 import { TranslationResponse } from "@/app/utils/translationSchema";
 import { useState } from "react";
 
+function hasValue(line: string | undefined): line is string {
+  if (!line || line === "-") {
+    return false;
+  }
+  return true;
+}
+
 export function StructuredResponseDisplay({
   response,
 }: {
@@ -17,62 +24,70 @@ export function StructuredResponseDisplay({
   return (
     <div className={styles.structuredResponse}>
       {/* Header */}
-      <h2>{original}</h2>
+      <h2>
+        {hasValue(details.article) && `${details.article} `} {original}
+      </h2>
       <h3>{translation}</h3>
+
+      {details.alternative_translations &&
+        details.alternative_translations.length > 0 && (
+          <div>{details.alternative_translations.join(", ")}</div>
+        )}
 
       {/* Details Section */}
       {details && (
         <div className={styles.details}>
-          <h4>Details:</h4>
-          <ul>
-            {details.article && <li>Article: {details.article}</li>}
-            {details.plural && <li>Plural: {details.plural}</li>}
-            {details.genitive && <li>Genitive: {details.genitive}</li>}
-            {details.verb_forms && (
-              <li>
-                Verb Forms: {details.verb_forms.infinitive} *{" "}
-                {details.verb_forms.third_person} *{" "}
-                {details.verb_forms.preterite} * {details.verb_forms.perfect}
-              </li>
+          <div>
+            {hasValue(details.plural) && (
+              <span>Plural: {details.plural}, </span>
             )}
-            {details.alternative_translations &&
-              details.alternative_translations.length > 0 && (
+            {hasValue(details.genitive) && (
+              <span>Genitive: {details.genitive}</span>
+            )}
+          </div>
+          {details.usage_frequency && (
+            <div> Frequency: {details.usage_frequency}</div>
+          )}
+
+          {details.stylistic_kind && (
+            <div>Stylistic Kind: {details.stylistic_kind}</div>
+          )}
+
+          <ul>
+            {details.verb_forms &&
+              (hasValue(details.verb_forms.infinitive) ||
+                hasValue(details.verb_forms.third_person) ||
+                hasValue(details.verb_forms.preterite) ||
+                hasValue(details.verb_forms.perfect)) && (
                 <li>
-                  Alternative Translations:{" "}
-                  <ul>
-                    {details.alternative_translations.map((alt, index) => (
-                      <li key={index}>{alt}</li>
-                    ))}
-                  </ul>
+                  Verb Forms: {details.verb_forms.infinitive} *{" "}
+                  {details.verb_forms.third_person} *{" "}
+                  {details.verb_forms.preterite} * {details.verb_forms.perfect}
                 </li>
               )}
+
             {details.common_phrases && details.common_phrases.length > 0 && (
-              <li>
+              <div>
                 Common Phrases:{" "}
                 <ul>
                   {details.common_phrases.map((phrase, index) => (
                     <li key={index}>{phrase}</li>
                   ))}
                 </ul>
-              </li>
+              </div>
             )}
             {details.idioms && details.idioms.length > 0 && (
-              <li>
+              <div>
                 Idioms:{" "}
                 <ul>
                   {details.idioms.map((idiom, index) => (
                     <li key={index}>{idiom}</li>
                   ))}
                 </ul>
-              </li>
+              </div>
             )}
-            {details.usage_frequency && (
-              <li>Usage Frequency: {details.usage_frequency}</li>
-            )}
-            {details.stylistic_kind && (
-              <li>Stylistic Kind: {details.stylistic_kind}</li>
-            )}
-            {details.sentence_analysis && (
+
+            {hasValue(details.sentence_analysis) && (
               <li>Analysis: {details.sentence_analysis}</li>
             )}
           </ul>
