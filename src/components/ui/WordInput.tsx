@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import styles from "./WordInput.module.css";
-import ReactMarkdown from "react-markdown";
+import { StructuredResponseDisplay } from "@/components/ui/StructuredResponseDisplay";
 
 export function WordInput() {
   const [word, setWord] = useState("");
@@ -38,9 +38,7 @@ export function WordInput() {
         body: JSON.stringify({ text: word }),
       });
 
-      const data = await response.json();
-
-      const translation = data["translation"];
+      const translation = await response.json();
       if (translation) {
         setTranslation(translation);
       }
@@ -80,8 +78,7 @@ export function WordInput() {
       </div>
       <div className={styles.translation}>
         {isLoading && <div>Translating...</div>}
-
-        {translation && <ReactMarkdown>{translation}</ReactMarkdown>}
+        {translation && <StructuredResponseDisplay response={translation} />}
       </div>
     </div>
   );
