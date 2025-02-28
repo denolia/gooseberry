@@ -91,10 +91,10 @@ export function StructuredResponseDisplay({
               </div>
             )}
 
-            {hasValue(details.sentence_analysis) && (
+            {hasValue(details.sentence_grammatical_analysis) && (
               <div className={styles.paragraph}>
                 <h4>Analysis:</h4>
-                <div>{details.sentence_analysis}</div>{" "}
+                <div>{details.sentence_grammatical_analysis}</div>{" "}
               </div>
             )}
           </ul>

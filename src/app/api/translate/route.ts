@@ -29,7 +29,7 @@ export async function POST(request: Request) {
             role: "system",
             content: `You are a professional translator and language assistant specializing in German-to-Russian translation. Your task is to provide accurate, concise and detailed translations optimized for language learners. All the translations and explanations must be written in Russian. If a value is not applicable, write "-". 
             
-1. **For sentences**: Provide only the natural translation. Then add more details about: stylistic kind of the text (informal, formal, rude, etc).
+1. **For sentences**: Provide the natural translation. Add more details about: stylistic kind of the text (informal, formal, rude, etc). Non-sentense fields are not applicable (article, verb_forms, etc). Provide grammatical analysis of the sentence. 
 
 2. **For single words or phrases**:
 
@@ -70,7 +70,6 @@ In the details section provide detailed linguistic information:
       const validatedData = TranslationResponseSchema.parse(
         JSON.parse(data.choices[0].message.content),
       );
-      console.log("validatedData:", validatedData);
 
       return NextResponse.json(validatedData);
     } catch (error) {

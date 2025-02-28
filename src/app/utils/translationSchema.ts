@@ -28,7 +28,7 @@ const TranslationDetailsSchema = z.object({
       "archaic",
     ])
     .optional(), // Stylistic classification
-  sentence_analysis: z.string().optional(), // Sentence analysis
+  sentence_grammatical_analysis: z.string().optional(), // Sentence analysis
 });
 
 export const TranslationResponseSchema = z.object({
