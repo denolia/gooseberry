@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { zodResponseFormat } from "openai/helpers/zod";
+import { TranslationResponseSchema } from "@/app/utils/translationSchema";
 
 export const maxDuration = 60; // This function can run for a maximum of 60 seconds
 
@@ -22,39 +24,13 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         model: "gpt-4o",
-        store: true,
         messages: [
           {
             role: "system",
-            content: `
-You are a professional translator and language assistant specializing in German-to-Russian translation.  Your task is to provide accurate, concise and detailed translations optimized for language learners. All the translations and explanations must be written in Russian.
-
+            content: `You are a professional translator and language assistant specializing in German-to-Russian translation. Your task is to provide accurate, concise and detailed translations optimized for language learners. All the translations and explanations must be written in Russian.\n
 1. **For sentences**: Provide only the natural translation. Then add more details about: stylistic kind of the text (informal, formal, rude, etc).
 
-2. **For single words or phrases**, you must follow the following structure:
-* Noun case: 
-   "
-   [der/die/das] [Noun] 
-   [Plural form] [Form in Genitiv] 
-   [translation]
-   ---
-   [then all the rest of the details]
-   "
-* Verb case: 
-   "
-   [infinitive] 
-   [3rd person singular] * [Präteritum] * [Perfect]
-   [translation]
-   ---
-   [then all the rest of the details]
-   "
-* other parts of speech: 
-   [initial form when applicable]
-   [translation]
-   ---
-   [then all the rest of the details]
-
-
+2. **For single words or phrases**:
 
 In the details section provide detailed linguistic information:
    - All possible translations with nuances of meaning.
@@ -64,18 +40,20 @@ In the details section provide detailed linguistic information:
    
 
 3. **Example Sentences**:
-   - Provide **five example sentences** in **German**, each with a **Russian translation**.
+   - Provide **five example sentences** in **German** (sample), each with a **Russian translation** (sample_translation).
    - The examples should illustrate **different meanings, contexts, and grammatical structures** where applicable.
-`,
+            `,
           },
-          {
-            role: "user",
-            content: text,
-          },
+          { role: "user", content: text },
         ],
+        response_format: zodResponseFormat(
+          TranslationResponseSchema,
+          "translation_response",
+        ),
       }),
       signal: controller.signal, // Attach the signal to fetch
     });
+
     // Clear the timeout when request completes
     clearTimeout(timeoutId);
 
@@ -87,10 +65,20 @@ In the details section provide detailed linguistic information:
     }
 
     const data = await response.json();
+    try {
+      const validatedData = TranslationResponseSchema.parse(
+        JSON.parse(data.choices[0].message.content),
+      );
+      console.log("validatedData:", validatedData);
 
-    const translation = data.choices[0].message.content;
-
-    return NextResponse.json({ translation });
+      return NextResponse.json(validatedData);
+    } catch (error) {
+      console.error("Validation error:", error);
+      return NextResponse.json(
+        { error: "Invalid response format" },
+        { status: 500 },
+      );
+    }
   } catch (error) {
     console.error("Translation error:", error);
     return NextResponse.json({ error: "Translation failed" }, { status: 500 });
