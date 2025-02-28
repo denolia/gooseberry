@@ -1,0 +1,27 @@
+.rawResponse {
+    margin-top: 1rem;
+}
+.toggleButton {
+    display: flex;
+    align-items: flex-start;
+    padding: 8px 16px;
+    margin-left: 1rem;
+
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.toggleButton:hover {
+    background-color: #0056b3;
+}
+.rawResponseContent {
+    margin-top: 0.5rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}

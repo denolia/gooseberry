@@ -1,13 +1,17 @@
 "use client";
-import styles from "./WordInput.module.css";
-import ReactMarkdown from "react-markdown";
+import styles from "./StructuredResponseDisplay.module.css";
 import { TranslationResponse } from "@/app/utils/translationSchema";
+import { useState } from "react";
 
 export function StructuredResponseDisplay({
   response,
 }: {
   response: TranslationResponse;
 }) {
+  const [isRawVisible, setIsRawVisible] = useState(false);
+
+  const toggleRawVisibility = () => setIsRawVisible(!isRawVisible);
+
   const { original, translation, details, example_usage } = response;
 
   return (
@@ -90,9 +94,17 @@ export function StructuredResponseDisplay({
       )}
 
       {/* Fallback Raw Response */}
-      {/*{!details && !example_usage && (*/}
-      <ReactMarkdown>{JSON.stringify(response, null, 2)}</ReactMarkdown>
-      {/*)}*/}
+      {/* Collapsible Raw Response */}
+      <div className={styles.rawResponse}>
+        <button onClick={toggleRawVisibility} className={styles.toggleButton}>
+          {isRawVisible ? "Hide Raw Response" : "Show Raw Response"}
+        </button>
+        {isRawVisible && (
+          <div className={styles.rawResponseContent}>
+            <div>{JSON.stringify(response, null, 2)}</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
