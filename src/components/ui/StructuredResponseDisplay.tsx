@@ -45,50 +45,57 @@ export function StructuredResponseDisplay({
               <span>Genitive: {details.genitive}</span>
             )}
           </div>
+
+          <div className={styles.paragraph}>
+            {details.verb_forms &&
+              (hasValue(details.verb_forms.infinitive) ||
+                hasValue(details.verb_forms.third_person) ||
+                hasValue(details.verb_forms.preterite) ||
+                hasValue(details.verb_forms.perfect)) && (
+                <div>
+                  {details.verb_forms.infinitive} *{" "}
+                  {details.verb_forms.third_person} *{" "}
+                  {details.verb_forms.preterite} * {details.verb_forms.perfect}
+                </div>
+              )}
+          </div>
+
           {details.usage_frequency && (
-            <div> Frequency: {details.usage_frequency}</div>
+            <div className={styles.paragraph}>
+              {" "}
+              Frequency: {details.usage_frequency}
+            </div>
           )}
 
           {details.stylistic_kind && (
             <div>Stylistic Kind: {details.stylistic_kind}</div>
           )}
 
-          <ul>
-            {details.verb_forms &&
-              (hasValue(details.verb_forms.infinitive) ||
-                hasValue(details.verb_forms.third_person) ||
-                hasValue(details.verb_forms.preterite) ||
-                hasValue(details.verb_forms.perfect)) && (
-                <li>
-                  Verb Forms: {details.verb_forms.infinitive} *{" "}
-                  {details.verb_forms.third_person} *{" "}
-                  {details.verb_forms.preterite} * {details.verb_forms.perfect}
-                </li>
-              )}
-
+          <ul className={styles.paragraph}>
             {details.common_phrases && details.common_phrases.length > 0 && (
-              <div>
-                Common Phrases:{" "}
-                <ul>
-                  {details.common_phrases.map((phrase, index) => (
-                    <li key={index}>{phrase}</li>
-                  ))}
-                </ul>
+              <div className={styles.paragraph}>
+                <h4>Common Phrases:</h4>
+
+                {details.common_phrases.map((phrase, index) => (
+                  <div key={index}>{phrase}</div>
+                ))}
               </div>
             )}
             {details.idioms && details.idioms.length > 0 && (
-              <div>
-                Idioms:{" "}
-                <ul>
-                  {details.idioms.map((idiom, index) => (
-                    <li key={index}>{idiom}</li>
-                  ))}
-                </ul>
+              <div className={styles.paragraph}>
+                <h4>Idioms:</h4>
+
+                {details.idioms.map((idiom, index) => (
+                  <div key={index}>{idiom}</div>
+                ))}
               </div>
             )}
 
             {hasValue(details.sentence_analysis) && (
-              <li>Analysis: {details.sentence_analysis}</li>
+              <div className={styles.paragraph}>
+                <h4>Analysis:</h4>
+                <div>{details.sentence_analysis}</div>{" "}
+              </div>
             )}
           </ul>
         </div>
@@ -96,15 +103,16 @@ export function StructuredResponseDisplay({
 
       {/* Example Usage Section */}
       {example_usage && (
-        <div className={styles.examples}>
+        <div className={styles.paragraph}>
           <h4>Examples:</h4>
-          <ul>
+          <div>
             {example_usage.map((example, index) => (
-              <li key={index}>
-                <strong>{example.sample}</strong> - {example.sample_translation}
-              </li>
+              <div key={index}>
+                <span className={styles.italic}>{example.sample}</span> -{" "}
+                {example.sample_translation}
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       )}
 

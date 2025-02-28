@@ -25,3 +25,11 @@
     white-space: pre-wrap;
     word-wrap: break-word;
 }
+
+.paragraph {
+    margin-top: 1rem;
+}
+
+.italic {
+    font-style: italic;
+}
