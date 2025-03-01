@@ -19,7 +19,7 @@
 
 .signInButton {
     display: flex;
-    align-items: start;
+    align-items: flex-start;
     padding: 8px 16px;
 
     color: white;
