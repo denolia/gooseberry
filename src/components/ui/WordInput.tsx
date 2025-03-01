@@ -3,13 +3,24 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./WordInput.module.css";
 import { StructuredResponseDisplay } from "@/components/ui/StructuredResponseDisplay";
+import { TranslationResponse } from "@/app/utils/translationSchema";
 
 export function WordInput() {
   const [word, setWord] = useState("");
   const [translation, setTranslation] = useState();
+  const [history, setHistory] = useState<TranslationResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // todo restructure components to have this rerender less often
+  // Load saved history from localStorage on initial load
+  useEffect(() => {
+    const savedHistory = localStorage.getItem("translationHistory");
+    if (savedHistory) {
+      setHistory(JSON.parse(savedHistory));
+    }
+  }, []);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -41,6 +52,7 @@ export function WordInput() {
       const translation = await response.json();
       if (translation) {
         setTranslation(translation);
+        saveToHistory(translation);
       }
     } catch (error) {
       console.error("Translation error:", error);
@@ -53,6 +65,22 @@ export function WordInput() {
     if (e.key === "Enter" && word.trim()) {
       await translate();
     }
+  };
+
+  // Save translation to localStorage and update state
+  const saveToHistory = (entry: TranslationResponse) => {
+    const updatedHistory = [...history, entry];
+    if (updatedHistory.length > 50) {
+      updatedHistory.pop();
+    }
+    setHistory(updatedHistory);
+    localStorage.setItem("translationHistory", JSON.stringify(updatedHistory));
+  };
+
+  // Clear the browser history
+  const clearHistory = () => {
+    localStorage.removeItem("translationHistory");
+    setHistory([]);
   };
 
   return (
@@ -80,6 +108,27 @@ export function WordInput() {
         {isLoading && <div>Translating...</div>}
         {translation && <StructuredResponseDisplay response={translation} />}
       </div>
+      <div className={styles.history}>
+        <h3>Translation History</h3>
+        {history.length === 0 ? (
+          <p>No history available.</p>
+        ) : (
+          <ul>
+            {history.map((entry, index) => (
+              <li key={index}>
+                <div>
+                  {entry.original} - {entry.translation}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {history.length > 0 && (
+        <button onClick={clearHistory} className={styles.clearHistoryButton}>
+          Clear History
+        </button>
+      )}
     </div>
   );
 }

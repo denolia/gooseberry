@@ -22,6 +22,23 @@
   margin: 1rem 2rem;
 }
 
+.history {
+  margin: 1rem 2rem;
+}
+
+/* TODO extract common button style */
+.clearHistoryButton{
+  display: flex;
+  align-items: flex-start;
+  padding: 8px 16px;
+  margin: 1rem 2rem;
+
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
 .searchBar {
   display: flex;
   align-items: center;
