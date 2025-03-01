@@ -5,7 +5,6 @@
     display: flex;
     align-items: flex-start;
     padding: 8px 16px;
-    margin-left: 1rem;
 
     color: white;
     border: none;
@@ -16,7 +15,7 @@
     background-color: #0056b3;
 }
 .rawResponseContent {
-    margin-top: 0.5rem;
+    margin-top: 0.2rem;
     padding: 1rem;
 
     border: 1px solid var(--gray-alpha-200);
