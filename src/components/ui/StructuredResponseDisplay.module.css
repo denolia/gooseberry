@@ -18,8 +18,8 @@
 .rawResponseContent {
     margin-top: 0.5rem;
     padding: 1rem;
-    background-color: #f8f9fa;
-    border: 1px solid #ddd;
+
+    border: 1px solid var(--gray-alpha-200);
     border-radius: 4px;
     font-family: monospace;
     white-space: pre-wrap;
