@@ -69,7 +69,7 @@ export function WordInput() {
 
   // Save translation to localStorage and update state
   const saveToHistory = (entry: TranslationResponse) => {
-    const updatedHistory = [...history, entry];
+    const updatedHistory = [entry, ...history];
     if (updatedHistory.length > 50) {
       updatedHistory.pop();
     }
@@ -109,7 +109,7 @@ export function WordInput() {
         {translation && <StructuredResponseDisplay response={translation} />}
       </div>
       <div className={styles.history}>
-        <h3>Translation History</h3>
+        <h3>Translation History (last 50)</h3>
         {history.length === 0 ? (
           <p>No history available.</p>
         ) : (
