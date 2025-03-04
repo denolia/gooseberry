@@ -3,11 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./WordInput.module.css";
 import { StructuredResponseDisplay } from "@/components/ui/StructuredResponseDisplay";
-import { TranslationResponse } from "@/app/utils/translationSchema";
+import {
+  TranslationResponse,
+  TranslationResponseSchema,
+} from "@/app/utils/translationSchema";
 
 export function WordInput() {
   const [word, setWord] = useState("");
-  const [translation, setTranslation] = useState();
+  const [translation, setTranslation] = useState<TranslationResponse>();
   const [history, setHistory] = useState<TranslationResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -83,6 +86,21 @@ export function WordInput() {
     setHistory([]);
   };
 
+  function loadHistoryItem(entry: TranslationResponse) {
+    try {
+      // Validate if the entry matches the TranslationResponse schema
+      const validEntry = TranslationResponseSchema.parse(entry);
+
+      // If valid, set it as the translation
+      setTranslation(validEntry);
+    } catch (error) {
+      console.error("Invalid entry format:", error);
+      alert(
+        "The selected history item is not in the correct format and cannot be loaded.",
+      );
+    }
+  }
+
   return (
     <div className={styles.container}>
       <div className={styles.searchBar}>
@@ -108,6 +126,7 @@ export function WordInput() {
         {isLoading && <div>Translating...</div>}
         {translation && <StructuredResponseDisplay response={translation} />}
       </div>
+
       <div className={styles.history}>
         <h3>Translation History (last 50)</h3>
         {history.length === 0 ? (
@@ -116,9 +135,15 @@ export function WordInput() {
           <ul>
             {history.map((entry, index) => (
               <li key={index}>
-                <div>
+                <button
+                  className={styles.loadFromHistoryButton}
+                  onClick={() => loadHistoryItem(entry)}
+                >
+                  🔎
+                </button>
+                <span>
                   {entry.original} - {entry.translation}
-                </div>
+                </span>
               </li>
             ))}
           </ul>
