@@ -25,7 +25,10 @@ export function StructuredResponseDisplay({
     <div className={styles.structuredResponse}>
       {/* Header */}
       <h2>
-        {hasValue(details.article) && `${details.article} `} {original}
+        {hasValue(details.article) &&
+          response.type === "noun" &&
+          `${details.article} `}{" "}
+        {original}
       </h2>
       <h3>{translation}</h3>
 
@@ -60,11 +63,9 @@ export function StructuredResponseDisplay({
               )}
           </div>
 
+          <div className={styles.paragraph}>Type: {response.type}</div>
           {details.usage_frequency && (
-            <div className={styles.paragraph}>
-              {" "}
-              Frequency: {details.usage_frequency}
-            </div>
+            <div> Frequency: {details.usage_frequency}</div>
           )}
 
           {details.stylistic_kind && <div>Style: {details.stylistic_kind}</div>}
