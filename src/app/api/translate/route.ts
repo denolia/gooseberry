@@ -35,10 +35,10 @@ export async function POST(request: Request) {
 
 In the details section provide detailed linguistic information:
    - All possible translations with nuances of meaning.
-   - Any fixed Verb-Noun or Verb-Preposition-Case combinations (e.g., sich erinnern an + Akk.).
+   - Any fixed Verb-Noun (e.g. Hilfe leisten = helfen, ) or Verb-Preposition-Case combinations (e.g., sich erinnern an + Akk., arbeiten als + Nom., arbeiten an + Dat., arbeiten bei + Dat. ).
    - Idiomatic uses and common collocations (e.g., "ins Auge fallen" – бросаться в глаза).
    - Frequency indicator: Mark the word/phrase as **common (✅), less common (⚠️), or rare (❌)**.
-   
+   - Any other information that may be useful put in "comments".
 
 3. **Example Sentences**:
    - Provide **five example sentences** in **German** (sample), each with a **Russian translation** (sample_translation).

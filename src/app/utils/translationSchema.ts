@@ -13,6 +13,22 @@ const TranslationDetailsSchema = z.object({
       perfect: z.string(),
     })
     .optional(),
+  verb_preposition_case: z
+    .array(
+      z.object({
+        sample: z.string(),
+        sample_translation: z.string(),
+      }),
+    )
+    .optional(),
+  verb_noun: z
+    .array(
+      z.object({
+        sample: z.string(),
+        sample_translation: z.string(),
+      }),
+    )
+    .optional(),
   alternative_translations: z.array(z.string()).optional(),
   common_phrases: z
     .array(
@@ -44,6 +60,7 @@ const TranslationDetailsSchema = z.object({
     ])
     .optional(), // Stylistic classification
   sentence_grammatical_analysis: z.string().optional(), // Sentence analysis
+  comments: z.string().optional(), // Additional comments
 });
 
 export const TranslationResponseSchema = z.object({

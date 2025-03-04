@@ -69,8 +69,32 @@ export function StructuredResponseDisplay({
           )}
 
           {details.stylistic_kind && <div>Style: {details.stylistic_kind}</div>}
+          {details.comments && <div>Comments: {details.comments}</div>}
 
-          <ul className={styles.paragraph}>
+          <div className={styles.paragraph}>
+            {details.verb_preposition_case &&
+              details.verb_preposition_case.length > 0 && (
+                <div className={styles.paragraph}>
+                  <h4>Verb + Prep + Case:</h4>
+
+                  {details.verb_preposition_case.map((phrase, index) => (
+                    <div key={index}>
+                      {phrase.sample} - {phrase.sample_translation}
+                    </div>
+                  ))}
+                </div>
+              )}
+            {details.verb_noun && details.verb_noun.length > 0 && (
+              <div className={styles.paragraph}>
+                <h4>Verb + Noun:</h4>
+
+                {details.verb_noun.map((phrase, index) => (
+                  <div key={index}>
+                    {phrase.sample} - {phrase.sample_translation}
+                  </div>
+                ))}
+              </div>
+            )}
             {details.common_phrases && details.common_phrases.length > 0 && (
               <div className={styles.paragraph}>
                 <h4>Common Phrases:</h4>
@@ -100,7 +124,7 @@ export function StructuredResponseDisplay({
                 <div>{details.sentence_grammatical_analysis}</div>{" "}
               </div>
             )}
-          </ul>
+          </div>
         </div>
       )}
 
