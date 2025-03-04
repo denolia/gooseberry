@@ -66,6 +66,9 @@
   border-radius: 4px;
   cursor: pointer;
 }
+.clearHistoryButton:hover {
+  background: var(--button-secondary-hover);
+}
 
 .searchBar {
   display: flex;
