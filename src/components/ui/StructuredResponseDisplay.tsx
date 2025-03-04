@@ -67,9 +67,7 @@ export function StructuredResponseDisplay({
             </div>
           )}
 
-          {details.stylistic_kind && (
-            <div>Stylistic Kind: {details.stylistic_kind}</div>
-          )}
+          {details.stylistic_kind && <div>Style: {details.stylistic_kind}</div>}
 
           <ul className={styles.paragraph}>
             {details.common_phrases && details.common_phrases.length > 0 && (
@@ -77,7 +75,9 @@ export function StructuredResponseDisplay({
                 <h4>Common Phrases:</h4>
 
                 {details.common_phrases.map((phrase, index) => (
-                  <div key={index}>{phrase}</div>
+                  <div key={index}>
+                    {phrase.sample} - {phrase.sample_translation}
+                  </div>
                 ))}
               </div>
             )}
@@ -86,7 +86,9 @@ export function StructuredResponseDisplay({
                 <h4>Idioms:</h4>
 
                 {details.idioms.map((idiom, index) => (
-                  <div key={index}>{idiom}</div>
+                  <div key={index}>
+                    {idiom.sample} - {idiom.sample_translation}
+                  </div>
                 ))}
               </div>
             )}

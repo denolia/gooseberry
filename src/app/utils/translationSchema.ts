@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const TranslationDetailsSchema = z.object({
   article: z.string().optional(),
+
   plural: z.string().optional(),
   genitive: z.string().optional(),
   verb_forms: z
@@ -13,8 +14,22 @@ const TranslationDetailsSchema = z.object({
     })
     .optional(),
   alternative_translations: z.array(z.string()).optional(),
-  common_phrases: z.array(z.string()).optional(),
-  idioms: z.array(z.string()).optional(),
+  common_phrases: z
+    .array(
+      z.object({
+        sample: z.string(),
+        sample_translation: z.string(),
+      }),
+    )
+    .optional(),
+  idioms: z
+    .array(
+      z.object({
+        sample: z.string(),
+        sample_translation: z.string(),
+      }),
+    )
+    .optional(),
   usage_frequency: z.enum(["✅", "⚠️", "❌"]).optional(),
 
   stylistic_kind: z
@@ -33,6 +48,9 @@ const TranslationDetailsSchema = z.object({
 
 export const TranslationResponseSchema = z.object({
   original: z.string(), // The original German sentence
+  type: z
+    .enum(["noun", "verb", "adjective", "adverb", "sentence", "other"])
+    .optional(),
   translation: z.string(), // The natural Russian translation
   details: TranslationDetailsSchema,
   example_usage: z
