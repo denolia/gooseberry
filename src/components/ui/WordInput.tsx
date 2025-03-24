@@ -13,7 +13,7 @@ export function WordInput() {
   const [translation, setTranslation] = useState<TranslationResponse>();
   const [history, setHistory] = useState<TranslationResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showSpecialChars, setShowSpecialChars] = useState(true);
+  const [showSpecialChars, setShowSpecialChars] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
