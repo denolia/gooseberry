@@ -41,6 +41,14 @@ export function WordInput() {
     setWord(e.target.value);
   };
 
+  const insertSpecialChar = (char: string) => {
+    setWord(prevWord => prevWord + char);
+    // Focus the input field after inserting the character
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
   async function translate() {
     setIsLoading(true);
     try {
@@ -103,6 +111,17 @@ export function WordInput() {
 
   return (
     <div className={styles.container}>
+      <div className={styles.specialCharsContainer}>
+        {['ß', 'ä', 'ü', 'ö', 'Ä', 'Ü', 'Ö'].map((char) => (
+          <button 
+            key={char} 
+            className={styles.specialCharButton} 
+            onClick={() => insertSpecialChar(char)}
+          >
+            {char}
+          </button>
+        ))}
+      </div>
       <div className={styles.searchBar}>
         <input
           className={styles.input}
