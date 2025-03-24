@@ -94,7 +94,7 @@
 
 .specialCharsContainer {
   display: flex;
-  justify-content: start;
+  justify-content: flex-start;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
   overflow: hidden; /* Ensure overflow is hidden for animation */
