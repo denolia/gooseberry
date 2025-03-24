@@ -13,6 +13,7 @@ export function WordInput() {
   const [translation, setTranslation] = useState<TranslationResponse>();
   const [history, setHistory] = useState<TranslationResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showSpecialChars, setShowSpecialChars] = useState(true);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -42,7 +43,7 @@ export function WordInput() {
   };
 
   const insertSpecialChar = (char: string) => {
-    setWord(prevWord => prevWord + char);
+    setWord((prevWord) => prevWord + char);
     // Focus the input field after inserting the character
     if (inputRef.current) {
       inputRef.current.focus();
@@ -112,15 +113,25 @@ export function WordInput() {
   return (
     <div className={styles.container}>
       <div className={styles.specialCharsContainer}>
-        {['ß', 'ä', 'ü', 'ö', 'Ä', 'Ü', 'Ö'].map((char) => (
-          <button 
-            key={char} 
-            className={styles.specialCharButton} 
-            onClick={() => insertSpecialChar(char)}
-          >
-            {char}
-          </button>
-        ))}
+        <div
+          className={styles.specialCharToggle}
+          onClick={() => setShowSpecialChars(!showSpecialChars)}
+        >
+          Ä
+        </div>
+        <div
+          className={`${styles.specialCharsWrapper} ${showSpecialChars ? styles.visible : ""}`}
+        >
+          {["ß", "ä", "ü", "ö", "Ä", "Ü", "Ö"].map((char) => (
+            <button
+              key={char}
+              className={styles.specialCharButton}
+              onClick={() => insertSpecialChar(char)}
+            >
+              {char}
+            </button>
+          ))}
+        </div>
       </div>
       <div className={styles.searchBar}>
         <input
