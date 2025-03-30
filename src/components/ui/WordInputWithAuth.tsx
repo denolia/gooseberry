@@ -6,7 +6,7 @@ import styles from "./WordInputWithAuth.module.css";
 
 export function WordInputWithAuth() {
   const { data: session, status } = useSession();
-  console.log("AuthenticatedWordInput: session", session, "status", status);
+
   // Don't show the sign-in message during loading
   if (status === "loading") {
     return <div className={styles.loadingState}></div>;
