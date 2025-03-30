@@ -1,0 +1,15 @@
+
+.authMessage {
+    text-align: center;
+    padding: 2rem;
+    margin: 2rem 1rem;
+    background-color: var(--gray-alpha-100);
+    border-radius: 8px;
+    font-size: 1.2rem;
+    color: var(--foreground);
+}
+
+.loadingState {
+    margin: 2rem 0;
+    height: 6rem; /* Approximately the same height as authMessage */
+}
