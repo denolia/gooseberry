@@ -1,26 +1,30 @@
 import { NextResponse } from "next/server";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { TranslationResponseSchema } from "@/app/utils/translationSchema";
+import { auth } from "@/auth";
 
 export const maxDuration = 60; // This function can run for a maximum of 60 seconds
+const timeoutMs = 60000; // timeout for the request in milliseconds
 
 export async function POST(request: Request) {
+  // Check if the user is authenticated
+  const session = await auth();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const { text } = await request.json();
 
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    // AbortController is needed for a custom timeout. But it will most probably not work due to Vercel's limit of 10 sec
+    // AbortController is needed for a custom timeout.
     const controller = new AbortController();
-    const timeout = 60000; // Set timeout to 60 seconds (adjust as needed)
 
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
         model: "gpt-4o",
@@ -28,7 +32,7 @@ export async function POST(request: Request) {
           {
             role: "system",
             content: `You are a professional translator and language assistant specializing in German-to-Russian translation. Your task is to provide accurate, concise and detailed translations optimized for language learners. All the translations and explanations must be written in Russian. If a value is not applicable, write "-". Put grammatically corrected text into the "origin" field, fix cases and punctuation. 
-                        
+
 1. **For sentences**: Provide the natural translation. Add more details about: stylistic kind of the text (informal, formal, rude, etc). Non-sentense fields are not applicable (article, verb_forms, etc). Provide grammatical analysis of the sentence. 
 
 2. **For single words or phrases**:

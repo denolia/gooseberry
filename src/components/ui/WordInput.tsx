@@ -13,6 +13,7 @@ export function WordInput() {
   const [translation, setTranslation] = useState<TranslationResponse>();
   const [history, setHistory] = useState<TranslationResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const [showSpecialChars, setShowSpecialChars] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,6 +52,7 @@ export function WordInput() {
   };
 
   async function translate() {
+    setError("");
     setIsLoading(true);
     try {
       const response = await fetch("/api/translate", {
@@ -62,7 +64,9 @@ export function WordInput() {
       });
 
       const translation = await response.json();
-      if (translation) {
+      if (translation.error) {
+        setError(translation.error);
+      } else if (translation) {
         setTranslation(translation);
         saveToHistory(translation);
       }
@@ -96,6 +100,7 @@ export function WordInput() {
   };
 
   function loadHistoryItem(entry: TranslationResponse) {
+    setError("");
     try {
       // Validate if the entry matches the TranslationResponse schema
       const validEntry = TranslationResponseSchema.parse(entry);
@@ -154,6 +159,7 @@ export function WordInput() {
       </div>
       <div className={styles.translation}>
         {isLoading && <div>Translating...</div>}
+        {error && <div>Error: {error}</div>}
         {translation && <StructuredResponseDisplay response={translation} />}
       </div>
 
