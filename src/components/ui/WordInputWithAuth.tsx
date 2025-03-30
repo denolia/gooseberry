@@ -5,7 +5,7 @@ import { WordInput } from "@/components/ui/WordInput";
 import styles from "./WordInputWithAuth.module.css";
 
 export function WordInputWithAuth() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
 
   // Don't show the sign-in message during loading
   if (status === "loading") {
