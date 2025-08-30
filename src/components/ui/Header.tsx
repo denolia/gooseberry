@@ -3,16 +3,25 @@ import styles from "./Header.module.css";
 import { signIn, signOut, useSession } from "next-auth/react";
 
 import { useEffect, useState } from "react";
-import { Language, LanguageOptions, Languages } from "@/components/ui/Languages";
+import {
+  Language,
+  LanguageCodes,
+  LanguageOptions,
+  Languages,
+} from "@/components/ui/Languages";
 
 export function Header() {
   const { data: session } = useSession();
-  const [currentLanguage, setCurrentLanguage] = useState<Language>(Languages.German);
-  const [showLanguage, setShowLanguage] = useState<boolean>(true);
+  const [currentLanguage, setCurrentLanguage] = useState<Language>(
+    Languages.German,
+  );
+  const [showLanguage, setShowLanguage] = useState<boolean>(false);
 
   useEffect(() => {
     try {
-      const savedLang = localStorage.getItem("currentLanguage") as Language | null;
+      const savedLang = localStorage.getItem(
+        "currentLanguage",
+      ) as Language | null;
       if (savedLang && Languages[savedLang]) {
         setCurrentLanguage(savedLang);
       }
@@ -24,7 +33,12 @@ export function Header() {
     try {
       localStorage.setItem("currentLanguage", value);
       // Notify other tabs/components (like WordInput) via storage event
-      window.dispatchEvent(new StorageEvent("storage", { key: "currentLanguage", newValue: value }));
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "currentLanguage",
+          newValue: value,
+        }),
+      );
     } catch (e) {
       console.error("Failed to save language to localStorage ", e);
     }
@@ -40,8 +54,16 @@ export function Header() {
               Sign out
             </button>
             <div className={`${styles.languageRow}`}>
-              <div className={`${styles.languageTray} ${showLanguage ? styles.visible : ""}`} aria-hidden={!showLanguage}>
-                <label className={styles.languageLabel} htmlFor="header-language-select">Language:</label>
+              <div
+                className={`${styles.languageTray} ${showLanguage ? styles.visible : ""}`}
+                aria-hidden={!showLanguage}
+              >
+                <label
+                  className={styles.languageLabel}
+                  htmlFor="header-language-select"
+                >
+                  Language:
+                </label>
                 <select
                   id="header-language-select"
                   className={styles.languageSelect}
@@ -63,7 +85,7 @@ export function Header() {
                 aria-controls="header-language-select"
                 title="Show/Hide language selector"
               >
-                文A
+                {LanguageCodes[currentLanguage] || currentLanguage}
               </button>
             </div>
           </>
