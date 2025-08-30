@@ -8,6 +8,7 @@ import { Language, LanguageOptions, Languages } from "@/components/ui/Languages"
 export function Header() {
   const { data: session } = useSession();
   const [currentLanguage, setCurrentLanguage] = useState<Language>(Languages.German);
+  const [showLanguage, setShowLanguage] = useState<boolean>(true);
 
   useEffect(() => {
     try {
@@ -38,20 +39,32 @@ export function Header() {
             <button className={styles.signInButton} onClick={() => signOut()}>
               Sign out
             </button>
-            <div className={styles.languageBlock}>
-              <label className={styles.languageLabel} htmlFor="header-language-select">Language:</label>
-              <select
-                id="header-language-select"
-                className={styles.languageSelect}
-                value={currentLanguage}
-                onChange={(e) => onChangeLanguage(e.target.value as Language)}
+            <div className={`${styles.languageRow}`}>
+              <div className={`${styles.languageTray} ${showLanguage ? styles.visible : ""}`} aria-hidden={!showLanguage}>
+                <label className={styles.languageLabel} htmlFor="header-language-select">Language:</label>
+                <select
+                  id="header-language-select"
+                  className={styles.languageSelect}
+                  value={currentLanguage}
+                  onChange={(e) => onChangeLanguage(e.target.value as Language)}
+                  tabIndex={showLanguage ? 0 : -1}
+                >
+                  {LanguageOptions.map((lang) => (
+                    <option key={lang} value={lang}>
+                      {lang}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                className={styles.langToggleButton}
+                onClick={() => setShowLanguage((v) => !v)}
+                aria-expanded={showLanguage}
+                aria-controls="header-language-select"
+                title="Show/Hide language selector"
               >
-                {LanguageOptions.map((lang) => (
-                  <option key={lang} value={lang}>
-                    {lang}
-                  </option>
-                ))}
-              </select>
+                文A
+              </button>
             </div>
           </>
         )}

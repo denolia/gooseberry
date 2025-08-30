@@ -12,6 +12,43 @@
     align-items: flex-end;
 }
 
+.languageRow {
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    justify-content: flex-end; /* align to the right */
+}
+
+/* Collapsible tray that expands from right to left */
+.languageTray {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-width 0.5s ease, opacity 0.3s ease;
+}
+.languageTray.visible {
+    max-width: 500px; /* enough to reveal label and select */
+    opacity: 1;
+}
+
+.langToggleButton {
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+    color: var(--foreground);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.2s;
+}
+.langToggleButton:hover {
+    background: var(--button-secondary-hover);
+    transform: scale(1.05);
+}
+
 .logo {
     font-family: var(--font-sue-ellen);
     font-size: 64px !important;
