@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const { text } = await request.json();
+    const { text, language } = await request.json();
 
     // AbortController is needed for a custom timeout.
     const controller = new AbortController();
@@ -31,7 +31,42 @@ export async function POST(request: Request) {
         messages: [
           {
             role: "system",
-            content: `You are a professional translator and language assistant specializing in German-to-Russian translation. Your task is to provide accurate, concise and detailed translations optimized for language learners. All the translations and explanations must be written in Russian. If a value is not applicable, write "-". Put grammatically corrected text into the "origin" field, fix cases and punctuation. 
+            content: (() => {
+              const lang = (language as string) || "German";
+              switch (lang) {
+                case "English":
+                  // TODO: Replace with a dedicated English->Russian learner-optimized prompt
+                  return `You are a professional translator and language assistant specializing in English-to-Russian translation. Your task is to provide accurate, concise and detailed translations optimized for language learners. All the translations and explanations must be written in Russian. If a value is not applicable, write "-". Put grammatically corrected text into the "origin" field, fix cases and punctuation. 
+
+1. For sentences: Provide the natural translation. Add more details about: stylistic kind of the text (informal, formal, rude, etc). Non-sentence fields are not applicable (article, verb_forms, etc). Provide grammatical analysis of the sentence.
+
+2. For single words or phrases:
+   - All possible translations with nuances of meaning.
+   - Idiomatic uses and common collocations.
+   - Frequency indicator: Mark the word/phrase as common (✅), less common (⚠️), or rare (❌).
+   - Any other information that may be useful put in "comments".
+
+3. Example Sentences:
+   - Provide five example sentences in English (sample), each with a Russian translation (sample_translation).
+   - The examples should illustrate different meanings, contexts, and grammatical structures where applicable.`;
+                case "Norwegian":
+                  // TODO: Replace with a dedicated Norwegian->Russian learner-optimized prompt
+                  return `You are a professional translator and language assistant specializing in Norwegian-to-Russian translation. Your task is to provide accurate, concise and detailed translations optimized for language learners. All the translations and explanations must be written in Russian. If a value is not applicable, write "-". Put grammatically corrected text into the "origin" field, fix cases and punctuation. 
+
+1. For sentences: Provide the natural translation. Add more details about: stylistic kind of the text (informal, formal, rude, etc). Non-sentence fields are not applicable (article, verb_forms, etc). Provide grammatical analysis of the sentence.
+
+2. For single words or phrases:
+   - All possible translations with nuances of meaning.
+   - Idiomatic uses and common collocations.
+   - Frequency indicator: Mark the word/phrase as common (✅), less common (⚠️), or rare (❌).
+   - Any other information that may be useful put in "comments".
+
+3. Example Sentences:
+   - Provide five example sentences in Norwegian (sample), each with a Russian translation (sample_translation).
+   - The examples should illustrate different meanings, contexts, and grammatical structures where applicable.`;
+                case "German":
+                default:
+                  return `You are a professional translator and language assistant specializing in German-to-Russian translation. Your task is to provide accurate, concise and detailed translations optimized for language learners. All the translations and explanations must be written in Russian. If a value is not applicable, write "-". Put grammatically corrected text into the "origin" field, fix cases and punctuation. 
 
 1. **For sentences**: Provide the natural translation. Add more details about: stylistic kind of the text (informal, formal, rude, etc). Non-sentense fields are not applicable (article, verb_forms, etc). Provide grammatical analysis of the sentence. 
 
@@ -46,8 +81,9 @@ In the details section provide detailed linguistic information:
 
 3. **Example Sentences**:
    - Provide **five example sentences** in **German** (sample), each with a **Russian translation** (sample_translation).
-   - The examples should illustrate **different meanings, contexts, and grammatical structures** where applicable.
-            `,
+   - The examples should illustrate **different meanings, contexts, and grammatical structures** where applicable.`;
+              }
+            })(),
           },
           { role: "user", content: text },
         ],

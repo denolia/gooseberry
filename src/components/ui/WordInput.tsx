@@ -15,6 +15,7 @@ export function WordInput() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showSpecialChars, setShowSpecialChars] = useState(false);
+  const [currentLanguage, setCurrentLanguage] = useState<"German" | "Norwegian" | "English">("German");
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -24,6 +25,10 @@ export function WordInput() {
     const savedHistory = localStorage.getItem("translationHistory");
     if (savedHistory) {
       setHistory(JSON.parse(savedHistory));
+    }
+    const savedLang = localStorage.getItem("currentLanguage");
+    if (savedLang === "German" || savedLang === "Norwegian" || savedLang === "English") {
+      setCurrentLanguage(savedLang);
     }
   }, []);
 
@@ -60,7 +65,7 @@ export function WordInput() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ text: word }),
+        body: JSON.stringify({ text: word, language: currentLanguage }),
       });
 
       const translation = await response.json();
@@ -117,25 +122,45 @@ export function WordInput() {
 
   return (
     <div className={styles.container}>
-      <div className={styles.specialCharsContainer}>
-        <div
-          className={styles.specialCharToggle}
-          onClick={() => setShowSpecialChars(!showSpecialChars)}
+      <div className={styles.settingsBar}>
+        <label className={styles.languageLabel} htmlFor="language-select">Language:</label>
+        <select
+          id="language-select"
+          className={styles.languageSelect}
+          value={currentLanguage}
+          onChange={(e) => {
+            const value = e.target.value as "German" | "Norwegian" | "English";
+            setCurrentLanguage(value);
+            try {
+              localStorage.setItem("currentLanguage", value);
+            } catch {}
+          }}
+          disabled={isLoading}
         >
-          Ä
-        </div>
-        <div
-          className={`${styles.specialCharsWrapper} ${showSpecialChars ? styles.visible : ""}`}
-        >
-          {["ß", "ä", "ü", "ö", "Ä", "Ü", "Ö"].map((char) => (
-            <button
-              key={char}
-              className={styles.specialCharButton}
-              onClick={() => insertSpecialChar(char)}
-            >
-              {char}
-            </button>
-          ))}
+          <option value="German">German</option>
+          <option value="Norwegian">Norwegian</option>
+          <option value="English">English</option>
+        </select>
+        <div className={styles.specialCharsContainer}>
+          <div
+            className={styles.specialCharToggle}
+            onClick={() => setShowSpecialChars(!showSpecialChars)}
+          >
+            Ä
+          </div>
+          <div
+            className={`${styles.specialCharsWrapper} ${showSpecialChars ? styles.visible : ""}`}
+          >
+            {["ß", "ä", "ü", "ö", "Ä", "Ü", "Ö"].map((char) => (
+              <button
+                key={char}
+                className={styles.specialCharButton}
+                onClick={() => insertSpecialChar(char)}
+              >
+                {char}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <div className={styles.searchBar}>
@@ -146,7 +171,7 @@ export function WordInput() {
           value={word}
           onChange={handleInputChange}
           onKeyUp={handleKeyUp}
-          placeholder="Enter a German word..."
+          placeholder={`Enter a ${currentLanguage} word...`}
           disabled={isLoading}
         />
         <button
