@@ -7,11 +7,7 @@ import {
   TranslationResponse,
   TranslationResponseSchema,
 } from "@/app/utils/translationSchema";
-import {
-  Language,
-  LanguageOptions,
-  Languages,
-} from "@/components/ui/Languages";
+import { Language, Languages } from "@/components/ui/Languages";
 
 export function WordInput() {
   const [word, setWord] = useState("");
@@ -39,6 +35,20 @@ export function WordInput() {
     if (savedLang && Languages[savedLang]) {
       setCurrentLanguage(savedLang);
     }
+  }, []);
+
+  // Listen for language changes from Header (via storage event)
+  useEffect(() => {
+    const handler = (e: StorageEvent) => {
+      if (e.key === "currentLanguage") {
+        const value = (e.newValue as Language) || Languages.German;
+        if (value && Languages[value]) {
+          setCurrentLanguage(value);
+        }
+      }
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
   }, []);
 
   useEffect(() => {
@@ -131,53 +141,25 @@ export function WordInput() {
 
   return (
     <div className={styles.container}>
-      <div className={styles.settingsBar}>
-        <label className={styles.languageLabel} htmlFor="language-select">
-          Language:
-        </label>
-        <select
-          id="language-select"
-          className={styles.languageSelect}
-          value={currentLanguage}
-          onChange={(e) => {
-            const value = e.target.value as Language;
-            setCurrentLanguage(value);
-            try {
-              localStorage.setItem("currentLanguage", value);
-            } catch (e: unknown) {
-              console.error("Failed to save language to localStorage ", e);
-            }
-          }}
-          disabled={isLoading}
+      <div className={styles.specialCharsContainer}>
+        <div
+          className={styles.specialCharToggle}
+          onClick={() => setShowSpecialChars(!showSpecialChars)}
         >
-          {LanguageOptions.map((lang) => {
-            return (
-              <option key={lang} value={lang}>
-                {lang}
-              </option>
-            );
-          })}
-        </select>
-        <div className={styles.specialCharsContainer}>
-          <div
-            className={styles.specialCharToggle}
-            onClick={() => setShowSpecialChars(!showSpecialChars)}
-          >
-            Ä
-          </div>
-          <div
-            className={`${styles.specialCharsWrapper} ${showSpecialChars ? styles.visible : ""}`}
-          >
-            {["ß", "ä", "ü", "ö", "Ä", "Ü", "Ö"].map((char) => (
-              <button
-                key={char}
-                className={styles.specialCharButton}
-                onClick={() => insertSpecialChar(char)}
-              >
-                {char}
-              </button>
-            ))}
-          </div>
+          Ä
+        </div>
+        <div
+          className={`${styles.specialCharsWrapper} ${showSpecialChars ? styles.visible : ""}`}
+        >
+          {["ß", "ä", "ü", "ö", "Ä", "Ü", "Ö"].map((char) => (
+            <button
+              key={char}
+              className={styles.specialCharButton}
+              onClick={() => insertSpecialChar(char)}
+            >
+              {char}
+            </button>
+          ))}
         </div>
       </div>
       <div className={styles.searchBar}>
