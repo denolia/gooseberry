@@ -121,7 +121,9 @@ export function StructuredResponseDisplay({
             {hasValue(details.sentence_grammatical_analysis) && (
               <div className={styles.paragraph}>
                 <h4>Analysis:</h4>
-                <div>{details.sentence_grammatical_analysis}</div>{" "}
+                <div className={styles.rawResponseContent}>
+                  <div>{details.sentence_grammatical_analysis}</div>
+                </div>
               </div>
             )}
           </div>
