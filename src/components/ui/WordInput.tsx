@@ -7,6 +7,11 @@ import {
   TranslationResponse,
   TranslationResponseSchema,
 } from "@/app/utils/translationSchema";
+import {
+  Language,
+  LanguageOptions,
+  Languages,
+} from "@/components/ui/Languages";
 
 export function WordInput() {
   const [word, setWord] = useState("");
@@ -15,7 +20,9 @@ export function WordInput() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showSpecialChars, setShowSpecialChars] = useState(false);
-  const [currentLanguage, setCurrentLanguage] = useState<"German" | "Norwegian" | "English">("German");
+  const [currentLanguage, setCurrentLanguage] = useState<Language>(
+    Languages.German,
+  );
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -26,8 +33,10 @@ export function WordInput() {
     if (savedHistory) {
       setHistory(JSON.parse(savedHistory));
     }
-    const savedLang = localStorage.getItem("currentLanguage");
-    if (savedLang === "German" || savedLang === "Norwegian" || savedLang === "English") {
+    const savedLang = localStorage.getItem("currentLanguage") as
+      | Language
+      | undefined;
+    if (savedLang && Languages[savedLang]) {
       setCurrentLanguage(savedLang);
     }
   }, []);
@@ -123,23 +132,31 @@ export function WordInput() {
   return (
     <div className={styles.container}>
       <div className={styles.settingsBar}>
-        <label className={styles.languageLabel} htmlFor="language-select">Language:</label>
+        <label className={styles.languageLabel} htmlFor="language-select">
+          Language:
+        </label>
         <select
           id="language-select"
           className={styles.languageSelect}
           value={currentLanguage}
           onChange={(e) => {
-            const value = e.target.value as "German" | "Norwegian" | "English";
+            const value = e.target.value as Language;
             setCurrentLanguage(value);
             try {
               localStorage.setItem("currentLanguage", value);
-            } catch {}
+            } catch (e: unknown) {
+              console.error("Failed to save language to localStorage ", e);
+            }
           }}
           disabled={isLoading}
         >
-          <option value="German">German</option>
-          <option value="Norwegian">Norwegian</option>
-          <option value="English">English</option>
+          {LanguageOptions.map((lang) => {
+            return (
+              <option key={lang} value={lang}>
+                {lang}
+              </option>
+            );
+          })}
         </select>
         <div className={styles.specialCharsContainer}>
           <div
