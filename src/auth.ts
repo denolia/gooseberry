@@ -4,4 +4,5 @@ import Google from "next-auth/providers/google";
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [Google],
   // debug: process.env.NODE_ENV === "development", // debug
+  // bump deployment with new secret
 });
