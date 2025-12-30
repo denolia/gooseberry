@@ -41,3 +41,9 @@ next-env.d.ts
 
 client_secret_*.apps.googleusercontent.com.json
 expired_client_secret_*.apps.googleusercontent.com.json
+.env*.local
+
+# db related
+.idea/dataSources*
+.idea/data_source_mapping.xml
+/migrations/meta/*
