@@ -10,7 +10,7 @@ const timeoutMs = 60000; // timeout for the request in milliseconds
 export async function POST(request: Request) {
   // Check if the user is authenticated
   const session = await auth();
-  if (!session) {
+  if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
