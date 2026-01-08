@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     if (!Array.isArray(translations)) {
       return NextResponse.json(
         { error: "Invalid request format" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
           session.user.id,
           translation.original,
           "en",
-          "de"
+          "de",
         );
 
         if (!exists) {
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
             targetLang: "de",
             inputText: translation.original,
             responseJson: translation,
-            model: "gpt-4o",
+            model: translation.model ?? "gpt-4o",
             promptVersion: undefined,
           });
           results.success++;
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     console.error("Error syncing history:", error);
     return NextResponse.json(
       { error: "Failed to sync history" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

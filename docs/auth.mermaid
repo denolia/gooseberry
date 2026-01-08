@@ -1,0 +1,79 @@
+sequenceDiagram
+    participant User
+    participant Browser
+    participant NextAuth
+    participant Google
+    participant JWT Token
+    participant Database
+    participant API Routes
+
+    Note over User,API Routes: 1. SIGN IN FLOW
+
+    User->>Browser: Click "Sign In"
+    Browser->>NextAuth: signIn("google")
+    NextAuth->>Google: OAuth redirect
+    Google->>User: Show consent screen
+    User->>Google: Approve access
+    Google->>NextAuth: Return user profile + providerAccountId
+
+    Note over NextAuth,Database: 2. SIGN IN CALLBACK
+
+    NextAuth->>Database: upsertUser({<br/>  provider: "google",<br/>  providerUserId: providerAccountId,<br/>  email, name, imageUrl<br/>})
+    Database->>Database: INSERT or UPDATE app_user<br/>ON CONFLICT (provider, providerUserId)
+    Database-->>NextAuth: Returns internal user UUID
+
+    Note over NextAuth,JWT Token: 3. JWT CALLBACK
+
+    NextAuth->>JWT Token: jwt callback triggered
+    JWT Token->>JWT Token: Store providerAccountId in token<br/>token.providerAccountId = providerAccountId
+    JWT Token-->>NextAuth: Token with providerAccountId
+
+    Note over NextAuth,Database: 4. SESSION CALLBACK
+
+    NextAuth->>Database: getUserIdByProviderUserId(<br/>  "google",<br/>  token.providerAccountId<br/>)
+    Database->>Database: SELECT id FROM app_user<br/>WHERE provider = "google"<br/>AND provider_user_id = providerAccountId
+    Database-->>NextAuth: Returns internal UUID
+    NextAuth->>NextAuth: Attach to session:<br/>session.user.id = UUID
+    NextAuth-->>Browser: Session with internal UUID
+
+    Note over Browser,API Routes: 5. AUTHENTICATED REQUESTS
+
+    Browser->>API Routes: POST /api/translate<br/>(session cookie sent automatically)
+    API Routes->>NextAuth: await auth()
+    NextAuth->>JWT Token: Verify & decode token
+    JWT Token-->>NextAuth: token.providerAccountId
+    NextAuth->>Database: Lookup internal UUID
+    Database-->>NextAuth: Returns UUID
+    NextAuth-->>API Routes: session.user.id = UUID
+
+    API Routes->>Database: insertTranslation({<br/>  userId: session.user.id,<br/>  inputText, responseJson, ...<br/>})
+    Database->>Database: INSERT INTO translation_history<br/>WHERE user_id = UUID
+    Database-->>API Routes: Success
+    API Routes-->>Browser: Translation response
+
+    Note over Browser,Database: 6. FETCH HISTORY
+
+    Browser->>API Routes: GET /api/history/list
+    API Routes->>NextAuth: await auth()
+    NextAuth-->>API Routes: session.user.id = UUID
+    API Routes->>Database: listLast50(session.user.id)
+    Database->>Database: SELECT * FROM translation_history<br/>WHERE user_id = UUID<br/>ORDER BY created_at DESC<br/>LIMIT 50
+    Database-->>API Routes: Translation history
+    API Routes-->>Browser: History JSON
+
+    Note over Browser,Database: 7. SYNC LOCALSTORAGE
+
+    Browser->>API Routes: POST /api/history/sync<br/>{translations: [...]}
+    API Routes->>NextAuth: await auth()
+    NextAuth-->>API Routes: session.user.id = UUID
+
+    loop For each translation
+        API Routes->>Database: translationExists(UUID, inputText, ...)
+        alt Translation doesn't exist
+            API Routes->>Database: insertTranslation({<br/>  userId: UUID, ...<br/>})
+        else Already exists
+            API Routes->>API Routes: Skip (count as success)
+        end
+    end
+
+    API Routes-->>Browser: {success: N, failed: M}

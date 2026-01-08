@@ -1,0 +1,20 @@
+graph TB
+    A[Google User ID<br/>providerAccountId<br/>e.g. 108123456789] -->|signIn callback| B[Database: app_user]
+    B -->|Stored with| C[provider = 'google'<br/>provider_user_id = 108123456789]
+    B -->|Generates| D[Internal UUID<br/>id = 'abc123-...'<br/>PRIMARY KEY]
+
+    A -->|jwt callback| E[JWT Token]
+    E -->|Contains| F[token.providerAccountId<br/>= 108123456789]
+
+    F -->|session callback| G[Lookup in Database]
+    G -->|WHERE provider_user_id = providerAccountId| D
+
+    D -->|Attached to| H[Session Object<br/>session.user.id = UUID]
+
+    H -->|All API Requests| I[Database Queries]
+    I -->|WHERE user_id = UUID| J[translation_history<br/>app_user]
+
+    style A fill:#e1f5ff
+    style D fill:#ffe1e1
+    style H fill:#e1ffe1
+    style I fill:#fff4e1
