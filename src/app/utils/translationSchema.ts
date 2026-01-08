@@ -1,10 +1,10 @@
 import { z } from "zod";
 
 const TranslationDetailsSchema = z.object({
-  article: z.string().optional(),
+  article: z.string().nullable(),
 
-  plural: z.string().optional(),
-  genitive: z.string().optional(),
+  plural: z.string().nullable(),
+  genitive: z.string().nullable(),
   verb_forms: z
     .object({
       infinitive: z.string(),
@@ -12,7 +12,7 @@ const TranslationDetailsSchema = z.object({
       preterite: z.string(),
       perfect: z.string(),
     })
-    .optional(),
+    .nullable(),
   verb_preposition_case: z
     .array(
       z.object({
@@ -20,7 +20,7 @@ const TranslationDetailsSchema = z.object({
         sample_translation: z.string(),
       }),
     )
-    .optional(),
+    .nullable(),
   verb_noun: z
     .array(
       z.object({
@@ -28,8 +28,8 @@ const TranslationDetailsSchema = z.object({
         sample_translation: z.string(),
       }),
     )
-    .optional(),
-  alternative_translations: z.array(z.string()).optional(),
+    .nullable(),
+  alternative_translations: z.array(z.string()).nullable(),
   common_phrases: z
     .array(
       z.object({
@@ -37,7 +37,7 @@ const TranslationDetailsSchema = z.object({
         sample_translation: z.string(),
       }),
     )
-    .optional(),
+    .nullable(),
   idioms: z
     .array(
       z.object({
@@ -45,8 +45,8 @@ const TranslationDetailsSchema = z.object({
         sample_translation: z.string(),
       }),
     )
-    .optional(),
-  usage_frequency: z.enum(["✅", "⚠️", "❌"]).optional(),
+    .nullable(),
+  usage_frequency: z.enum(["✅", "⚠️", "❌"]).nullable(),
 
   stylistic_kind: z
     .enum([
@@ -58,16 +58,16 @@ const TranslationDetailsSchema = z.object({
       "technical",
       "archaic",
     ])
-    .optional(), // Stylistic classification
-  sentence_grammatical_analysis: z.string().optional(), // Sentence analysis
-  comments: z.string().optional(), // Additional comments
+    .nullable(), // Stylistic classification
+  sentence_grammatical_analysis: z.string().nullable(), // Sentence analysis
+  comments: z.string().nullable(), // Additional comments
 });
 
 export const TranslationResponseSchema = z.object({
   original: z.string(), // The original German sentence
   type: z
     .enum(["noun", "verb", "adjective", "adverb", "sentence", "other"])
-    .optional(),
+    .nullable(),
   translation: z.string(), // The natural Russian translation
   details: TranslationDetailsSchema,
   example_usage: z
@@ -78,7 +78,7 @@ export const TranslationResponseSchema = z.object({
         sample_translation: z.string(),
       }),
     )
-    .optional(),
+    .nullable(),
 });
 
 // TypeScript type
