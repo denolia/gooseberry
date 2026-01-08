@@ -41,7 +41,10 @@ export function WordInput() {
     }
   }
 
-  async function syncLocalStorageToDB(localHistory: TranslationResponse[]) {
+  async function syncLocalStorageToDB(
+    localHistory: TranslationResponse[],
+    sourceLang: Language,
+  ) {
     if (localHistory.length === 0) return;
 
     setIsSyncing(true);
@@ -49,7 +52,10 @@ export function WordInput() {
       const response = await fetch("/api/history/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ translations: localHistory }),
+        body: JSON.stringify({
+          translations: localHistory,
+          sourceLang: sourceLang,
+        }),
       });
 
       if (!response.ok) throw new Error("Sync failed");
@@ -68,35 +74,37 @@ export function WordInput() {
   // Load saved history from localStorage on initial load
   useEffect(() => {
     async function initializeHistory() {
-      // 1. Load from localStorage immediately (fast)
+      // 1. Load saved language first
+      const savedLang = localStorage.getItem("currentLanguage") as
+        | Language
+        | undefined;
+      const sourceLang =
+        savedLang && Languages[savedLang] ? savedLang : Languages.German;
+      if (savedLang && Languages[savedLang]) {
+        setCurrentLanguage(savedLang);
+      }
+
+      // 2. Load from localStorage immediately (fast)
       const savedHistory = localStorage.getItem("translationHistory");
       const localHistory = savedHistory ? JSON.parse(savedHistory) : [];
       setHistory(localHistory);
 
-      // 2. Try to fetch from DB
+      // 3. Try to fetch from DB
       const dbHistory = await fetchHistoryFromDB();
 
       if (dbHistory) {
         // User is logged in - use DB as source of truth
         setHistory(dbHistory);
 
-        // 3. Auto-sync localStorage to DB if needed
+        // 4. Auto-sync localStorage to DB if needed
         if (!syncComplete && localHistory.length > 0) {
-          await syncLocalStorageToDB(localHistory);
+          await syncLocalStorageToDB(localHistory, sourceLang);
         }
       }
       // If dbHistory is null, user not logged in - use localStorage only
     }
 
     initializeHistory();
-
-    // Load saved language
-    const savedLang = localStorage.getItem("currentLanguage") as
-      | Language
-      | undefined;
-    if (savedLang && Languages[savedLang]) {
-      setCurrentLanguage(savedLang);
-    }
   }, []);
 
   // Listen for language changes from Header (via storage event)

@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { translations } = await request.json();
+    const { translations, sourceLang } = await request.json();
 
     if (!Array.isArray(translations)) {
       return NextResponse.json(
@@ -18,6 +18,9 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+
+    // Use provided lang or default to German
+    const sourceLanguage = sourceLang || "de";
 
     const results = { success: 0, failed: 0, errors: [] as string[] };
 
@@ -29,18 +32,16 @@ export async function POST(request: Request) {
         const exists = await translationExists(
           session.user.id,
           translation.original,
-          "en",
-          "de",
         );
 
         if (!exists) {
           await insertTranslation({
             userId: session.user.id,
-            sourceLang: "en",
-            targetLang: "de",
+            sourceLang: sourceLanguage,
+            targetLang: "ru",
             inputText: translation.original,
             responseJson: translation,
-            model: translation.model ?? "gpt-4o",
+            model: "gpt-4o",
             promptVersion: undefined,
           });
           results.success++;

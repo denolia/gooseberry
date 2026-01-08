@@ -64,7 +64,7 @@ export async function listLast50(userId: string) {
 
 export async function getUserIdByProviderUserId(
   provider: "google",
-  providerUserId: string
+  providerUserId: string,
 ): Promise<string | null> {
   const [row] = await db
     .select({ id: appUser.id })
@@ -72,8 +72,8 @@ export async function getUserIdByProviderUserId(
     .where(
       and(
         eq(appUser.provider, provider),
-        eq(appUser.providerUserId, providerUserId)
-      )
+        eq(appUser.providerUserId, providerUserId),
+      ),
     )
     .limit(1);
 
@@ -83,8 +83,6 @@ export async function getUserIdByProviderUserId(
 export async function translationExists(
   userId: string,
   inputText: string,
-  sourceLang: string,
-  targetLang: string
 ): Promise<boolean> {
   const [row] = await db
     .select({ id: translationHistory.id })
@@ -93,9 +91,7 @@ export async function translationExists(
       and(
         eq(translationHistory.userId, userId),
         eq(translationHistory.inputText, inputText),
-        eq(translationHistory.sourceLang, sourceLang),
-        eq(translationHistory.targetLang, targetLang)
-      )
+      ),
     )
     .limit(1);
 
