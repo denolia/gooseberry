@@ -26,6 +26,16 @@
   margin: 1rem 2rem;
 }
 
+.syncStatus {
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--foreground);
+  background-color: rgba(0, 112, 243, 0.1);
+  border-left: 3px solid #0070f3;
+  border-radius: 4px;
+}
+
 .loadFromHistoryButton {
   width: 25px;
   height: 25px;

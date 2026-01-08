@@ -3,6 +3,7 @@ import { zodResponseFormat } from "openai/helpers/zod";
 import { TranslationResponseSchema } from "@/app/utils/translationSchema";
 import { auth } from "@/auth";
 import { getTranslationPrompt } from "@/app/api/translate/getTranslationPrompt";
+import { insertTranslation } from "@/db/translationRepo";
 
 export const maxDuration = 60; // This function can run for a maximum of 60 seconds
 const timeoutMs = 60000; // timeout for the request in milliseconds
@@ -59,6 +60,22 @@ export async function POST(request: Request) {
       const validatedData = TranslationResponseSchema.parse(
         JSON.parse(data.choices[0].message.content),
       );
+
+      // Save to database (non-blocking)
+      try {
+        await insertTranslation({
+          userId: session.user.id,
+          sourceLang: "en",
+          targetLang: language,
+          inputText: text,
+          responseJson: validatedData,
+          model: "gpt-4o",
+          promptVersion: "v1",
+        });
+      } catch (dbError) {
+        console.error("Failed to save translation to DB:", dbError);
+        // Don't fail the request - user still gets translation
+      }
 
       return NextResponse.json(validatedData);
     } catch (error) {

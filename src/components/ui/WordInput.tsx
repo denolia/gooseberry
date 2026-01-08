@@ -19,16 +19,78 @@ export function WordInput() {
   const [currentLanguage, setCurrentLanguage] = useState<Language>(
     Languages.German,
   );
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncComplete, setSyncComplete] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
+
+  async function fetchHistoryFromDB() {
+    try {
+      const response = await fetch("/api/history/list");
+      if (!response.ok) {
+        if (response.status === 401) {
+          return null;
+        }
+        throw new Error("Failed to fetch history");
+      }
+      const data = await response.json();
+      return data.history.map((item: any) => item.translation);
+    } catch (error) {
+      console.error("Error fetching history from DB:", error);
+      return null;
+    }
+  }
+
+  async function syncLocalStorageToDB(localHistory: TranslationResponse[]) {
+    if (localHistory.length === 0) return;
+
+    setIsSyncing(true);
+    try {
+      const response = await fetch("/api/history/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ translations: localHistory }),
+      });
+
+      if (!response.ok) throw new Error("Sync failed");
+
+      const result = await response.json();
+      console.log(`Synced ${result.success} translations`);
+      setSyncComplete(true);
+    } catch (error) {
+      console.error("Failed to sync localStorage to DB:", error);
+    } finally {
+      setIsSyncing(false);
+    }
+  }
 
   // todo restructure components to have this rerender less often
   // Load saved history from localStorage on initial load
   useEffect(() => {
-    const savedHistory = localStorage.getItem("translationHistory");
-    if (savedHistory) {
-      setHistory(JSON.parse(savedHistory));
+    async function initializeHistory() {
+      // 1. Load from localStorage immediately (fast)
+      const savedHistory = localStorage.getItem("translationHistory");
+      const localHistory = savedHistory ? JSON.parse(savedHistory) : [];
+      setHistory(localHistory);
+
+      // 2. Try to fetch from DB
+      const dbHistory = await fetchHistoryFromDB();
+
+      if (dbHistory) {
+        // User is logged in - use DB as source of truth
+        setHistory(dbHistory);
+
+        // 3. Auto-sync localStorage to DB if needed
+        if (!syncComplete && localHistory.length > 0) {
+          await syncLocalStorageToDB(localHistory);
+        }
+      }
+      // If dbHistory is null, user not logged in - use localStorage only
     }
+
+    initializeHistory();
+
+    // Load saved language
     const savedLang = localStorage.getItem("currentLanguage") as
       | Language
       | undefined;
@@ -189,6 +251,11 @@ export function WordInput() {
 
       <div className={styles.history}>
         <h3>Translation History (last 50)</h3>
+        {isSyncing && (
+          <div className={styles.syncStatus}>
+            Syncing history to database...
+          </div>
+        )}
         {history.length === 0 ? (
           <p>No history available.</p>
         ) : (

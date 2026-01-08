@@ -3,7 +3,7 @@ import styles from "./StructuredResponseDisplay.module.css";
 import { TranslationResponse } from "@/app/utils/translationSchema";
 import { useState } from "react";
 
-function hasValue(line: string | undefined): line is string {
+function hasValue(line: string | undefined | null): line is string {
   if (!line || line === "-") {
     return false;
   }

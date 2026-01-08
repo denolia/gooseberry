@@ -1,6 +1,6 @@
 import { db } from "@/db/drizzle";
 import { appUser, translationHistory } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 export async function upsertUser(input: {
   provider: "google";
@@ -60,4 +60,44 @@ export async function listLast50(userId: string) {
     .where(eq(translationHistory.userId, userId))
     .orderBy(desc(translationHistory.createdAt))
     .limit(50);
+}
+
+export async function getUserIdByProviderUserId(
+  provider: "google",
+  providerUserId: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ id: appUser.id })
+    .from(appUser)
+    .where(
+      and(
+        eq(appUser.provider, provider),
+        eq(appUser.providerUserId, providerUserId)
+      )
+    )
+    .limit(1);
+
+  return row?.id ?? null;
+}
+
+export async function translationExists(
+  userId: string,
+  inputText: string,
+  sourceLang: string,
+  targetLang: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: translationHistory.id })
+    .from(translationHistory)
+    .where(
+      and(
+        eq(translationHistory.userId, userId),
+        eq(translationHistory.inputText, inputText),
+        eq(translationHistory.sourceLang, sourceLang),
+        eq(translationHistory.targetLang, targetLang)
+      )
+    )
+    .limit(1);
+
+  return !!row;
 }
