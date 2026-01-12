@@ -65,8 +65,8 @@ export async function POST(request: Request) {
       try {
         await insertTranslation({
           userId: session.user.id,
-          sourceLang: "en",
-          targetLang: language,
+          sourceLang: language,
+          targetLang: "ru",
           inputText: text,
           responseJson: validatedData,
           model: "gpt-4o",
