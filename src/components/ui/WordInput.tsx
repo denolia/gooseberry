@@ -241,11 +241,11 @@ export function WordInput() {
           </ul>
         )}
       </div>
-      {history.length > 0 && (
-        <button onClick={clearHistory} className={styles.clearHistoryButton}>
-          Clear History
-        </button>
-      )}
+      {/*{history.length > 0 && (*/}
+      {/*  <button onClick={clearHistory} className={styles.clearHistoryButton}>*/}
+      {/*    Clear History*/}
+      {/*  </button>*/}
+      {/*)}*/}
     </div>
   );
 }
