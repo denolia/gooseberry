@@ -60,8 +60,28 @@ export function WordInput() {
       const dbHistory = await fetchHistoryFromDB();
 
       if (dbHistory) {
-        // User is logged in - use DB as source of truth
-        setHistory(dbHistory);
+        // User is logged in - use DB as source of truth,
+        // but append localStorage items if DB has less than 50
+        let combinedHistory = [...dbHistory];
+
+        if (combinedHistory.length < 50) {
+          // Filter out items that are already in DB history to avoid duplicates
+          const dbOriginals = new Set(
+            dbHistory.map((item: any) => item.original),
+          );
+          const uniqueLocalHistory = localHistory.filter(
+            (item: any) => !dbOriginals.has(item.original),
+          );
+
+          // Append local items until we have 50 or we run out of local items
+          const remainingSpace = 50 - combinedHistory.length;
+          combinedHistory = [
+            ...combinedHistory,
+            ...uniqueLocalHistory.slice(0, remainingSpace),
+          ];
+        }
+
+        setHistory(combinedHistory);
       }
       // If dbHistory is null, user not logged in - use localStorage only
     }
