@@ -1,6 +1,6 @@
 import { db } from "@/db/drizzle";
 import { appUser, translationHistory } from "@/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 export async function upsertUser(input: {
   provider: "google";
@@ -96,4 +96,30 @@ export async function translationExists(
     .limit(1);
 
   return !!row;
+}
+
+export async function getTranslationById(id: string, userId: string) {
+  const [row] = await db
+    .select()
+    .from(translationHistory)
+    .where(
+      and(eq(translationHistory.id, id), eq(translationHistory.userId, userId)),
+    )
+    .limit(1);
+
+  return row ?? null;
+}
+
+export async function getTranslationsByIds(ids: string[], userId: string) {
+  if (ids.length === 0) return [];
+
+  return db
+    .select()
+    .from(translationHistory)
+    .where(
+      and(
+        eq(translationHistory.userId, userId),
+        inArray(translationHistory.id, ids),
+      ),
+    );
 }

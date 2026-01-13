@@ -21,7 +21,7 @@ export async function createApkgPackage(
   }
 
   const zip = await apkg.save();
-  return Buffer.from(zip, "binary");
+  return Buffer.from(new Uint8Array(zip));
 }
 
 function formatBackSide(note: AnkiNote): string {

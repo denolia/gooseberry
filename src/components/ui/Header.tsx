@@ -1,6 +1,7 @@
 "use client";
 import styles from "./Header.module.css";
 import { signIn, signOut, useSession } from "next-auth/react";
+import Link from "next/link";
 
 import { useEffect, useState } from "react";
 import {
@@ -46,7 +47,16 @@ export function Header() {
 
   return (
     <div className={styles.container}>
-      <div className={styles.logo}>LEARN.words</div>
+      <div className={styles.leftSide}>
+        <Link href="/" className={styles.logo}>
+          LEARN.words
+        </Link>
+        {session && (
+          <Link href="/anki" className={styles.navLink}>
+            Anki Sets
+          </Link>
+        )}
+      </div>
       <div className={styles.rightControls}>
         {session && (
           <>

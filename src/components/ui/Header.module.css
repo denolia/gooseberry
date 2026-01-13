@@ -6,6 +6,25 @@
     padding: 1rem;
     box-sizing: border-box;
 }
+
+.leftSide {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.navLink {
+    color: #4a90e2;
+    text-decoration: none;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.navLink:hover {
+    color: #357abd;
+    text-decoration: underline;
+}
 .rightControls {
     display: flex;
     flex-direction: column;
@@ -52,6 +71,8 @@
 .logo {
     font-family: var(--font-sue-ellen);
     font-size: 64px !important;
+    text-decoration: none;
+    color: inherit;
     /*filter: invert();*/
 }
 
