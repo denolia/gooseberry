@@ -66,7 +66,7 @@ export async function GET(
 // POST /api/word-sets/[id]/items - Add items to word set
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -74,8 +74,10 @@ export async function POST(
   }
 
   try {
+    const { id } = await params;
+
     // Verify ownership
-    const wordSet = await getWordSet(params.id, session.user.id);
+    const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
       return NextResponse.json({ error: "Word set not found" }, { status: 404 });
     }
@@ -97,7 +99,7 @@ export async function POST(
     }
 
     // Get current max position
-    const existingItems = await getWordSetItems(params.id);
+    const existingItems = await getWordSetItems(id);
     let nextPosition = existingItems.length;
 
     // Map translations to word set items
@@ -112,13 +114,13 @@ export async function POST(
       );
 
       return {
-        ankiNoteGuid: generateAnkiGuid(params.id, translation.id),
+        ankiNoteGuid: generateAnkiGuid(id, translation.id),
         ...mappedFields,
         position: nextPosition++,
       };
     });
 
-    await addItemsToWordSet(params.id, items);
+    await addItemsToWordSet(id, items);
 
     return NextResponse.json({ success: true, count: items.length });
   } catch (error) {
@@ -139,7 +141,7 @@ export async function POST(
 // PATCH /api/word-sets/[id]/items - Update item
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -147,8 +149,10 @@ export async function PATCH(
   }
 
   try {
+    const { id } = await params;
+
     // Verify ownership
-    const wordSet = await getWordSet(params.id, session.user.id);
+    const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
       return NextResponse.json({ error: "Word set not found" }, { status: 404 });
     }
@@ -186,7 +190,7 @@ export async function PATCH(
 // DELETE /api/word-sets/[id]/items - Delete item
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -194,8 +198,10 @@ export async function DELETE(
   }
 
   try {
+    const { id } = await params;
+
     // Verify ownership
-    const wordSet = await getWordSet(params.id, session.user.id);
+    const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
       return NextResponse.json({ error: "Word set not found" }, { status: 404 });
     }

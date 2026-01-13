@@ -3,12 +3,18 @@ import { AppFooter } from "@/components/layout/AppFooter";
 import { WordSetManager } from "@/components/anki/WordSetManager";
 import styles from "@/styles/page.module.css";
 
-export default function WordSetPage({ params }: { params: { id: string } }) {
+export default async function WordSetPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
   return (
     <div className={styles.page}>
       <main className={styles.main}>
         <Header />
-        <WordSetManager wordSetId={params.id} />
+        <WordSetManager wordSetId={id} />
       </main>
       <AppFooter />
     </div>

@@ -7,7 +7,7 @@ import { createApkgPackage } from "@/lib/anki/apkgExporter";
 // POST /api/word-sets/[id]/export - Export word set as .apkg
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -15,14 +15,16 @@ export async function POST(
   }
 
   try {
+    const { id } = await params;
+
     // Verify ownership
-    const wordSet = await getWordSet(params.id, session.user.id);
+    const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
       return NextResponse.json({ error: "Word set not found" }, { status: 404 });
     }
 
     // Get items
-    const items = await getWordSetItems(params.id);
+    const items = await getWordSetItems(id);
 
     if (items.length === 0) {
       return NextResponse.json(
@@ -53,7 +55,7 @@ export async function POST(
     const apkgBuffer = await createApkgPackage(deckName, ankiNotes);
 
     // Update last exported timestamp
-    await updateLastExportedAt(params.id);
+    await updateLastExportedAt(id);
 
     // Generate safe filename
     const safeFileName = wordSet.name.replace(/[^a-zA-Z0-9]/g, "_");

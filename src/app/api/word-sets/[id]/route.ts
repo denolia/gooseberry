@@ -17,7 +17,7 @@ const UpdateWordSetSchema = z.object({
 // GET /api/word-sets/[id] - Get word set details
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -25,14 +25,15 @@ export async function GET(
   }
 
   try {
-    const wordSet = await getWordSet(params.id, session.user.id);
+    const { id } = await params;
+    const wordSet = await getWordSet(id, session.user.id);
 
     if (!wordSet) {
       return NextResponse.json({ error: "Word set not found" }, { status: 404 });
     }
 
     // Get item count
-    const itemCount = await getWordSetItemCount(params.id);
+    const itemCount = await getWordSetItemCount(id);
 
     return NextResponse.json({ wordSet: { ...wordSet, itemCount } });
   } catch (error) {
@@ -47,7 +48,7 @@ export async function GET(
 // PATCH /api/word-sets/[id] - Update word set
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -55,10 +56,11 @@ export async function PATCH(
   }
 
   try {
+    const { id } = await params;
     const body = await request.json();
     const validated = UpdateWordSetSchema.parse(body);
 
-    const wordSet = await updateWordSet(params.id, session.user.id, validated);
+    const wordSet = await updateWordSet(id, session.user.id, validated);
 
     if (!wordSet) {
       return NextResponse.json({ error: "Word set not found" }, { status: 404 });
@@ -83,7 +85,7 @@ export async function PATCH(
 // DELETE /api/word-sets/[id] - Delete word set
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -91,7 +93,8 @@ export async function DELETE(
   }
 
   try {
-    await deleteWordSet(params.id, session.user.id);
+    const { id } = await params;
+    await deleteWordSet(id, session.user.id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting word set:", error);
