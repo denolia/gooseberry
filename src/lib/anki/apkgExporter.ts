@@ -1,10 +1,12 @@
-import AnkiExport from "anki-apkg-export";
 import { AnkiNote } from "@/app/utils/ankiSchema";
 
 export async function createApkgPackage(
   deckName: string,
   notes: AnkiNote[],
 ): Promise<Buffer> {
+  // Dynamic import to avoid webpack bundling issues
+  const AnkiExport = (await import("anki-apkg-export")).default;
+
   const apkg = new AnkiExport(deckName);
 
   for (const note of notes) {
