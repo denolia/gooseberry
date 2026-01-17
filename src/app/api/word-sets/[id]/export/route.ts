@@ -51,8 +51,13 @@ export async function POST(
     const dateStr = new Date().toISOString().split("T")[0];
     const deckName = `Gooseberry::${wordSet.sourceLang}-${wordSet.targetLang}::${dateStr}`;
 
-    // Create .apkg file
-    const apkgBuffer = await createApkgPackage(deckName, ankiNotes);
+    // Create .apkg file with source and target languages
+    const apkgBuffer = await createApkgPackage(
+      deckName,
+      ankiNotes,
+      wordSet.sourceLang.toUpperCase(),
+      wordSet.targetLang.toUpperCase(),
+    );
 
     // Update last exported timestamp
     await updateLastExportedAt(id);
@@ -61,8 +66,8 @@ export async function POST(
     const safeFileName = wordSet.name.replace(/[^a-zA-Z0-9]/g, "_");
     const fileName = `${safeFileName}_${dateStr}.apkg`;
 
-    // Return file
-    return new NextResponse(apkgBuffer, {
+    // Return file (convert Buffer to Uint8Array for NextResponse)
+    return new NextResponse(new Uint8Array(apkgBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/octet-stream",
