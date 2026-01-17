@@ -12,7 +12,8 @@
 }
 
 .modal {
-  background: white;
+  background: var(--background, white);
+  color: var(--foreground, black);
   border-radius: 8px;
   width: 90%;
   max-width: 700px;
@@ -27,13 +28,13 @@
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--border-color, #ddd);
 }
 
 .title {
   margin: 0;
   font-size: 1.5rem;
-  color: #333;
+  color: var(--foreground, #333);
 }
 
 .closeButton {
@@ -41,7 +42,7 @@
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
-  color: #666;
+  color: var(--text-secondary, #666);
   padding: 0;
   width: 30px;
   height: 30px;
@@ -51,36 +52,39 @@
 }
 
 .closeButton:hover {
-  color: #333;
+  color: var(--foreground, #333);
 }
 
 .controls {
   display: flex;
   gap: 1rem;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--border-color, #ddd);
 }
 
 .searchInput {
   flex: 1;
   padding: 0.75rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color, #ddd);
   border-radius: 4px;
   font-size: 1rem;
+  background: var(--input-background, white);
+  color: var(--foreground, black);
 }
 
 .selectAllButton {
   padding: 0.75rem 1rem;
-  background: #f5f5f5;
-  border: 1px solid #ddd;
+  background: var(--button-secondary-bg, #f5f5f5);
+  border: 1px solid var(--border-color, #ddd);
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.9rem;
   white-space: nowrap;
+  color: var(--foreground, black);
 }
 
 .selectAllButton:hover {
-  background: #e0e0e0;
+  background: var(--button-secondary-hover, #e0e0e0);
 }
 
 .selectedCount {
@@ -102,20 +106,21 @@
   align-items: flex-start;
   gap: 1rem;
   padding: 1rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color, #ddd);
   border-radius: 4px;
   margin-bottom: 0.75rem;
   cursor: pointer;
   transition: all 0.2s;
+  background: var(--background, white);
 }
 
 .item:hover {
-  background: #f5f5f5;
+  background: var(--item-hover, #f5f5f5);
 }
 
 .item.selected {
-  background: #e3f2fd;
-  border-color: #2196f3;
+  background: var(--item-selected, #e3f2fd);
+  border-color: var(--item-selected-border, #2196f3);
 }
 
 .checkbox {
@@ -135,28 +140,30 @@
   align-items: center;
   gap: 0.75rem;
   font-size: 1rem;
+  color: var(--foreground, black);
 }
 
 .arrow {
-  color: #999;
+  color: var(--text-secondary, #999);
 }
 
 .itemMeta {
   display: flex;
   gap: 1rem;
   font-size: 0.85rem;
-  color: #666;
+  color: var(--text-secondary, #666);
 }
 
 .type {
-  background: #f5f5f5;
+  background: var(--tag-background, #f5f5f5);
+  color: var(--foreground, black);
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   text-transform: capitalize;
 }
 
 .date {
-  color: #999;
+  color: var(--text-muted, #999);
 }
 
 .footer {
@@ -164,20 +171,21 @@
   justify-content: flex-end;
   gap: 1rem;
   padding: 1.5rem;
-  border-top: 1px solid #ddd;
+  border-top: 1px solid var(--border-color, #ddd);
 }
 
 .cancelButton {
   padding: 0.75rem 1.5rem;
-  background: #f5f5f5;
-  border: 1px solid #ddd;
+  background: var(--button-secondary-bg, #f5f5f5);
+  color: var(--foreground, black);
+  border: 1px solid var(--border-color, #ddd);
   border-radius: 4px;
   cursor: pointer;
   font-size: 1rem;
 }
 
 .cancelButton:hover {
-  background: #e0e0e0;
+  background: var(--button-secondary-hover, #e0e0e0);
 }
 
 .addButton {
@@ -204,5 +212,5 @@
 .empty {
   padding: 3rem;
   text-align: center;
-  color: #666;
+  color: var(--text-secondary, #666);
 }
