@@ -32,7 +32,7 @@ export function WordInput() {
         throw new Error("Failed to fetch history");
       }
       const data = await response.json();
-      return data.history.map((item: any) => item.translation);
+      return data.history.map((item: any) => item.responseJson);
     } catch (error) {
       console.error("Error fetching history from DB:", error);
       return null;

@@ -16,7 +16,7 @@ export async function GET() {
       sourceLang: row.sourceLang,
       targetLang: row.targetLang,
       inputText: row.inputText,
-      translation: row.responseJson,
+      responseJson: row.responseJson,
       model: row.model,
       createdAt: row.createdAt,
     }));
