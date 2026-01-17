@@ -10,9 +10,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
-    "anki-apkg": "^0.0.4",
     "anki-apkg-export": "^4.0.3",
-    "better-sqlite3": "^4.2.0",
     "drizzle-orm": "^0.45.1",
     "next": "^16.0.10",
     "next-auth": "5.0.0-beta.30",
@@ -21,7 +19,6 @@
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",
-    "rimraf": "2.7.1",
     "zod": "^4.1.13"
   },
   "devDependencies": {
