@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import {
-  getWordSet,
   addItemsToWordSet,
+  deleteWordSetItem,
+  getWordSet,
   getWordSetItems,
   updateWordSetItem,
-  deleteWordSetItem,
 } from "@/db/wordSetRepo";
 import { getTranslationsByIds } from "@/db/translationRepo";
 import { mapTranslationToWordSetItem } from "@/app/utils/ankiMapper";
@@ -49,7 +49,10 @@ export async function GET(
     // Verify ownership
     const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
-      return NextResponse.json({ error: "Word set not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Word set not found" },
+        { status: 404 },
+      );
     }
 
     const items = await getWordSetItems(id);
@@ -79,7 +82,10 @@ export async function POST(
     // Verify ownership
     const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
-      return NextResponse.json({ error: "Word set not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Word set not found" },
+        { status: 404 },
+      );
     }
 
     const body = await request.json();
@@ -126,15 +132,12 @@ export async function POST(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid input", details: error.errors },
+        { error: "Invalid input", details: error.message },
         { status: 400 },
       );
     }
     console.error("Error adding items to word set:", error);
-    return NextResponse.json(
-      { error: "Failed to add items" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to add items" }, { status: 500 });
   }
 }
 
@@ -154,7 +157,10 @@ export async function PATCH(
     // Verify ownership
     const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
-      return NextResponse.json({ error: "Word set not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Word set not found" },
+        { status: 404 },
+      );
     }
 
     const body = await request.json();
@@ -175,7 +181,7 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid input", details: error.errors },
+        { error: "Invalid input", details: error.message },
         { status: 400 },
       );
     }
@@ -203,7 +209,10 @@ export async function DELETE(
     // Verify ownership
     const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
-      return NextResponse.json({ error: "Word set not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Word set not found" },
+        { status: 404 },
+      );
     }
 
     const body = await request.json();
@@ -215,7 +224,7 @@ export async function DELETE(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid input", details: error.errors },
+        { error: "Invalid input", details: error.message },
         { status: 400 },
       );
     }
