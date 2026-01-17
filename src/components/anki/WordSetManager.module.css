@@ -79,6 +79,48 @@
   cursor: not-allowed;
 }
 
+.exportContainer {
+  position: relative;
+}
+
+.exportMenu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background: var(--background, white);
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+  min-width: 180px;
+}
+
+.exportMenuItem {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  color: var(--foreground, #333);
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: background 0.2s;
+}
+
+.exportMenuItem:hover {
+  background: var(--button-secondary-hover, #f5f5f5);
+}
+
+.exportMenuItem:first-child {
+  border-radius: 4px 4px 0 0;
+}
+
+.exportMenuItem:last-child {
+  border-radius: 0 0 4px 4px;
+}
+
 .items {
   display: flex;
   flex-direction: column;

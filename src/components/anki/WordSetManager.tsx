@@ -41,6 +41,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<WordSetItem>>({});
   const [exporting, setExporting] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -48,6 +49,18 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       loadItems();
     }
   }, [status, wordSetId]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showExportMenu && !target.closest(`.${styles.exportContainer}`)) {
+        setShowExportMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showExportMenu]);
 
   const loadWordSet = async () => {
     try {
@@ -87,14 +100,18 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
     }
   };
 
-  const handleExport = async () => {
+  const handleExport = async (format: "apkg" | "csv") => {
     if (!wordSet) return;
 
     try {
       setExporting(true);
-      const response = await fetch(`/api/word-sets/${wordSetId}/export`, {
-        method: "POST",
-      });
+      setShowExportMenu(false);
+      const response = await fetch(
+        `/api/word-sets/${wordSetId}/export?format=${format}`,
+        {
+          method: "POST",
+        },
+      );
 
       if (!response.ok) {
         const data = await response.json();
@@ -106,7 +123,8 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       const a = document.createElement("a");
       a.href = url;
       const dateStr = new Date().toISOString().split("T")[0];
-      a.download = `${wordSet.name.replace(/[^a-zA-Z0-9]/g, "_")}_${dateStr}.apkg`;
+      const extension = format === "csv" ? "csv" : "apkg";
+      a.download = `${wordSet.name.replace(/[^a-zA-Z0-9]/g, "_")}_${dateStr}.${extension}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -221,13 +239,31 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
           >
             + Add Words
           </button>
-          <button
-            onClick={handleExport}
-            disabled={items.length === 0 || exporting}
-            className={styles.exportButton}
-          >
-            {exporting ? "Exporting..." : "Export .apkg"}
-          </button>
+          <div className={styles.exportContainer}>
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              disabled={items.length === 0 || exporting}
+              className={styles.exportButton}
+            >
+              {exporting ? "Exporting..." : "Export ▼"}
+            </button>
+            {showExportMenu && !exporting && (
+              <div className={styles.exportMenu}>
+                <button
+                  onClick={() => handleExport("apkg")}
+                  className={styles.exportMenuItem}
+                >
+                  Export as .apkg
+                </button>
+                <button
+                  onClick={() => handleExport("csv")}
+                  className={styles.exportMenuItem}
+                >
+                  Export as .csv
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
