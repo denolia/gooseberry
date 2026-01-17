@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import {
-  getWordSet,
   deleteWordSet,
-  updateWordSet,
+  getWordSet,
   getWordSetItemCount,
+  updateWordSet,
 } from "@/db/wordSetRepo";
 import { z } from "zod";
 
@@ -29,7 +29,10 @@ export async function GET(
     const wordSet = await getWordSet(id, session.user.id);
 
     if (!wordSet) {
-      return NextResponse.json({ error: "Word set not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Word set not found" },
+        { status: 404 },
+      );
     }
 
     // Get item count
@@ -63,14 +66,17 @@ export async function PATCH(
     const wordSet = await updateWordSet(id, session.user.id, validated);
 
     if (!wordSet) {
-      return NextResponse.json({ error: "Word set not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Word set not found" },
+        { status: 404 },
+      );
     }
 
     return NextResponse.json({ wordSet });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid input", details: error.errors },
+        { error: "Invalid input", details: error.message },
         { status: 400 },
       );
     }
