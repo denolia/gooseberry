@@ -89,8 +89,8 @@
 
 .selectedCount {
   padding: 0.75rem 1.5rem;
-  background: #e3f2fd;
-  color: #1976d2;
+  background: var(--selected-count-bg, #e3f2fd);
+  color: var(--selected-count-text, #1976d2);
   font-size: 0.9rem;
   font-weight: 500;
 }
