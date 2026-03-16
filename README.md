@@ -1,4 +1,17 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is a Next.js app for translating words, saving translation history, and exporting study material to Anki.
+
+## Anki Export Behavior
+
+Current `.apkg` exports do not produce one Anki note with multiple sibling cards.
+Each exported study direction or variant is generated as an independent Anki note/card entry.
+
+Practical consequence:
+
+- cards from the same source item are scheduled independently in Anki
+- burying/sibling behavior does not apply between those exported variants
+- editing one exported note in Anki does not affect the other variants
+
+This is an intentional limitation of the current exporter stack.
 
 ## Getting Started
 

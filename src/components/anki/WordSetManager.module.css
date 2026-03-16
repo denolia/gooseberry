@@ -55,6 +55,15 @@
   color: #1f6a36;
 }
 
+.exportWarning {
+  margin-bottom: 1.5rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid #e4d19b;
+  border-radius: 6px;
+  background: #fff7df;
+  color: #7a5a00;
+}
+
 .addButton {
   padding: 0.75rem 1.5rem;
   background: #4a90e2;

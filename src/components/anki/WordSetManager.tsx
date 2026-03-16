@@ -295,6 +295,11 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
         <div className={styles.statusMessage}>{statusMessage}</div>
       )}
 
+      <div className={styles.exportWarning}>
+        `.apkg` exports currently create independent Anki notes per study
+        direction, not sibling cards on one shared note.
+      </div>
+
       {showSelector && (
         <TranslationSelector
           wordSetId={wordSetId}
