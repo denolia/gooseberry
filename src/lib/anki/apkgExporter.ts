@@ -1,5 +1,11 @@
 import { AnkiNote } from "@/app/utils/ankiSchema";
 
+type AnkiExportInstance = {
+  addCard(front: string, back: string, options?: { tags?: string[] }): void;
+  save(): Promise<ArrayBuffer>;
+  _getNoteGuid?: (topDeckId: string | number, front: string, back: string) => string;
+};
+
 export async function createApkgPackage(
   deckName: string,
   notes: AnkiNote[],
@@ -9,34 +15,75 @@ export async function createApkgPackage(
   // Dynamic import to avoid webpack bundling issues
   const AnkiExport = (await import("anki-apkg-export")).default;
 
-  const apkg = new AnkiExport(deckName);
+  const apkg = new AnkiExport(deckName) as AnkiExportInstance;
 
   for (const note of notes) {
     // Card 1: Origin -> Translation
-    apkg.addCard(
+    addStableCard(
+      apkg,
+      `${note.guid}:card1`,
       createCard1Front(note, sourceLang, targetLang),
       createCard1Back(note),
     );
 
     // Card 2: Translation -> Origin
-    apkg.addCard(
+    addStableCard(
+      apkg,
+      `${note.guid}:card2`,
       createCard2Front(note, sourceLang, targetLang),
       createCard2Back(note),
     );
 
     if (note.wordForms) {
       // Card 3: Origin -> Word Forms
-      apkg.addCard(createCard3Front(note), createCard3Back(note));
+      addStableCard(
+        apkg,
+        `${note.guid}:card3`,
+        createCard3Front(note),
+        createCard3Back(note),
+      );
     }
     // Card 4: Sample Translation -> Sample
-    apkg.addCard(createCard4Front(note), createCard4Back(note));
+    addStableCard(
+      apkg,
+      `${note.guid}:card4`,
+      createCard4Front(note),
+      createCard4Back(note),
+    );
 
     // Card 5: Input Origin (type answer)
-    apkg.addCard(createCard5Front(note, sourceLang), createCard5Back(note));
+    addStableCard(
+      apkg,
+      `${note.guid}:card5`,
+      createCard5Front(note, sourceLang),
+      createCard5Back(note),
+    );
   }
 
   const zip = await apkg.save();
   return Buffer.from(new Uint8Array(zip));
+}
+
+function addStableCard(
+  apkg: AnkiExportInstance,
+  guid: string,
+  front: string,
+  back: string,
+) {
+  const originalGetNoteGuid = apkg._getNoteGuid;
+
+  if (!originalGetNoteGuid) {
+    apkg.addCard(front, back);
+    return;
+  }
+
+  apkg._getNoteGuid = () => guid;
+
+  try {
+    apkg.addCard(front, back);
+  } finally {
+    apkg._getNoteGuid = originalGetNoteGuid;
+  }
 }
 
 // Card 1: origin->translation
