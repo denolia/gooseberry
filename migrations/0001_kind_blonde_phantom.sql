@@ -1,7 +1,3 @@
--- Drop existing tables if they exist
-DROP TABLE IF EXISTS "word_set_item" CASCADE;
-DROP TABLE IF EXISTS "word_set" CASCADE;
-
 -- Create word_set table
 CREATE TABLE "word_set" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
