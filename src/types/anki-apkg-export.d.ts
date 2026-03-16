@@ -1,7 +1,6 @@
 declare module "anki-apkg-export" {
   interface CardOptions {
-    guid?: string;
-    tags?: string[];
+    tags?: string | string[];
   }
 
   class AnkiExport {
