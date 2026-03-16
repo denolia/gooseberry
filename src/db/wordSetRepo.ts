@@ -116,6 +116,7 @@ export async function getWordSetItem(itemId: string) {
 }
 
 export async function updateWordSetItem(
+  wordSetId: string,
   itemId: string,
   updates: {
     original?: string;
@@ -129,14 +130,26 @@ export async function updateWordSetItem(
     position?: number;
   },
 ) {
-  await db
+  const [item] = await db
     .update(wordSetItem)
     .set({ ...updates, updatedAt: new Date() })
-    .where(eq(wordSetItem.id, itemId));
+    .where(
+      and(eq(wordSetItem.id, itemId), eq(wordSetItem.wordSetId, wordSetId)),
+    )
+    .returning({ id: wordSetItem.id });
+
+  return item ?? null;
 }
 
-export async function deleteWordSetItem(itemId: string) {
-  await db.delete(wordSetItem).where(eq(wordSetItem.id, itemId));
+export async function deleteWordSetItem(wordSetId: string, itemId: string) {
+  const [item] = await db
+    .delete(wordSetItem)
+    .where(
+      and(eq(wordSetItem.id, itemId), eq(wordSetItem.wordSetId, wordSetId)),
+    )
+    .returning({ id: wordSetItem.id });
+
+  return item ?? null;
 }
 
 export async function updateLastExportedAt(wordSetId: string) {

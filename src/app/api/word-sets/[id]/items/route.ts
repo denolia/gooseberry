@@ -175,7 +175,11 @@ export async function PATCH(
 
     const validated = UpdateItemSchema.parse(updates);
 
-    await updateWordSetItem(itemId, validated);
+    const updatedItem = await updateWordSetItem(id, itemId, validated);
+
+    if (!updatedItem) {
+      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -218,7 +222,11 @@ export async function DELETE(
     const body = await request.json();
     const { itemId } = DeleteItemSchema.parse(body);
 
-    await deleteWordSetItem(itemId);
+    const deletedItem = await deleteWordSetItem(id, itemId);
+
+    if (!deletedItem) {
+      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
