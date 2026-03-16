@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import {
   addItemsToWordSet,
   deleteWordSetItem,
+  getExistingSourceTranslationIds,
   getWordSet,
   getWordSetItems,
   updateWordSetItem,
@@ -104,12 +105,30 @@ export async function POST(
       );
     }
 
+    const existingSourceTranslationIds = new Set(
+      await getExistingSourceTranslationIds(id, translations.map((t) => t.id)),
+    );
+
+    const newTranslations = translations.filter(
+      (translation) => !existingSourceTranslationIds.has(translation.id),
+    );
+
+    const skippedCount = translations.length - newTranslations.length;
+
+    if (newTranslations.length === 0) {
+      return NextResponse.json({
+        success: true,
+        count: 0,
+        skippedCount,
+      });
+    }
+
     // Get current max position
     const existingItems = await getWordSetItems(id);
     let nextPosition = existingItems.length;
 
     // Map translations to word set items
-    const items = translations.map((translation) => {
+    const items = newTranslations.map((translation) => {
       const translationData = TranslationResponseSchema.parse(
         translation.responseJson,
       );
@@ -128,7 +147,11 @@ export async function POST(
 
     await addItemsToWordSet(id, items);
 
-    return NextResponse.json({ success: true, count: items.length });
+    return NextResponse.json({
+      success: true,
+      count: items.length,
+      skippedCount,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

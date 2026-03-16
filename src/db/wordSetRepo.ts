@@ -1,6 +1,6 @@
 import { db } from "@/db/drizzle";
 import { wordSet, wordSetItem } from "@/db/schema";
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, inArray } from "drizzle-orm";
 
 export async function createWordSet(input: {
   userId: string;
@@ -95,6 +95,27 @@ export async function addItemsToWordSet(
       position: item.position,
     })),
   );
+}
+
+export async function getExistingSourceTranslationIds(
+  wordSetId: string,
+  sourceTranslationIds: string[],
+): Promise<string[]> {
+  if (sourceTranslationIds.length === 0) return [];
+
+  const rows = await db
+    .select({ sourceTranslationId: wordSetItem.sourceTranslationId })
+    .from(wordSetItem)
+    .where(
+      and(
+        eq(wordSetItem.wordSetId, wordSetId),
+        inArray(wordSetItem.sourceTranslationId, sourceTranslationIds),
+      ),
+    );
+
+  return rows
+    .map((row) => row.sourceTranslationId)
+    .filter((id): id is string => id !== null);
 }
 
 export async function getWordSetItems(wordSetId: string) {

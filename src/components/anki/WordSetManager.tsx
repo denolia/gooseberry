@@ -42,6 +42,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const [editValues, setEditValues] = useState<Partial<WordSetItem>>({});
   const [exporting, setExporting] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -92,11 +93,31 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
     }
   };
 
-  const handleItemsAdded = (count: number) => {
+  const handleItemsAdded = ({
+    count,
+    skippedCount,
+  }: {
+    count: number;
+    skippedCount: number;
+  }) => {
     setShowSelector(false);
     loadItems();
     if (wordSet) {
       setWordSet({ ...wordSet, itemCount: (wordSet.itemCount || 0) + count });
+    }
+
+    if (count > 0 && skippedCount > 0) {
+      setStatusMessage(
+        `Added ${count} item${count === 1 ? "" : "s"}. ${skippedCount} ${skippedCount === 1 ? "was" : "were"} already in this set.`,
+      );
+    } else if (count > 0) {
+      setStatusMessage(`Added ${count} item${count === 1 ? "" : "s"}.`);
+    } else if (skippedCount > 0) {
+      setStatusMessage(
+        `Nothing added. ${skippedCount} ${skippedCount === 1 ? "item was" : "items were"} already in this set.`,
+      );
+    } else {
+      setStatusMessage(null);
     }
   };
 
@@ -266,6 +287,10 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
           </div>
         </div>
       </div>
+
+      {statusMessage && (
+        <div className={styles.statusMessage}>{statusMessage}</div>
+      )}
 
       {showSelector && (
         <TranslationSelector

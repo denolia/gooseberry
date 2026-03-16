@@ -18,7 +18,7 @@ interface Translation {
 interface TranslationSelectorProps {
   wordSetId: string;
   onClose: () => void;
-  onItemsAdded: (count: number) => void;
+  onItemsAdded: (result: { count: number; skippedCount: number }) => void;
 }
 
 export function TranslationSelector({
@@ -83,7 +83,10 @@ export function TranslationSelector({
       if (!response.ok) throw new Error("Failed to add items");
 
       const data = await response.json();
-      onItemsAdded(data.count);
+      onItemsAdded({
+        count: data.count ?? 0,
+        skippedCount: data.skippedCount ?? 0,
+      });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to add items");
     } finally {
