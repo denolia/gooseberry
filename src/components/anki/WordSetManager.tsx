@@ -45,11 +45,14 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (status === "authenticated") {
+    if (status === "authenticated" && session?.user?.id) {
       loadWordSet();
       loadItems();
+    } else if (status === "authenticated") {
+      setError("Your session could not be initialized. Please sign out and sign in again.");
+      setLoading(false);
     }
-  }, [status, wordSetId]);
+  }, [session?.user?.id, status, wordSetId]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

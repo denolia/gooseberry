@@ -13,3 +13,17 @@
     margin: 2rem 0;
     height: 6rem; /* Approximately the same height as authMessage */
 }
+
+.authAction {
+    margin-top: 1rem;
+    padding: 0.625rem 1rem;
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 6px;
+    background: var(--button-secondary-bg, #f5f5f5);
+    color: var(--foreground);
+    cursor: pointer;
+}
+
+.authAction:hover {
+    background: var(--button-secondary-hover, #e0e0e0);
+}

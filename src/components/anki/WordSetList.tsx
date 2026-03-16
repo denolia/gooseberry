@@ -26,12 +26,15 @@ export function WordSetList() {
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    if (status === "authenticated") {
+    if (status === "authenticated" && session?.user?.id) {
       loadWordSets();
+    } else if (status === "authenticated") {
+      setError("Your session could not be initialized. Please sign out and sign in again.");
+      setLoading(false);
     } else if (status === "unauthenticated") {
       setLoading(false);
     }
-  }, [status]);
+  }, [session?.user?.id, status]);
 
   const loadWordSets = async () => {
     try {

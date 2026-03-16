@@ -17,8 +17,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           });
         } catch (error) {
           console.error("Failed to upsert user:", error);
-          // Allow login to proceed even if DB fails
+          return false;
         }
+      } else if (account?.provider === "google") {
+        console.error("Missing providerAccountId during Google sign-in");
+        return false;
       }
       return true;
     },
