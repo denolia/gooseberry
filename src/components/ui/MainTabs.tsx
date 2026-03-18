@@ -1,12 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import styles from "./MainTabs.module.css";
 import { tabs } from "@/components/ui/mainTabs";
 
 export function MainTabs() {
+  const { status } = useSession();
   const pathname = usePathname();
+
+  if (status !== "authenticated") {
+    return null;
+  }
 
   return (
     <nav className={styles.tabList} aria-label="Main sections">
