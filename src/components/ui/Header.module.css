@@ -25,13 +25,31 @@
   flex-shrink: 0;
 }
 
-.desktopActions {
+.rightSlot {
   grid-column: 3;
   justify-self: end;
+  display: grid;
+  align-items: start;
+  justify-items: end;
+  position: relative;
+}
+
+.desktopActions {
+  grid-area: 1 / 1;
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
   gap: 0.75rem;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 32rem;
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  transform-origin: right center;
+  transition:
+    max-width 350ms ease,
+    opacity 250ms ease,
+    transform 350ms ease;
 }
 
 .languageControl {
@@ -123,10 +141,18 @@
 }
 
 .mobileMenu {
-  display: none;
+  grid-area: 1 / 1;
   position: relative;
-  grid-column: 3;
-  justify-self: end;
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(0.5rem) scale(0.9);
+  transform-origin: right center;
+  overflow: hidden;
+  transition:
+    width 350ms ease,
+    opacity 250ms ease,
+    transform 350ms ease;
 }
 
 .menuButton {
@@ -181,13 +207,17 @@
   }
 
   .desktopActions {
-    display: none;
+    max-width: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(0.6rem) scale(0.96);
   }
 
   .mobileMenu {
-    display: block;
-    grid-column: 3;
-    justify-self: end;
+    width: 2.75rem;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0) scale(1);
   }
 
   .mobilePanel {

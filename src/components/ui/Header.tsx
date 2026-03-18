@@ -99,60 +99,62 @@ export function Header() {
         LEARN.words
       </Link>
 
-      <div className={styles.desktopActions}>
-        {session && renderLanguageControl("header-language-select")}
-        {session ? (
-          <button className={styles.secondaryAction} onClick={() => signOut()}>
-            Sign out
-          </button>
-        ) : (
+      <div className={styles.rightSlot}>
+        <div className={styles.desktopActions}>
+          {session && renderLanguageControl("header-language-select")}
+          {session ? (
+            <button className={styles.secondaryAction} onClick={() => signOut()}>
+              Sign out
+            </button>
+          ) : (
+            <button
+              className={styles.primaryAction}
+              onClick={() => signIn("google")}
+            >
+              Sign in
+            </button>
+          )}
+        </div>
+
+        <div className={styles.mobileMenu} ref={mobileMenuRef}>
           <button
-            className={styles.primaryAction}
-            onClick={() => signIn("google")}
+            className={styles.menuButton}
+            type="button"
+            onClick={() => setShowMobileMenu((open) => !open)}
+            aria-expanded={showMobileMenu}
+            aria-controls="header-mobile-menu"
+            aria-label="Toggle header menu"
           >
-            Sign in
+            <span className={styles.menuGraphic} aria-hidden="true" />
           </button>
-        )}
-      </div>
 
-      <div className={styles.mobileMenu} ref={mobileMenuRef}>
-        <button
-          className={styles.menuButton}
-          type="button"
-          onClick={() => setShowMobileMenu((open) => !open)}
-          aria-expanded={showMobileMenu}
-          aria-controls="header-mobile-menu"
-          aria-label="Toggle header menu"
-        >
-          <span className={styles.menuGraphic} aria-hidden="true" />
-        </button>
-
-        {showMobileMenu && (
-          <div className={styles.mobilePanel} id="header-mobile-menu">
-            {session && renderLanguageControl("header-language-select-mobile")}
-            {session ? (
-              <button
-                className={styles.secondaryAction}
-                onClick={() => {
-                  setShowMobileMenu(false);
-                  signOut();
-                }}
-              >
-                Sign out
-              </button>
-            ) : (
-              <button
-                className={styles.primaryAction}
-                onClick={() => {
-                  setShowMobileMenu(false);
-                  signIn("google");
-                }}
-              >
-                Sign in
-              </button>
-            )}
-          </div>
-        )}
+          {showMobileMenu && (
+            <div className={styles.mobilePanel} id="header-mobile-menu">
+              {session && renderLanguageControl("header-language-select-mobile")}
+              {session ? (
+                <button
+                  className={styles.secondaryAction}
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    signOut();
+                  }}
+                >
+                  Sign out
+                </button>
+              ) : (
+                <button
+                  className={styles.primaryAction}
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    signIn("google");
+                  }}
+                >
+                  Sign in
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
