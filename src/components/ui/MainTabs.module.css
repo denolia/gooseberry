@@ -14,6 +14,7 @@
 }
 
 .tab {
+  display: block;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -21,6 +22,7 @@
   padding: 0.75rem 1.1rem;
   font: inherit;
   font-weight: 600;
+  text-decoration: none;
   cursor: pointer;
   transition:
     background-color 0.2s ease,

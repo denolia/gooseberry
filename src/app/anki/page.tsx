@@ -1,5 +1,10 @@
-import { redirect } from "next/navigation";
+import { LandingPageShell } from "@/components/ui/LandingPageShell";
+import { WordSetList } from "@/components/anki/WordSetList";
 
 export default function AnkiPage() {
-  redirect("/?tab=anki");
+  return (
+    <LandingPageShell activeTab="anki">
+      <WordSetList />
+    </LandingPageShell>
+  );
 }
