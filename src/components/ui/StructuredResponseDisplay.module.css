@@ -4,7 +4,7 @@
 .toggleButton {
     display: flex;
     align-items: flex-start;
-    padding: 8px 16px;
+    padding: var(--button-padding-compact);
 
     color: var(--foreground);
 
@@ -17,7 +17,7 @@
 }
 .rawResponseContent {
     margin-top: 0.2rem;
-    padding: 1rem;
+    padding: var(--panel-padding-tight);
 
     border: 1px solid var(--gray-alpha-200);
     border-radius: 4px;

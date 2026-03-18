@@ -2,20 +2,20 @@
   width: 100%;
   max-width: 1000px;
   margin: 0 auto;
-  padding: 2rem 1rem 0;
+  padding: 1.25rem 0 0;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
   flex-wrap: wrap;
   gap: 1rem;
 }
 
 .backButton {
-  padding: 0.7rem 1rem;
+  padding: var(--button-padding);
   background: var(--surface-raised);
   color: var(--foreground, black);
   border: 1px solid var(--border-color, #ddd);
@@ -48,7 +48,7 @@
 
 .statusMessage {
   margin-bottom: 1.5rem;
-  padding: 0.875rem 1rem;
+  padding: var(--panel-padding-tight);
   border: 1px solid color-mix(in srgb, var(--success) 40%, var(--border-color));
   border-radius: 0;
   background: color-mix(in srgb, var(--success) 14%, transparent);
@@ -57,7 +57,7 @@
 
 .exportWarning {
   margin-bottom: 1.5rem;
-  padding: 0.875rem 1rem;
+  padding: var(--panel-padding-tight);
   border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border-color));
   border-radius: 0;
   background: color-mix(in srgb, var(--warning) 14%, transparent);
@@ -65,7 +65,7 @@
 }
 
 .addButton {
-  padding: 0.85rem 1.2rem;
+  padding: var(--button-padding);
   background: var(--accent);
   color: white;
   border: none;
@@ -80,7 +80,7 @@
 }
 
 .exportButton {
-  padding: 0.85rem 1.2rem;
+  padding: var(--button-padding);
   background: var(--foreground);
   color: white;
   border: none;
@@ -120,7 +120,7 @@
 .exportMenuItem {
   display: block;
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: 0.65rem 0.9rem;
   background: transparent;
   color: var(--foreground, #333);
   border: none;
@@ -137,14 +137,14 @@
 .items {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.875rem;
 }
 
 .item {
   background: var(--surface-raised);
   border: 1px solid var(--border-color, #ddd);
   border-radius: 0;
-  padding: 1.5rem;
+  padding: var(--panel-padding);
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -217,7 +217,7 @@
 .toggleButton,
 .editButton,
 .deleteButton {
-  padding: 0.65rem 0.95rem;
+  padding: var(--button-padding);
   border-radius: 0;
   cursor: pointer;
   font-size: 0.9rem;
@@ -264,7 +264,7 @@
 
 .input,
 .textarea {
-  padding: 0.9rem 1rem;
+  padding: var(--input-padding);
   border: 1px solid var(--border-color, #ddd);
   border-radius: 0;
   font-size: 1rem;
@@ -279,7 +279,7 @@
 }
 
 .saveButton {
-  padding: 0.7rem 1rem;
+  padding: var(--button-padding);
   background: var(--accent);
   color: white;
   border: none;
@@ -292,7 +292,7 @@
 }
 
 .cancelButton {
-  padding: 0.7rem 1rem;
+  padding: var(--button-padding);
   background: var(--button-secondary-bg);
   color: white;
   border: none;
@@ -308,7 +308,7 @@
 .loading,
 .error,
 .empty {
-  padding: 3rem;
+  padding: 2rem;
   text-align: center;
   color: var(--text-secondary, #666);
 }
@@ -319,7 +319,7 @@
 
 @media (max-width: 720px) {
   .container {
-    padding: 1rem 0.75rem 0;
+    padding-top: 0.875rem;
   }
 
   .actions {

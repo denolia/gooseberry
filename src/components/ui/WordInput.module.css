@@ -1,13 +1,13 @@
 .container {
   width: 100%;
-  padding: 1.5rem;
+  padding: var(--panel-padding);
   background: var(--surface-raised);
 }
 
 .input {
   width: 100%;
   min-height: 3.5rem;
-  padding: 0.95rem 1.1rem;
+  padding: var(--input-padding);
   font-size: 1rem;
   border: 1px solid var(--border-color);
   border-radius: 0;
@@ -22,13 +22,13 @@
 }
 
 .translation {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
+  margin-top: var(--section-gap);
+  padding-top: 0.875rem;
 }
 
 .history {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
+  margin-top: var(--section-gap);
+  padding-top: 0.875rem;
   border-top: 1px solid var(--border-color);
 }
 
@@ -86,7 +86,7 @@
   align-items: center;
   justify-content: center;
   min-height: 3.5rem;
-  padding: 0.85rem 1.2rem;
+  padding: var(--button-padding);
   background: var(--accent);
   color: #fff;
   border: none;
@@ -108,7 +108,7 @@
 }
 
 .specialCharToggle {
-  padding: 0.5rem 0.75rem;
+  padding: var(--button-padding-compact);
   font-size: 1rem;
   color: var(--foreground);
   background: var(--surface-accent);
@@ -139,7 +139,7 @@
 }
 
 .specialCharButton {
-  padding: 0.5rem 0.75rem;
+  padding: var(--button-padding-compact);
   font-size: 1rem;
   color: var(--foreground);
   background: var(--surface-raised);
@@ -157,7 +157,7 @@
 
 @media (max-width: 720px) {
   .container {
-    padding: 1rem;
+    padding: var(--panel-padding);
   }
 
   .searchBar {
@@ -171,7 +171,7 @@
 
   .translation,
   .history {
-    padding-top: 1rem;
+    padding-top: 0.875rem;
   }
 
   .history li {
