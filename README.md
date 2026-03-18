@@ -1,49 +1,56 @@
-This is a Next.js app for translating words, saving translation history, and exporting study material to Anki.
+# Learn.words
 
-## Anki Export Behavior
+![Learn.words home screen](docs/home_small.png)
 
-Current `.apkg` exports do not produce one Anki note with multiple sibling cards.
-Each exported study direction or variant is generated as an independent Anki note/card entry.
+Learn.words is an LLM-powered vocabulary app for translating words, phrases, and short sentences, saving translation history, and turning useful entries into Anki study material.
 
-Practical consequence:
+The goal is not just to return a direct translation, but to give enough context to actually learn the word: grammar notes, frequency, usage comments, word forms, and example sentences.
 
-- cards from the same source item are scheduled independently in Anki
-- burying/sibling behavior does not apply between those exported variants
-- editing one exported note in Anki does not affect the other variants
+## What It Does
 
-This is an intentional limitation of the current exporter stack.
+- Translates input with learning-focused context instead of a minimal dictionary-style answer
+- Saves recent translation history
+- Organizes saved items into Anki sets
+- Exports study material for Anki in `.csv` and `.apkg` formats
 
-## Getting Started
+## Supported Translation Directions
 
-First, run the development server:
+Currently supported:
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- German -> Russian
+- Norwegian -> Russian
+- English -> Russian
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+More language pairs are planned.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Interface Preview
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The main screen is built around fast input, quick character insertion for language-specific letters, and one-click translation.
 
-## Learn More
+![Learn.words detailed translation view](docs/home.png)
 
-To learn more about Next.js, take a look at the following resources:
+## Export Options
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### CSV Export
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+CSV is currently the most reliable export format for Anki. It preserves more than just the source word and translation, including examples, grammar details, and word forms. You can map these fields in Anki note types and card templates to build richer study cards.
 
-## Deploy on Vercel
+### `.apkg` Export Behavior
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Because of a limitation in the current third-party export library, `.apkg` exports do not yet create a single Anki note with multiple sibling cards. Instead, each study direction or variant is exported as a separate note/card entry.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Practical consequences:
+
+- Cards generated from the same source item are scheduled independently in Anki
+- Sibling burying behavior does not apply between those variants
+- Editing one exported note in Anki does not update the related variants
+
+CSV is the better option if you want full control over the Note structure.
+
+## Next Steps
+
+- Improve `.apkg` export so related cards are generated as sibling cards under one note
+- Add more translation directions
+- Improve Anki set management and export customization
+- Refine prompt output for cleaner examples and more consistent grammar metadata
+- Add a smoother onboarding flow for first-time users
