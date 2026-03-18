@@ -32,6 +32,7 @@
   align-items: start;
   justify-items: end;
   position: relative;
+  z-index: 20;
 }
 
 .desktopActions {
@@ -161,6 +162,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  z-index: 10;
 }
 
 .menuGraphic {
@@ -216,6 +219,7 @@
   .mobileMenu {
     width: 2.75rem;
     opacity: 1;
+    overflow: visible;
     pointer-events: auto;
     transform: translateX(0) scale(1);
   }
