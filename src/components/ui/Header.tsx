@@ -128,32 +128,34 @@ export function Header() {
             <span className={styles.menuGraphic} aria-hidden="true" />
           </button>
 
-          {showMobileMenu && (
-            <div className={styles.mobilePanel} id="header-mobile-menu">
-              {session && renderLanguageControl("header-language-select-mobile")}
-              {session ? (
-                <button
-                  className={styles.secondaryAction}
-                  onClick={() => {
-                    setShowMobileMenu(false);
-                    signOut();
-                  }}
-                >
-                  Sign out
-                </button>
-              ) : (
-                <button
-                  className={styles.primaryAction}
-                  onClick={() => {
-                    setShowMobileMenu(false);
-                    signIn("google");
-                  }}
-                >
-                  Sign in
-                </button>
-              )}
-            </div>
-          )}
+          <div
+            className={`${styles.mobilePanel} ${showMobileMenu ? styles.mobilePanelOpen : ""}`}
+            id="header-mobile-menu"
+            aria-hidden={!showMobileMenu}
+          >
+            {session && renderLanguageControl("header-language-select-mobile")}
+            {session ? (
+              <button
+                className={styles.secondaryAction}
+                onClick={() => {
+                  setShowMobileMenu(false);
+                  signOut();
+                }}
+              >
+                Sign out
+              </button>
+            ) : (
+              <button
+                className={styles.primaryAction}
+                onClick={() => {
+                  setShowMobileMenu(false);
+                  signIn("google");
+                }}
+              >
+                Sign in
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </header>

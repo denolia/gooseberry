@@ -193,6 +193,26 @@
   padding: 1rem;
   border: 1px solid var(--border-color);
   background: var(--surface-raised);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-0.35rem) scale(0.98);
+  transform-origin: top right;
+  transition:
+    opacity 220ms ease,
+    transform 300ms ease,
+    visibility 0s linear 300ms;
+}
+
+.mobilePanelOpen {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity 220ms ease,
+    transform 300ms ease,
+    visibility 300ms linear 0ms;
 }
 
 @media (max-width: 640px) {
