@@ -1,5 +1,4 @@
-import { WordInputWithAuth } from "@/components/ui/WordInputWithAuth";
-
 export default function Home() {
-  return <WordInputWithAuth />;
+  // This route exists so Next registers "/" while the shared landing layout renders the persistent tab panels.
+  return null;
 }

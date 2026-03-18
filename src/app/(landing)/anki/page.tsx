@@ -1,5 +1,4 @@
-import { WordSetList } from "@/components/anki/WordSetList";
-
 export default function AnkiPage() {
-  return <WordSetList />;
+  // This route exists so Next registers "/anki" while the shared landing layout renders the persistent tab panels.
+  return null;
 }

@@ -1,7 +1,9 @@
 "use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import styles from "./WordSetList.module.css";
 
 interface WordSet {
@@ -16,47 +18,26 @@ interface WordSet {
 export function WordSetList() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [wordSets, setWordSets] = useState<WordSet[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createSourceLang, setCreateSourceLang] = useState("de");
   const [createTargetLang, setCreateTargetLang] = useState("ru");
-  const [creating, setCreating] = useState(false);
+  const wordSetsQueryKey = ["wordSets", session?.user?.id] as const;
 
-  useEffect(() => {
-    if (status === "authenticated" && session?.user?.id) {
-      loadWordSets();
-    } else if (status === "authenticated") {
-      setError("Your session could not be initialized. Please sign out and sign in again.");
-      setLoading(false);
-    } else if (status === "unauthenticated") {
-      setLoading(false);
-    }
-  }, [session?.user?.id, status]);
-
-  const loadWordSets = async () => {
-    try {
-      setLoading(true);
+  const { data: wordSets = [], isPending, error } = useQuery({
+    queryKey: wordSetsQueryKey,
+    enabled: status === "authenticated" && Boolean(session?.user?.id),
+    queryFn: async (): Promise<WordSet[]> => {
       const response = await fetch("/api/word-sets");
       if (!response.ok) throw new Error("Failed to load word sets");
       const data = await response.json();
-      setWordSets(data.wordSets);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load word sets");
-    } finally {
-      setLoading(false);
-    }
-  };
+      return data.wordSets;
+    },
+  });
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!createName.trim()) return;
-
-    try {
-      setCreating(true);
+  const createMutation = useMutation({
+    mutationFn: async () => {
       const response = await fetch("/api/word-sets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -68,15 +49,37 @@ export function WordSetList() {
       });
 
       if (!response.ok) throw new Error("Failed to create word set");
-
-      const data = await response.json();
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: wordSetsQueryKey });
       setShowCreateForm(false);
       setCreateName("");
       router.push(`/anki/${data.wordSet.id}`);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const response = await fetch(`/api/word-sets/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) throw new Error("Failed to delete word set");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: wordSetsQueryKey });
+    },
+  });
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createName.trim()) return;
+
+    try {
+      await createMutation.mutateAsync();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to create word set");
-    } finally {
-      setCreating(false);
     }
   };
 
@@ -84,19 +87,13 @@ export function WordSetList() {
     if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
 
     try {
-      const response = await fetch(`/api/word-sets/${id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) throw new Error("Failed to delete word set");
-
-      loadWordSets();
+      await deleteMutation.mutateAsync({ id });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete word set");
     }
   };
 
-  if (status === "loading" || loading) {
+  if (status === "loading" || isPending) {
     return <div className={styles.loading}>Loading...</div>;
   }
 
@@ -108,8 +105,17 @@ export function WordSetList() {
     );
   }
 
+  if (!session?.user?.id) {
+    return (
+      <div className={styles.error}>
+        Your session could not be initialized. Please sign out and sign in
+        again.
+      </div>
+    );
+  }
+
   if (error) {
-    return <div className={styles.error}>{error}</div>;
+    return <div className={styles.error}>{error.message}</div>;
   }
 
   return (
@@ -155,9 +161,9 @@ export function WordSetList() {
           <button
             type="submit"
             className={styles.submitButton}
-            disabled={creating}
+            disabled={createMutation.isPending}
           >
-            {creating ? "Creating..." : "Create & Add Words"}
+            {createMutation.isPending ? "Creating..." : "Create & Add Words"}
           </button>
         </form>
       )}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import styles from "./WordInput.module.css";
 import { StructuredResponseDisplay } from "@/components/ui/StructuredResponseDisplay";
@@ -10,6 +11,7 @@ import {
 import { Language, Languages } from "@/components/ui/Languages";
 
 export function WordInput() {
+  const queryClient = useQueryClient();
   const [word, setWord] = useState("");
   const [translation, setTranslation] = useState<TranslationResponse>();
   const [history, setHistory] = useState<TranslationResponse[]>([]);
@@ -19,25 +21,25 @@ export function WordInput() {
   const [currentLanguage, setCurrentLanguage] = useState<Language>(
     Languages.German,
   );
+  const historyQueryKey = ["translationHistory"] as const;
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function fetchHistoryFromDB() {
-    try {
-      const response = await fetch("/api/history/list");
-      if (!response.ok) {
-        if (response.status === 401) {
-          return null;
-        }
-        throw new Error("Failed to fetch history");
-      }
-      const data = await response.json();
-      return data.history.map((item: any) => item.responseJson);
-    } catch (error) {
-      console.error("Error fetching history from DB:", error);
-      return null;
+  async function fetchHistoryFromDB(): Promise<TranslationResponse[]> {
+    const response = await fetch("/api/history/list");
+    if (!response.ok) {
+      throw new Error("Failed to fetch history");
     }
+    const data = await response.json();
+    return data.history.map(
+      (item: any) => item.responseJson as TranslationResponse,
+    );
   }
+
+  const historyQuery = useQuery({
+    queryKey: historyQueryKey,
+    queryFn: fetchHistoryFromDB,
+  });
 
   // todo restructure components to have this rerender less often
   // Load saved history from localStorage on initial load
@@ -55,39 +57,38 @@ export function WordInput() {
       const savedHistory = localStorage.getItem("translationHistory");
       const localHistory = savedHistory ? JSON.parse(savedHistory) : [];
       setHistory(localHistory);
-
-      // 3. Try to fetch from DB
-      const dbHistory = await fetchHistoryFromDB();
-
-      if (dbHistory) {
-        // User is logged in - use DB as source of truth,
-        // but append localStorage items if DB has less than 50
-        let combinedHistory = [...dbHistory];
-
-        if (combinedHistory.length < 50) {
-          // Filter out items that are already in DB history to avoid duplicates
-          const dbOriginals = new Set(
-            dbHistory.map((item: any) => item.original),
-          );
-          const uniqueLocalHistory = localHistory.filter(
-            (item: any) => !dbOriginals.has(item.original),
-          );
-
-          // Append local items until we have 50 or we run out of local items
-          const remainingSpace = 50 - combinedHistory.length;
-          combinedHistory = [
-            ...combinedHistory,
-            ...uniqueLocalHistory.slice(0, remainingSpace),
-          ];
-        }
-
-        setHistory(combinedHistory);
-      }
-      // If dbHistory is null, user not logged in - use localStorage only
     }
 
     initializeHistory();
   }, []);
+
+  useEffect(() => {
+    if (!historyQuery.data) {
+      return;
+    }
+
+    const savedHistory = localStorage.getItem("translationHistory");
+    const localHistory = savedHistory ? JSON.parse(savedHistory) : [];
+
+    let combinedHistory = [...historyQuery.data];
+
+    if (combinedHistory.length < 50) {
+      const dbOriginals = new Set(
+        historyQuery.data.map((item) => item.original),
+      );
+      const uniqueLocalHistory = localHistory.filter(
+        (item: TranslationResponse) => !dbOriginals.has(item.original),
+      );
+
+      const remainingSpace = 50 - combinedHistory.length;
+      combinedHistory = [
+        ...combinedHistory,
+        ...uniqueLocalHistory.slice(0, remainingSpace),
+      ];
+    }
+
+    setHistory(combinedHistory);
+  }, [historyQuery.data]);
 
   // Listen for language changes from Header (via storage event)
   useEffect(() => {
@@ -167,10 +168,18 @@ export function WordInput() {
     }
     setHistory(updatedHistory);
     localStorage.setItem("translationHistory", JSON.stringify(updatedHistory));
+    queryClient.setQueryData(
+      historyQueryKey,
+      (current: TranslationResponse[] | undefined) => {
+        const next = [entry, ...(current ?? [])];
+        return next.slice(0, 50);
+      },
+    );
   };
 
   // Clear the browser history
   const clearHistory = () => {
+    // TODO implement
     localStorage.removeItem("translationHistory");
     setHistory([]);
   };
