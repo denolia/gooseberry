@@ -1,6 +1,4 @@
 import { Header } from "@/components/ui/Header";
-import { CTASection } from "@/components/ui/CTASection";
-import { AppFooter } from "@/components/layout/AppFooter";
 import { MainTabs } from "@/components/ui/MainTabs";
 import { LandingPanels } from "@/components/ui/LandingPanels";
 import styles from "@/styles/page.module.css";
@@ -17,9 +15,7 @@ export default function LandingLayout() {
             <LandingPanels />
           </div>
         </section>
-        <CTASection />
       </main>
-      <AppFooter />
     </div>
   );
 }

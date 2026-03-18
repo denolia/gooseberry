@@ -84,12 +84,6 @@
     background: var(--button-secondary-hover);
 }
 
-.languageBlock {
-    margin-top: 0.5rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
 .languageLabel {
     font-size: 0.9rem;
 }
