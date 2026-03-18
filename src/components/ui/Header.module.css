@@ -12,7 +12,8 @@
 
 .logo {
   font-family: var(--font-sue-ellen);
-  font-size: 64px !important;
+  font-size: 64px;
+  transition: font-size 200ms ease;
   text-decoration: none;
   color: inherit;
   line-height: 0.9;
@@ -160,11 +161,11 @@
 @media (max-width: 640px) {
   .container {
     align-items: center;
-    padding-top: 0.875rem;
+    padding: 0.875rem 0.2rem 0 0.2rem;
   }
 
   .logo {
-    font-size: 42px !important;
+    font-size: 42px;
   }
 
   .desktopActions {
