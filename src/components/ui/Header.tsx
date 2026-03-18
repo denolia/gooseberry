@@ -3,10 +3,9 @@ import styles from "./Header.module.css";
 import { signIn, signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Language,
-  LanguageCodes,
   LanguageOptions,
   Languages,
 } from "@/components/ui/Languages";
@@ -16,7 +15,8 @@ export function Header() {
   const [currentLanguage, setCurrentLanguage] = useState<Language>(
     Languages.German,
   );
-  const [showLanguage, setShowLanguage] = useState<boolean>(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -45,66 +45,115 @@ export function Header() {
     }
   };
 
-  return (
-    <div className={styles.container}>
-      <div className={styles.leftSide}>
-        <Link href="/" className={styles.logo}>
-          LEARN.words
-        </Link>
-      </div>
-      <div className={styles.rightControls}>
-        {session && (
-          <>
-            <button className={styles.signInButton} onClick={() => signOut()}>
-              Sign out
-            </button>
-            <div className={`${styles.languageRow}`}>
-              <div
-                className={`${styles.languageTray} ${showLanguage ? styles.visible : ""}`}
-                aria-hidden={!showLanguage}
-              >
-                <label
-                  className={styles.languageLabel}
-                  htmlFor="header-language-select"
-                >
-                  Language:
-                </label>
-                <select
-                  id="header-language-select"
-                  className={styles.languageSelect}
-                  value={currentLanguage}
-                  onChange={(e) => onChangeLanguage(e.target.value as Language)}
-                  tabIndex={showLanguage ? 0 : -1}
-                >
-                  {LanguageOptions.map((lang) => (
-                    <option key={lang} value={lang}>
-                      {lang}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button
-                className={styles.langToggleButton}
-                onClick={() => setShowLanguage((v) => !v)}
-                aria-expanded={showLanguage}
-                aria-controls="header-language-select"
-                title="Show/Hide language selector"
-              >
-                {LanguageCodes[currentLanguage] || currentLanguage}
-              </button>
-            </div>
-          </>
-        )}
+  useEffect(() => {
+    if (!showMobileMenu) {
+      return;
+    }
 
-        {!session && (
+    const onPointerDown = (event: PointerEvent) => {
+      if (
+        mobileMenuRef.current &&
+        !mobileMenuRef.current.contains(event.target as Node)
+      ) {
+        setShowMobileMenu(false);
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowMobileMenu(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showMobileMenu]);
+
+  const renderLanguageControl = (id: string) => (
+    <div className={styles.languageControl}>
+      <div className={styles.selectWrap}>
+        <select
+          id={id}
+          className={styles.languageSelect}
+          value={currentLanguage}
+          onChange={(e) => onChangeLanguage(e.target.value as Language)}
+        >
+          {LanguageOptions.map((lang) => (
+            <option key={lang} value={lang}>
+              {lang}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+
+  return (
+    <header className={styles.container}>
+      <Link href="/" className={styles.logo}>
+        LEARN.words
+      </Link>
+
+      <div className={styles.desktopActions}>
+        {session && renderLanguageControl("header-language-select")}
+        {session ? (
+          <button className={styles.secondaryAction} onClick={() => signOut()}>
+            Sign out
+          </button>
+        ) : (
           <button
-            className={styles.signInButton}
+            className={styles.primaryAction}
             onClick={() => signIn("google")}
           >
             Sign in
           </button>
         )}
       </div>
-    </div>
+
+      <div className={styles.mobileMenu} ref={mobileMenuRef}>
+        <button
+          className={styles.menuButton}
+          type="button"
+          onClick={() => setShowMobileMenu((open) => !open)}
+          aria-expanded={showMobileMenu}
+          aria-controls="header-mobile-menu"
+          aria-label="Toggle header menu"
+        >
+          <span className={styles.menuGraphic} aria-hidden="true" />
+        </button>
+
+        {showMobileMenu && (
+          <div className={styles.mobilePanel} id="header-mobile-menu">
+            {session && renderLanguageControl("header-language-select-mobile")}
+            {session ? (
+              <button
+                className={styles.secondaryAction}
+                onClick={() => {
+                  setShowMobileMenu(false);
+                  signOut();
+                }}
+              >
+                Sign out
+              </button>
+            ) : (
+              <button
+                className={styles.primaryAction}
+                onClick={() => {
+                  setShowMobileMenu(false);
+                  signIn("google");
+                }}
+              >
+                Sign in
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </header>
   );
 }

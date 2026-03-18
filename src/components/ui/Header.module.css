@@ -1,116 +1,180 @@
 .container {
-    width: min(100%, 1100px);
-    margin: 0 auto;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 1rem 0 0;
-    box-sizing: border-box;
-}
-
-.leftSide {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-.rightControls {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-}
-
-.languageRow {
-    margin-top: 0.5rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    justify-content: flex-end; /* align to the right */
-}
-
-/* Collapsible tray that expands from right to left */
-.languageTray {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    max-width: 0;
-    opacity: 0;
-    overflow: hidden;
-    transition: max-width 0.5s ease, opacity 0.3s ease;
-}
-.languageTray.visible {
-    max-width: 500px; /* enough to reveal label and select */
-    opacity: 1;
-}
-
-.langToggleButton {
-    padding: var(--button-padding-compact);
-    font-size: 1rem;
-    color: var(--foreground);
-    background: var(--surface-raised);
-    border: 1px solid var(--border-color);
-    border-radius: 0;
-    cursor: pointer;
-    transition:
-      background-color 0.2s ease,
-      border-color 0.2s ease,
-      transform 0.2s ease;
-}
-.langToggleButton:hover {
-    background: var(--button-secondary-hover);
-    transform: scale(1.05);
+  width: min(100%, 1100px);
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 0 0;
+  position: relative;
 }
 
 .logo {
-    font-family: var(--font-sue-ellen);
-    font-size: 64px !important;
-    text-decoration: none;
-    color: inherit;
-    line-height: 0.9;
+  font-family: var(--font-sue-ellen);
+  font-size: 64px !important;
+  text-decoration: none;
+  color: inherit;
+  line-height: 0.9;
+  flex-shrink: 0;
 }
 
-.signInButton {
-    display: flex;
-    align-items: flex-start;
-    padding: var(--button-padding-compact);
-    color: var(--foreground);
-    background: var(--surface-raised);
-    border: 1px solid var(--border-color);
-    border-radius: 0;
-    cursor: pointer;
+.desktopActions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.75rem;
 }
 
-.signInButton:hover {
-    background: var(--button-secondary-hover);
+.languageControl {
+  min-width: 13rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .languageLabel {
-    font-size: 0.9rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
 }
+
+.selectWrap {
+  position: relative;
+}
+
+.selectWrap::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0.9rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+  color: var(--text-secondary);
+}
+
 .languageSelect {
-    padding: var(--button-padding-compact);
-    border: 1px solid var(--border-color);
-    border-radius: 0;
-    background: var(--surface-raised);
-    color: var(--foreground);
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.65rem 2.25rem 0.65rem 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0;
+  background: var(--surface-raised);
+  color: var(--foreground);
+  appearance: none;
+  font: inherit;
+}
+
+.languageSelect:focus-visible,
+.primaryAction:focus-visible,
+.secondaryAction:focus-visible,
+.menuButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.primaryAction,
+.secondaryAction,
+.menuButton {
+  min-height: 2.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0;
+  background: var(--surface-raised);
+  color: var(--foreground);
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+  font: inherit;
+}
+
+.primaryAction,
+.secondaryAction {
+  padding: 0.65rem 0.95rem;
+}
+
+.primaryAction {
+  background: var(--foreground);
+  color: var(--background);
+  border-color: var(--foreground);
+}
+
+.primaryAction:hover {
+  opacity: 0.88;
+}
+
+.secondaryAction:hover,
+.menuButton:hover,
+.languageSelect:hover {
+  background: var(--button-secondary-hover);
+}
+
+.mobileMenu {
+  display: none;
+  position: relative;
+  margin-left: auto;
+}
+
+.menuButton {
+  width: 2.75rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.menuGraphic {
+  width: 1.1rem;
+  height: 1.1rem;
+  display: block;
+  background-color: currentColor;
+  mask-image: url("/icons/menu_icon.svg");
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-image: url("/icons/menu_icon.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+.mobilePanel {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  right: 0;
+  z-index: 20;
+  width: min(18rem, calc(100vw - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  background: var(--surface-raised);
 }
 
 @media (max-width: 640px) {
-    .container {
-        flex-direction: column;
-        align-items: stretch;
-        padding-top: 0.875rem;
-    }
+  .container {
+    align-items: center;
+    padding-top: 0.875rem;
+  }
 
-    .rightControls {
-        align-items: flex-start;
-    }
+  .logo {
+    font-size: 56px !important;
+  }
 
-    .languageRow {
-        justify-content: flex-start;
-    }
+  .desktopActions {
+    display: none;
+  }
 
-    .logo {
-        font-size: 56px !important;
-    }
+  .mobileMenu {
+    display: block;
+  }
+
+  .mobilePanel {
+    width: min(16rem, calc(100vw - 0.8rem));
+  }
 }
