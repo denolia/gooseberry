@@ -1,0 +1,64 @@
+.shell {
+  width: min(100%, 1100px);
+  margin: 1.5rem auto 0;
+  padding: 0 1rem;
+}
+
+.tabList {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, var(--surface-raised), var(--surface-subtle));
+  box-shadow: var(--shadow-soft);
+}
+
+.tab {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0.75rem 1.1rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.tab:hover {
+  color: var(--foreground);
+  background: var(--button-secondary-hover);
+}
+
+.tabActive {
+  color: var(--foreground);
+  background: var(--background);
+  box-shadow: 0 10px 20px rgba(17, 24, 39, 0.08);
+}
+
+.panel {
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .shell {
+    margin-top: 1rem;
+    padding: 0 0.75rem;
+  }
+
+  .tabList {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .tab {
+    flex: 1;
+    text-align: center;
+  }
+}

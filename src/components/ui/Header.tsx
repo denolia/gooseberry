@@ -13,7 +13,6 @@ import {
 
 export function Header() {
   const { data: session } = useSession();
-  const hasAppSession = !!session?.user?.id;
   const [currentLanguage, setCurrentLanguage] = useState<Language>(
     Languages.German,
   );
@@ -52,11 +51,6 @@ export function Header() {
         <Link href="/" className={styles.logo}>
           LEARN.words
         </Link>
-        {hasAppSession && (
-          <Link href="/anki" className={styles.navLink}>
-            Anki Sets
-          </Link>
-        )}
       </div>
       <div className={styles.rightControls}>
         {session && (

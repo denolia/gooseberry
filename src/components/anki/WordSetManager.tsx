@@ -71,7 +71,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       const response = await fetch(`/api/word-sets/${wordSetId}`);
       if (!response.ok) {
         if (response.status === 404) {
-          router.push("/anki");
+          router.push("/?tab=anki");
           return;
         }
         throw new Error("Failed to load word set");
@@ -247,7 +247,10 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
     <div className={styles.container}>
       <div className={styles.header}>
         <div>
-          <button onClick={() => router.push("/anki")} className={styles.backButton}>
+          <button
+            onClick={() => router.push("/?tab=anki")}
+            className={styles.backButton}
+          >
             ← Back to Sets
           </button>
           <h1 className={styles.title}>{wordSet.name}</h1>
