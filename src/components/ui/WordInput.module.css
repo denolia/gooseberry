@@ -1,10 +1,7 @@
 .container {
   width: 100%;
   padding: 1.5rem;
-  border: 1px solid var(--border-color);
-  border-radius: 28px;
-  background: linear-gradient(180deg, var(--surface-raised), var(--surface-subtle));
-  box-shadow: var(--shadow-soft);
+  background: var(--surface-raised);
 }
 
 .input {
@@ -13,7 +10,7 @@
   padding: 0.95rem 1.1rem;
   font-size: 1rem;
   border: 1px solid var(--border-color);
-  border-radius: 18px;
+  border-radius: 0;
   background: var(--input-background);
   color: var(--foreground);
   outline: none;
@@ -26,18 +23,13 @@
 
 .translation {
   margin-top: 1.5rem;
-  padding: 1.25rem;
-  border: 1px solid var(--border-color);
-  border-radius: 22px;
-  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  padding-top: 1rem;
 }
 
 .history {
   margin-top: 1.5rem;
-  padding: 1.25rem;
-  border: 1px solid var(--border-color);
-  border-radius: 22px;
-  background: color-mix(in srgb, var(--surface-subtle) 92%, transparent);
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
 }
 
 .history h3 {
@@ -54,10 +46,7 @@
 .history li {
   display: flex;
   align-items: center;
-  padding: 0.7rem 0.8rem;
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  background: var(--surface-raised);
+  padding: 0.45rem 0;
 }
 
 .syncStatus {
@@ -78,7 +67,7 @@
   color: var(--foreground);
   background: var(--surface-accent);
   border: 1px solid var(--border-color);
-  border-radius: 999px;
+  border-radius: 0;
   cursor: pointer;
   font-size: 0.8rem;
   transition: background-color 0.2s ease, transform 0.2s;
@@ -102,7 +91,7 @@
   color: var(--foreground);
   background: transparent;
   border: 1px solid var(--border-color);
-  border-radius: 999px;
+  border-radius: 0;
   cursor: pointer;
 }
 .clearHistoryButton:hover {
@@ -126,10 +115,9 @@
   background: var(--accent);
   color: #fff;
   border: none;
-  border-radius: 18px;
+  border-radius: 0;
   cursor: pointer;
   font-weight: 600;
-  box-shadow: var(--shadow-card);
 }
 
 .translateButton:hover {
@@ -150,7 +138,7 @@
   color: var(--foreground);
   background: var(--surface-accent);
   border: 1px solid var(--border-color);
-  border-radius: 999px;
+  border-radius: 0;
   cursor: pointer;
   transition: background-color 0.2s ease, transform 0.2s;
   z-index: 2;
@@ -181,7 +169,7 @@
   color: var(--foreground);
   background: var(--surface-raised);
   border: 1px solid var(--border-color);
-  border-radius: 999px;
+  border-radius: 0;
   cursor: pointer;
   transition: background-color 0.2s ease, transform 0.2s;
   white-space: nowrap;
@@ -195,7 +183,6 @@
 @media (max-width: 720px) {
   .container {
     padding: 1rem;
-    border-radius: 24px;
   }
 
   .searchBar {
@@ -209,7 +196,7 @@
 
   .translation,
   .history {
-    padding: 1rem;
+    padding-top: 1rem;
   }
 
   .history li {
