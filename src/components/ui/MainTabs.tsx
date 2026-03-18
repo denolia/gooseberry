@@ -1,31 +1,34 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import styles from "./MainTabs.module.css";
 import { WordInputWithAuth } from "@/components/ui/WordInputWithAuth";
 import { WordSetList } from "@/components/anki/WordSetList";
+import { isTabId, TabId, tabs } from "@/components/ui/mainTabs";
 
-const tabs = [
-  { id: "translation", label: "Translation" },
-  { id: "anki", label: "Anki Sets" },
-] as const;
-
-type TabId = (typeof tabs)[number]["id"];
-
-function isTabId(value: string | null): value is TabId {
-  return tabs.some((tab) => tab.id === value);
-}
-
-export function MainTabs() {
-  const searchParams = useSearchParams();
+export function MainTabs({ initialTab }: { initialTab: TabId }) {
   const router = useRouter();
   const pathname = usePathname();
-  const activeTab = isTabId(searchParams.get("tab"))
-    ? searchParams.get("tab")
-    : "translation";
+  const [activeTab, setActiveTabState] = useState<TabId>(initialTab);
+
+  useEffect(() => {
+    setActiveTabState(initialTab);
+  }, [initialTab]);
+
+  useEffect(() => {
+    function syncTabFromUrl() {
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      setActiveTabState(isTabId(tab) ? tab : "translation");
+    }
+
+    window.addEventListener("popstate", syncTabFromUrl);
+    return () => window.removeEventListener("popstate", syncTabFromUrl);
+  }, []);
 
   function setActiveTab(tab: TabId) {
-    const params = new URLSearchParams(searchParams.toString());
+    setActiveTabState(tab);
+    const params = new URLSearchParams(window.location.search);
 
     if (tab === "translation") {
       params.delete("tab");
