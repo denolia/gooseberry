@@ -24,6 +24,11 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "Learn.words",
   description: "Translate, learn and practice words",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
