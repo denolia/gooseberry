@@ -1,6 +1,7 @@
 .shell {
-  width: min(100%, 1100px);
-  margin: 1rem auto 0;
+  /* Note: Let's use the whole screen */
+  /* width: min(100%, 1100px); */
+  /*margin: 1rem auto 0;*/
   padding: 0;
 }
 

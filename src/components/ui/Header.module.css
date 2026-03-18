@@ -1,5 +1,6 @@
 .container {
-  width: min(100%, 1100px);
+  /* Note: Let's use the whole screen */
+  /*width: min(100%, 1100px);*/
   margin: 0 auto;
   display: flex;
   justify-content: space-between;
@@ -163,7 +164,7 @@
   }
 
   .logo {
-    font-size: 56px !important;
+    font-size: 42px !important;
   }
 
   .desktopActions {
