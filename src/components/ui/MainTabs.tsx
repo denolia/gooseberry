@@ -1,13 +1,18 @@
-import Link from "next/link";
-import styles from "./MainTabs.module.css";
-import { TabId, tabs } from "@/components/ui/mainTabs";
+"use client";
 
-export function MainTabs({ activeTab }: { activeTab: TabId }) {
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import styles from "./MainTabs.module.css";
+import { tabs } from "@/components/ui/mainTabs";
+
+export function MainTabs() {
+  const pathname = usePathname();
+
   return (
     <nav className={styles.tabList} aria-label="Main sections">
       {tabs.map((tab) => {
-        const isActive = activeTab === tab.id;
         const href = tab.id === "translation" ? "/" : "/anki";
+        const isActive = pathname === href;
 
         return (
           <Link
