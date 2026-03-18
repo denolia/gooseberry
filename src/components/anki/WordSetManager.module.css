@@ -317,7 +317,7 @@
   color: var(--danger);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 640px) {
   .container {
     padding-top: 0.875rem;
   }

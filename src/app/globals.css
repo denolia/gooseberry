@@ -90,9 +90,20 @@ a {
 
 @media (max-width: 720px) {
   :root {
-    --page-gutter: 0.75rem;
+    --page-gutter: 0.5rem;
     --section-gap: 1rem;
-    --panel-padding: 0.875rem;
+    --panel-padding: 1rem;
+    --panel-padding-tight: 0.8rem;
+    --button-padding: 0.6rem 0.875rem;
+    --button-padding-compact: 0.425rem 0.675rem;
+    --input-padding: 0.76rem 0.9rem;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --page-gutter: 0.3rem;
+    --panel-padding: 0.5rem;
     --panel-padding-tight: 0.75rem;
     --button-padding: 0.55rem 0.8rem;
     --button-padding-compact: 0.4rem 0.625rem;

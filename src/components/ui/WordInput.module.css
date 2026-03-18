@@ -155,7 +155,7 @@
   transform: scale(1.05);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 640px) {
   .container {
     padding: var(--panel-padding);
   }
