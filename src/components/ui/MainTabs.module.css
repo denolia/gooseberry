@@ -40,6 +40,9 @@
 .tabActive {
   color: var(--foreground);
   background: var(--background);
+  /*background: color-mix(in srgb, var(--background) 88%, transparent);*/
+  box-shadow:
+          inset 0 -5px 0 0 var(--accent);
 }
 
 .panel {
