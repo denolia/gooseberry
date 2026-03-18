@@ -13,7 +13,10 @@
 .logo {
   font-family: var(--font-sue-ellen);
   font-size: 64px;
-  transition: font-size 200ms ease;
+  transition:
+    font-size 500ms ease,
+    left 500ms ease,
+    transform 500ms ease;
   text-decoration: none;
   color: inherit;
   line-height: 0.9;
@@ -160,11 +163,17 @@
 
 @media (max-width: 640px) {
   .container {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    justify-content: flex-end;
     align-items: center;
+    min-height: 3.5rem;
     padding: 0.875rem 0.2rem 0 0.2rem;
   }
 
   .logo {
+    grid-column: 2;
+    justify-self: center;
     font-size: 42px;
   }
 
@@ -174,6 +183,8 @@
 
   .mobileMenu {
     display: block;
+    grid-column: 3;
+    justify-self: end;
   }
 
   .mobilePanel {
