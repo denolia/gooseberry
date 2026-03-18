@@ -2,14 +2,16 @@
   /* Note: Let's use the whole screen */
   /* width: min(100%, 1100px); */
   /*margin: 1rem auto 0;*/
-  padding: 0;
+  padding: 1rem 0.2rem;
 }
 
 .tabList {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.28rem;
+  padding: 1rem;
   border-radius: 0;
   background: var(--surface-raised);
 }
@@ -20,7 +22,7 @@
   border-radius: 0;
   background: transparent;
   color: var(--text-secondary);
-  padding: 0.5rem 0.5rem;
+  padding: 0.5rem 0.7rem;
   font: inherit;
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -51,17 +53,17 @@
 
 @media (max-width: 640px) {
   .shell {
-    margin-top: 0.75rem;
+    padding: 0.5rem 0.2rem;
   }
 
   .tabList {
     width: 100%;
     justify-content: stretch;
+    padding-top: 0.2rem;
   }
 
   .tab {
     flex: 1;
     text-align: center;
-    padding-inline: 0.7rem;
   }
 }

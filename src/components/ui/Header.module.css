@@ -6,7 +6,7 @@
   grid-template-columns: auto 1fr auto;
   align-items: start;
   gap: 1rem;
-  padding: 1rem 0 0;
+  padding: 2rem 0 0 1rem;
   position: relative;
   transition:
     grid-template-columns 500ms ease,
