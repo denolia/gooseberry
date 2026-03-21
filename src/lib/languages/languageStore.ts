@@ -41,6 +41,11 @@ function initReadFromLocalStorage() {
 initReadFromLocalStorage();
 
 let listeners: (() => void)[] = [];
+function emitChange() {
+  for (let listener of listeners) {
+    listener();
+  }
+}
 
 export const LanguageStore = {
   getSnapshot() {
@@ -51,7 +56,29 @@ export const LanguageStore = {
   },
   subscribe(listener: () => void) {
     listeners = [...listeners, listener];
+
+    const handler = (e: StorageEvent) => {
+      if (e.key === "currentLanguage") {
+        const nextLanguage = e.newValue as Language;
+
+        if (
+          nextLanguage &&
+          Languages[nextLanguage] &&
+          data.currentSourceLanguage !== Languages[nextLanguage]
+        ) {
+          data = {
+            ...data,
+            id: nextId++,
+            currentSourceLanguage: Languages[nextLanguage],
+          };
+          emitChange();
+        }
+      }
+    };
+    window.addEventListener("storage", handler);
+
     return () => {
+      window.removeEventListener("storage", handler);
       listeners = listeners.filter((l) => l !== listener);
     };
   },
@@ -69,9 +96,7 @@ export const LanguageStore = {
         };
         localStorage.setItem("currentLanguage", nextLanguage);
 
-        for (let listener of listeners) {
-          listener();
-        }
+        emitChange();
       }
     } catch (e) {
       console.error("Failed to save language to localStorage ", e);

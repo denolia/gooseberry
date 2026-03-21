@@ -12,7 +12,6 @@ import { useCurrentLanguage } from "@/lib/languages/useCurrentLanguage";
 
 export function WordInput() {
   const currentLanguage = useCurrentLanguage();
-  console.log("WordInput received lang", currentLanguage);
 
   const queryClient = useQueryClient();
   const [word, setWord] = useState("");
@@ -210,7 +209,7 @@ export function WordInput() {
           value={word}
           onChange={handleInputChange}
           onKeyUp={handleKeyUp}
-          placeholder={`Enter a ${currentLanguage} word...`}
+          placeholder={`Enter ${currentLanguage ? currentLanguage : ""} text...`}
           disabled={isLoading}
         />
         <button

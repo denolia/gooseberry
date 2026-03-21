@@ -51,18 +51,20 @@ export function Header() {
   const renderLanguageControl = (id: string) => (
     <div className={styles.languageControl}>
       <div className={styles.selectWrap}>
-        <select
-          id={id}
-          className={styles.languageSelect}
-          value={currentLanguage}
-          onChange={(e) => onChangeLanguage(e.target.value as Language)}
-        >
-          {LanguageOptions.map((lang) => (
-            <option key={lang} value={lang}>
-              {lang}
-            </option>
-          ))}
-        </select>
+        {currentLanguage && (
+          <select
+            id={id}
+            className={styles.languageSelect}
+            value={currentLanguage}
+            onChange={(e) => onChangeLanguage(e.target.value as Language)}
+          >
+            {LanguageOptions.map((lang) => (
+              <option key={lang} value={lang}>
+                {lang}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
     </div>
   );
