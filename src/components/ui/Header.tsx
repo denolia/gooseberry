@@ -6,17 +6,17 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Language, LanguageOptions } from "@/components/ui/Languages";
 import { useCurrentLanguage } from "@/lib/languages/useCurrentLanguage";
-import { setCurrentLanguage } from "@/lib/languages/languageStore";
+import { LanguageStore } from "@/lib/languages/languageStore";
 
 export function Header() {
   const { data: session } = useSession();
   const currentLanguage = useCurrentLanguage();
-  console.log("Header received lang", currentLanguage);
+
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   const onChangeLanguage = (value: Language) => {
-    setCurrentLanguage(value);
+    LanguageStore.setCurrentLanguage(value);
   };
 
   useEffect(() => {

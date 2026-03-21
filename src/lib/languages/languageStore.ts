@@ -1,77 +1,71 @@
 import { Language, Languages } from "@/components/ui/Languages";
 
 interface LanguageStoreState {
+  id: number;
   currentSourceLanguage: Language;
 }
 
+let nextId = 0;
+
 let data: LanguageStoreState = {
+  id: nextId++,
   currentSourceLanguage: Languages.German,
   // currentTargetLang: Languages.English,
 };
 
-function getSnapshot() {
-  try {
-    const savedLang = localStorage.getItem(
-      "currentLanguage",
-    ) as Language | null;
-    if (
-      savedLang &&
-      Languages[savedLang] &&
-      data.currentSourceLanguage !== Languages[savedLang]
-    ) {
-      data = {
-        ...data,
-        currentSourceLanguage: Languages[savedLang],
-      };
-    }
-  } catch (e) {
-    console.error("Failed to get language from localStorage ", e);
-  }
-  return data;
-}
+let listeners: (() => void)[] = [];
 
-function getServerSnapshot() {
-  return data;
-}
-
-function subscribe(listener: () => void) {
-  const handler = (e: StorageEvent) => {
-    if (e.key === "currentLanguage") {
-      console.log("handler", e.newValue);
-      const value = (e.newValue as Language) || Languages.German;
-
+export const LanguageStore = {
+  getSnapshot() {
+    try {
+      const savedLang = localStorage.getItem(
+        "currentLanguage",
+      ) as Language | null;
       if (
-        value &&
-        Languages[value] &&
-        data.currentSourceLanguage !== Languages[value]
+        savedLang &&
+        Languages[savedLang] &&
+        data.currentSourceLanguage !== Languages[savedLang]
       ) {
         data = {
           ...data,
-          currentSourceLanguage: Languages[value],
+          id: nextId++,
+          currentSourceLanguage: Languages[savedLang],
         };
-        listener();
       }
+    } catch (e) {
+      console.error("Failed to get language from localStorage ", e);
     }
-  };
-  window.addEventListener("storage", handler);
+    return data;
+  },
+  getServerSnapshot() {
+    return data;
+  },
+  subscribe(listener: () => void) {
+    listeners = [...listeners, listener];
+    return () => {
+      listeners = listeners.filter((l) => l !== listener);
+    };
+  },
+  setCurrentLanguage(nextLanguage: Language) {
+    try {
+      if (
+        nextLanguage &&
+        Languages[nextLanguage] &&
+        data.currentSourceLanguage !== Languages[nextLanguage]
+      ) {
+        data = {
+          ...data,
+          id: nextId++,
+          currentSourceLanguage: Languages[nextLanguage],
+        };
+        localStorage.setItem("currentLanguage", nextLanguage);
 
-  return () => window.removeEventListener("storage", handler);
-}
-
-function setCurrentLanguage(nextLanguage: Language) {
-  try {
-    localStorage.setItem("currentLanguage", nextLanguage);
-    console.log("set the lang, calling event");
-    // Notify other tabs/components (like WordInput) via storage event
-    window.dispatchEvent(
-      new StorageEvent("storage", {
-        key: "currentLanguage",
-        newValue: nextLanguage,
-      }),
-    );
-  } catch (e) {
-    console.error("Failed to save language to localStorage ", e);
-  }
-}
-
-export { subscribe, getSnapshot, getServerSnapshot, setCurrentLanguage };
+        for (let listener of listeners) {
+          listener();
+        }
+      }
+    } catch (e) {
+      console.error("Failed to save language to localStorage ", e);
+    }
+  },
+};

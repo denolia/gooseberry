@@ -11,6 +11,9 @@ import {
 import { useCurrentLanguage } from "@/lib/languages/useCurrentLanguage";
 
 export function WordInput() {
+  const currentLanguage = useCurrentLanguage();
+  console.log("WordInput received lang", currentLanguage);
+
   const queryClient = useQueryClient();
   const [word, setWord] = useState("");
   const [translation, setTranslation] = useState<TranslationResponse>();
@@ -18,8 +21,6 @@ export function WordInput() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showSpecialChars, setShowSpecialChars] = useState(false);
-  const currentLanguage = useCurrentLanguage();
-  console.log("WordInput received lang", currentLanguage);
 
   const historyQueryKey = ["translationHistory"] as const;
 
