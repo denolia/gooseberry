@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { LanguageStore } from "@/lib/languages/languageStore";
+import { Languages } from "@/components/ui/Languages";
 
 export function useCurrentLanguage() {
   const storeState = useSyncExternalStore(
@@ -7,7 +8,6 @@ export function useCurrentLanguage() {
     LanguageStore.getSnapshot,
     LanguageStore.getServerSnapshot,
   );
-  console.log("changed store state", storeState);
 
-  return storeState.currentSourceLanguage;
+  return storeState.currentSourceLanguage ?? Languages.German;
 }
