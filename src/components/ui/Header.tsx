@@ -4,45 +4,19 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  Language,
-  LanguageOptions,
-  Languages,
-} from "@/components/ui/Languages";
+import { Language, LanguageOptions } from "@/components/ui/Languages";
+import { useCurrentLanguage } from "@/lib/languages/useCurrentLanguage";
+import { setCurrentLanguage } from "@/lib/languages/languageStore";
 
 export function Header() {
   const { data: session } = useSession();
-  const [currentLanguage, setCurrentLanguage] = useState<Language>(
-    Languages.German,
-  );
+  const currentLanguage = useCurrentLanguage();
+  console.log("Header received lang", currentLanguage);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    try {
-      const savedLang = localStorage.getItem(
-        "currentLanguage",
-      ) as Language | null;
-      if (savedLang && Languages[savedLang]) {
-        setCurrentLanguage(savedLang);
-      }
-    } catch {}
-  }, []);
-
   const onChangeLanguage = (value: Language) => {
     setCurrentLanguage(value);
-    try {
-      localStorage.setItem("currentLanguage", value);
-      // Notify other tabs/components (like WordInput) via storage event
-      window.dispatchEvent(
-        new StorageEvent("storage", {
-          key: "currentLanguage",
-          newValue: value,
-        }),
-      );
-    } catch (e) {
-      console.error("Failed to save language to localStorage ", e);
-    }
   };
 
   useEffect(() => {
@@ -103,7 +77,10 @@ export function Header() {
         <div className={styles.desktopActions}>
           {session && renderLanguageControl("header-language-select")}
           {session ? (
-            <button className={styles.secondaryAction} onClick={() => signOut()}>
+            <button
+              className={styles.secondaryAction}
+              onClick={() => signOut()}
+            >
               Sign out
             </button>
           ) : (

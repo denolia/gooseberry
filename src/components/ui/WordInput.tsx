@@ -8,7 +8,7 @@ import {
   TranslationResponse,
   TranslationResponseSchema,
 } from "@/app/utils/translationSchema";
-import { Language, Languages } from "@/components/ui/Languages";
+import { useCurrentLanguage } from "@/lib/languages/useCurrentLanguage";
 
 export function WordInput() {
   const queryClient = useQueryClient();
@@ -18,9 +18,9 @@ export function WordInput() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showSpecialChars, setShowSpecialChars] = useState(false);
-  const [currentLanguage, setCurrentLanguage] = useState<Language>(
-    Languages.German,
-  );
+  const currentLanguage = useCurrentLanguage();
+  console.log("WordInput received lang", currentLanguage);
+
   const historyQueryKey = ["translationHistory"] as const;
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -45,14 +45,6 @@ export function WordInput() {
   // Load saved history from localStorage on initial load
   useEffect(() => {
     async function initializeHistory() {
-      // 1. Load saved language first
-      const savedLang = localStorage.getItem("currentLanguage") as
-        | Language
-        | undefined;
-      if (savedLang && Languages[savedLang]) {
-        setCurrentLanguage(savedLang);
-      }
-
       // 2. Load from localStorage immediately (fast)
       const savedHistory = localStorage.getItem("translationHistory");
       const localHistory = savedHistory ? JSON.parse(savedHistory) : [];
@@ -89,20 +81,6 @@ export function WordInput() {
 
     setHistory(combinedHistory);
   }, [historyQuery.data]);
-
-  // Listen for language changes from Header (via storage event)
-  useEffect(() => {
-    const handler = (e: StorageEvent) => {
-      if (e.key === "currentLanguage") {
-        const value = (e.newValue as Language) || Languages.German;
-        if (value && Languages[value]) {
-          setCurrentLanguage(value);
-        }
-      }
-    };
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
-  }, []);
 
   useEffect(() => {
     if (inputRef.current) {
