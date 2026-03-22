@@ -39,6 +39,7 @@ export const SourceLanguages = {
   Chinese: Languages.Chinese,
   Arabic: Languages.Arabic,
   Hindi: Languages.Hindi,
+  Russian: Languages.Russian,
 } as const;
 
 export const TargetLanguages = {
@@ -89,13 +90,19 @@ export type SourceLanguage =
   (typeof SourceLanguages)[keyof typeof SourceLanguages];
 export type TargetLanguage =
   (typeof TargetLanguages)[keyof typeof TargetLanguages];
-export type SourceLanguageCode =
-  (typeof LanguageCodes)[SourceLanguage];
-export type TargetLanguageCode =
-  (typeof LanguageCodes)[TargetLanguage];
+export type SourceLanguageCode = (typeof LanguageCodes)[SourceLanguage];
+export type TargetLanguageCode = (typeof LanguageCodes)[TargetLanguage];
 
-export const SourceLanguageOptions = Object.values(SourceLanguages);
-export const TargetLanguageOptions = Object.values(TargetLanguages);
+function sortLanguagesAlphabetically<T extends string>(languages: T[]) {
+  return [...languages].sort((left, right) => left.localeCompare(right));
+}
+
+export const SourceLanguageOptions = sortLanguagesAlphabetically(
+  Object.values(SourceLanguages),
+);
+export const TargetLanguageOptions = sortLanguagesAlphabetically(
+  Object.values(TargetLanguages),
+);
 export const SourceLanguageCodeOptions = SourceLanguageOptions.map(
   (language) => LanguageCodes[language],
 );
@@ -133,21 +140,29 @@ export function getLanguageCode(
 }
 
 export function isSourceLanguage(value: unknown): value is SourceLanguage {
-  return typeof value === "string" && sourceLanguageSet.has(value as SourceLanguage);
+  return (
+    typeof value === "string" && sourceLanguageSet.has(value as SourceLanguage)
+  );
 }
 
 export function isTargetLanguage(value: unknown): value is TargetLanguage {
-  return typeof value === "string" && targetLanguageSet.has(value as TargetLanguage);
+  return (
+    typeof value === "string" && targetLanguageSet.has(value as TargetLanguage)
+  );
 }
 
-export function isSourceLanguageCode(value: unknown): value is SourceLanguageCode {
+export function isSourceLanguageCode(
+  value: unknown,
+): value is SourceLanguageCode {
   return (
     typeof value === "string" &&
     sourceLanguageCodeSet.has(value as SourceLanguageCode)
   );
 }
 
-export function isTargetLanguageCode(value: unknown): value is TargetLanguageCode {
+export function isTargetLanguageCode(
+  value: unknown,
+): value is TargetLanguageCode {
   return (
     typeof value === "string" &&
     targetLanguageCodeSet.has(value as TargetLanguageCode)
