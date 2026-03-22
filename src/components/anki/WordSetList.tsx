@@ -7,13 +7,21 @@ import { useState } from "react";
 import styles from "./WordSetList.module.css";
 import {
   getLanguageCode,
+  isSourceLanguageCode,
+  isTargetLanguageCode,
   SourceLanguageCode,
+  SourceLanguageCodeOptions,
   SourceLanguages,
   SourceLanguageSelectOptions,
   TargetLanguageCode,
+  TargetLanguageCodeOptions,
   TargetLanguages,
   TargetLanguageSelectOptions,
 } from "@/components/ui/Languages";
+import {
+  updateLanguagePairForSourceChange,
+  updateLanguagePairForTargetChange,
+} from "@/lib/languages/languagePair";
 
 interface WordSet {
   id: string;
@@ -24,19 +32,48 @@ interface WordSet {
   lastExportedAt: string | null;
 }
 
+type CreateLanguageState = {
+  currentSourceLang: SourceLanguageCode;
+  currentTargetLang: TargetLanguageCode;
+  previousSourceLang: SourceLanguageCode;
+  previousTargetLang: TargetLanguageCode;
+};
+
+const defaultCreateSourceLanguage = getLanguageCode(
+  SourceLanguages.German,
+) as SourceLanguageCode;
+const defaultCreateTargetLanguage = getLanguageCode(
+  TargetLanguages.English,
+) as TargetLanguageCode;
+
+const defaultCreateLanguageState: CreateLanguageState = {
+  currentSourceLang: defaultCreateSourceLanguage,
+  currentTargetLang: defaultCreateTargetLanguage,
+  previousSourceLang: defaultCreateSourceLanguage,
+  previousTargetLang: defaultCreateTargetLanguage,
+};
+
+const createLanguagePairConfig = {
+  defaultSource: defaultCreateSourceLanguage,
+  defaultTarget: defaultCreateTargetLanguage,
+  sourceOptions: SourceLanguageCodeOptions,
+  targetOptions: TargetLanguageCodeOptions,
+  isSource: isSourceLanguageCode,
+  isTarget: isTargetLanguageCode,
+} as const;
+
 export function WordSetList() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createName, setCreateName] = useState("");
-  const [createSourceLang, setCreateSourceLang] = useState<SourceLanguageCode>(
-    getLanguageCode(SourceLanguages.German) as SourceLanguageCode,
-  );
-  const [createTargetLang, setCreateTargetLang] = useState<TargetLanguageCode>(
-    getLanguageCode(TargetLanguages.English) as TargetLanguageCode,
+  const [createLanguages, setCreateLanguages] = useState<CreateLanguageState>(
+    defaultCreateLanguageState,
   );
   const wordSetsQueryKey = ["wordSets", session?.user?.id] as const;
+  const createSourceLang = createLanguages.currentSourceLang;
+  const createTargetLang = createLanguages.currentTargetLang;
 
   const { data: wordSets = [], isPending, error } = useQuery({
     queryKey: wordSetsQueryKey,
@@ -68,6 +105,7 @@ export function WordSetList() {
       queryClient.invalidateQueries({ queryKey: wordSetsQueryKey });
       setShowCreateForm(false);
       setCreateName("");
+      setCreateLanguages(defaultCreateLanguageState);
       router.push(`/anki/${data.wordSet.id}`);
     },
   });
@@ -94,6 +132,50 @@ export function WordSetList() {
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to create word set");
     }
+  };
+
+  const handleCreateSourceLanguageChange = (nextSource: SourceLanguageCode) => {
+    setCreateLanguages((current) => {
+      const next = updateLanguagePairForSourceChange(
+        {
+          currentSource: current.currentSourceLang,
+          currentTarget: current.currentTargetLang,
+          previousSource: current.previousSourceLang,
+          previousTarget: current.previousTargetLang,
+        },
+        nextSource,
+        createLanguagePairConfig,
+      );
+
+      return {
+        currentSourceLang: next.currentSource,
+        currentTargetLang: next.currentTarget,
+        previousSourceLang: next.previousSource,
+        previousTargetLang: next.previousTarget,
+      };
+    });
+  };
+
+  const handleCreateTargetLanguageChange = (nextTarget: TargetLanguageCode) => {
+    setCreateLanguages((current) => {
+      const next = updateLanguagePairForTargetChange(
+        {
+          currentSource: current.currentSourceLang,
+          currentTarget: current.currentTargetLang,
+          previousSource: current.previousSourceLang,
+          previousTarget: current.previousTargetLang,
+        },
+        nextTarget,
+        createLanguagePairConfig,
+      );
+
+      return {
+        currentSourceLang: next.currentSource,
+        currentTargetLang: next.currentTarget,
+        previousSourceLang: next.previousSource,
+        previousTargetLang: next.previousTarget,
+      };
+    });
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -156,7 +238,9 @@ export function WordSetList() {
             <select
               value={createSourceLang}
               onChange={(e) =>
-                setCreateSourceLang(e.target.value as SourceLanguageCode)
+                handleCreateSourceLanguageChange(
+                  e.target.value as SourceLanguageCode,
+                )
               }
               className={styles.select}
             >
@@ -170,7 +254,9 @@ export function WordSetList() {
             <select
               value={createTargetLang}
               onChange={(e) =>
-                setCreateTargetLang(e.target.value as TargetLanguageCode)
+                handleCreateTargetLanguageChange(
+                  e.target.value as TargetLanguageCode,
+                )
               }
               className={styles.select}
             >
