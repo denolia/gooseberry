@@ -13,20 +13,112 @@ import {
 import { useLanguages } from "@/lib/languages/useLanguages";
 import { LanguageStore } from "@/lib/languages/languageStore";
 
+type LanguageControlProps = {
+  id: string;
+  value: string | null;
+  options: readonly string[];
+  onChange: (value: string) => void;
+  label?: string;
+  showLabel?: boolean;
+};
+
+function LanguageControl({
+  id,
+  value,
+  options,
+  onChange,
+  label,
+  showLabel = true,
+}: LanguageControlProps) {
+  return (
+    <div className={styles.languageControl}>
+      {showLabel && label && (
+        <label className={styles.languageLabel} htmlFor={id}>
+          {label}
+        </label>
+      )}
+      <div className={styles.selectWrap}>
+        {value && (
+          <select
+            id={id}
+            className={styles.languageSelect}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+          >
+            {options.map((lang) => (
+              <option key={lang} value={lang}>
+                {lang}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DesktopLanguageControls() {
+  const { currentSourceLanguage, currentTargetLanguage } = useLanguages();
+
+  return (
+    <div className={styles.languagePair}>
+      <LanguageControl
+        id="header-source-language-select"
+        value={currentSourceLanguage}
+        options={LanguageOptions}
+        onChange={(value) =>
+          LanguageStore.setCurrentSourceLanguage(value as Language)
+        }
+        showLabel={false}
+      />
+      <span className={styles.languageArrow} aria-hidden="true">
+        &rarr;
+      </span>
+      <LanguageControl
+        id="header-target-language-select"
+        value={currentTargetLanguage}
+        options={TargetLanguageOptions}
+        onChange={(value) =>
+          LanguageStore.setCurrentTargetLanguage(value as TargetLanguage)
+        }
+        showLabel={false}
+      />
+    </div>
+  );
+}
+
+function MobileLanguageControls() {
+  const { currentSourceLanguage, currentTargetLanguage } = useLanguages();
+
+  return (
+    <>
+      <LanguageControl
+        id="header-source-language-select-mobile"
+        label="Source"
+        value={currentSourceLanguage}
+        options={LanguageOptions}
+        onChange={(value) =>
+          LanguageStore.setCurrentSourceLanguage(value as Language)
+        }
+      />
+      <LanguageControl
+        id="header-target-language-select-mobile"
+        label="Target"
+        value={currentTargetLanguage}
+        options={TargetLanguageOptions}
+        onChange={(value) =>
+          LanguageStore.setCurrentTargetLanguage(value as TargetLanguage)
+        }
+      />
+    </>
+  );
+}
+
 export function Header() {
   const { data: session } = useSession();
-  const { currentSourceLanguage, currentTargetLanguage } = useLanguages();
 
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
-
-  const onChangeSourceLanguage = (value: Language) => {
-    LanguageStore.setCurrentSourceLanguage(value);
-  };
-
-  const onChangeTargetLanguage = (value: TargetLanguage) => {
-    LanguageStore.setCurrentTargetLanguage(value);
-  };
 
   useEffect(() => {
     if (!showMobileMenu) {
@@ -57,61 +149,6 @@ export function Header() {
     };
   }, [showMobileMenu]);
 
-  const renderLanguageControl = ({
-    id,
-    label,
-    value,
-    options,
-    onChange,
-  }: {
-    id: string;
-    label: string;
-    value: string | null;
-    options: readonly string[];
-    onChange: (value: string) => void;
-  }) => (
-    <div className={styles.languageControl}>
-      <label className={styles.languageLabel} htmlFor={id}>
-        {label}
-      </label>
-      <div className={styles.selectWrap}>
-        {value && (
-          <select
-            id={id}
-            className={styles.languageSelect}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-          >
-            {options.map((lang) => (
-              <option key={lang} value={lang}>
-                {lang}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-    </div>
-  );
-
-  const renderLanguageControls = (idSuffix: string) => (
-    <>
-      {renderLanguageControl({
-        id: `header-source-language-select${idSuffix}`,
-        label: "Source",
-        value: currentSourceLanguage,
-        options: LanguageOptions,
-        onChange: (value) => onChangeSourceLanguage(value as Language),
-      })}
-      {renderLanguageControl({
-        id: `header-target-language-select${idSuffix}`,
-        label: "Target",
-        value: currentTargetLanguage,
-        options: TargetLanguageOptions,
-        onChange: (value) => onChangeTargetLanguage(value as TargetLanguage),
-      })}
-    </>
-  );
-
   return (
     <header className={styles.container}>
       <Link href="/" className={styles.logo}>
@@ -120,7 +157,7 @@ export function Header() {
 
       <div className={styles.rightSlot}>
         <div className={styles.desktopActions}>
-          {session && renderLanguageControls("")}
+          {session && <DesktopLanguageControls />}
           {session ? (
             <button
               className={styles.secondaryAction}
@@ -155,7 +192,7 @@ export function Header() {
             id="header-mobile-menu"
             aria-hidden={!showMobileMenu}
           >
-            {session && renderLanguageControls("-mobile")}
+            {session && <MobileLanguageControls />}
             {session ? (
               <button
                 className={styles.secondaryAction}

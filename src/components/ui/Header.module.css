@@ -60,6 +60,19 @@
   gap: 0.35rem;
 }
 
+.languagePair {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.languageArrow {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1;
+  transform: translateY(1px);
+}
+
 .languageLabel {
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -186,7 +199,7 @@
   top: calc(100% + 0.6rem);
   right: 0;
   z-index: 20;
-  width: min(18rem, calc(100vw - 2rem));
+  width: min(20rem, calc(100vw - 1rem));
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
@@ -245,6 +258,6 @@
   }
 
   .mobilePanel {
-    width: min(16rem, calc(100vw - 0.8rem));
+    width: min(18rem, calc(100vw - 0.8rem));
   }
 }
