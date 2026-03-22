@@ -1,12 +1,12 @@
 import {
-  Language,
-  Languages,
+  SourceLanguage,
+  SourceLanguages,
   TargetLanguage,
   TargetLanguages,
 } from "@/components/ui/Languages";
 
 function getBasePrompt(
-  sourceLanguage: Language,
+  sourceLanguage: SourceLanguage,
   targetLanguage: TargetLanguage,
 ) {
   return `You are a professional translator and language assistant specializing in ${sourceLanguage}-to-${targetLanguage} translation.
@@ -35,24 +35,24 @@ Keep source-language examples in ${sourceLanguage}.
 }
 
 export const getTranslationPrompt = (
-  language: Language | undefined,
+  sourceLanguage: SourceLanguage | undefined,
   targetLanguage: TargetLanguage | undefined,
 ) => {
-  const sourceLanguage = language ?? Languages.German;
+  const currentSourceLanguage = sourceLanguage ?? SourceLanguages.German;
   const outputLanguage = targetLanguage ?? TargetLanguages.English;
 
-  switch (sourceLanguage) {
-    case Languages.English:
-      return `${getBasePrompt(sourceLanguage, outputLanguage)}
+  switch (currentSourceLanguage) {
+    case SourceLanguages.English:
+      return `${getBasePrompt(currentSourceLanguage, outputLanguage)}
 
 For English input, pay extra attention to tense, register, phrasal verbs, and common ambiguity.`;
-    case Languages.Norwegian:
-      return `${getBasePrompt(sourceLanguage, outputLanguage)}
+    case SourceLanguages.Norwegian:
+      return `${getBasePrompt(currentSourceLanguage, outputLanguage)}
 
 For Norwegian input, explain grammatical constructions clearly and draw concise parallels with English or German when helpful.`;
-    case Languages.German:
+    case SourceLanguages.German:
     default:
-      return `${getBasePrompt(sourceLanguage, outputLanguage)}
+      return `${getBasePrompt(currentSourceLanguage, outputLanguage)}
 
 For German input, include fixed Verb-Noun combinations and Verb-Preposition-Case patterns when they are relevant.`;
   }

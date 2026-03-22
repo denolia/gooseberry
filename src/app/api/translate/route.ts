@@ -5,8 +5,8 @@ import { auth } from "@/auth";
 import { getTranslationPrompt } from "@/app/api/translate/getTranslationPrompt";
 import { insertTranslation } from "@/db/translationRepo";
 import {
-  Language,
-  Languages,
+  SourceLanguage,
+  SourceLanguages,
   TargetLanguage,
   TargetLanguageCodes,
   TargetLanguages,
@@ -15,10 +15,11 @@ import {
 export const maxDuration = 60; // This function can run for a maximum of 60 seconds
 const timeoutMs = 60000; // timeout for the request in milliseconds
 
-function getSourceLanguage(value: unknown): Language {
-  return value === Languages.Norwegian || value === Languages.English
+function getSourceLanguage(value: unknown): SourceLanguage {
+  return value === SourceLanguages.Norwegian ||
+    value === SourceLanguages.English
     ? value
-    : Languages.German;
+    : SourceLanguages.German;
 }
 
 function getTargetLanguage(value: unknown): TargetLanguage {
@@ -34,8 +35,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const { text, language, targetLanguage } = await request.json();
-    const currentSourceLanguage = getSourceLanguage(language);
+    const { text, sourceLanguage, targetLanguage } = await request.json();
+    const currentSourceLanguage = getSourceLanguage(sourceLanguage);
     const currentTargetLanguage = getTargetLanguage(targetLanguage);
 
     // AbortController is needed for a custom timeout.

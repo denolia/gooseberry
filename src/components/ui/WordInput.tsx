@@ -11,8 +11,7 @@ import {
 import { useLanguages } from "@/lib/languages/useLanguages";
 
 export function WordInput() {
-  const { currentSourceLanguage: currentLanguage, currentTargetLanguage } =
-    useLanguages();
+  const { currentSourceLanguage, currentTargetLanguage } = useLanguages();
 
   const queryClient = useQueryClient();
   const [word, setWord] = useState("");
@@ -118,7 +117,7 @@ export function WordInput() {
         },
         body: JSON.stringify({
           text: word,
-          language: currentLanguage,
+          sourceLanguage: currentSourceLanguage,
           targetLanguage: currentTargetLanguage,
         }),
       });
@@ -214,7 +213,7 @@ export function WordInput() {
           value={word}
           onChange={handleInputChange}
           onKeyUp={handleKeyUp}
-          placeholder={`Enter ${currentLanguage} text...`}
+          placeholder={`Enter ${currentSourceLanguage} text...`}
           disabled={isLoading}
         />
         <button

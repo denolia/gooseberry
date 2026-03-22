@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from "react";
 import { LanguageStore } from "@/lib/languages/languageStore";
-import { Language, TargetLanguage } from "@/components/ui/Languages";
+import { SourceLanguage, TargetLanguage } from "@/components/ui/Languages";
 
 export function useLanguages(): {
-  currentSourceLanguage: Language;
+  currentSourceLanguage: SourceLanguage;
   currentTargetLanguage: TargetLanguage;
 } {
   return useSyncExternalStore(

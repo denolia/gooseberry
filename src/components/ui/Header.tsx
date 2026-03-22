@@ -5,8 +5,8 @@ import Link from "next/link";
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Language,
-  LanguageOptions,
+  SourceLanguage,
+  SourceLanguageOptions,
   TargetLanguage,
   TargetLanguageOptions,
 } from "@/components/ui/Languages";
@@ -63,9 +63,9 @@ function DesktopLanguageControls() {
       <LanguageControl
         id="header-source-language-select"
         value={currentSourceLanguage}
-        options={LanguageOptions}
+        options={SourceLanguageOptions}
         onChange={(value) =>
-          LanguageStore.setCurrentSourceLanguage(value as Language)
+          LanguageStore.setCurrentSourceLanguage(value as SourceLanguage)
         }
         showLabel={false}
       />
@@ -94,9 +94,9 @@ function MobileLanguageControls() {
         id="header-source-language-select-mobile"
         label="Source"
         value={currentSourceLanguage}
-        options={LanguageOptions}
+        options={SourceLanguageOptions}
         onChange={(value) =>
-          LanguageStore.setCurrentSourceLanguage(value as Language)
+          LanguageStore.setCurrentSourceLanguage(value as SourceLanguage)
         }
       />
       <LanguageControl

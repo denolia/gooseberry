@@ -1,13 +1,13 @@
 import {
-  Language,
-  Languages,
+  SourceLanguage,
+  SourceLanguages,
   TargetLanguage,
   TargetLanguages,
 } from "@/components/ui/Languages";
 
 interface LanguageStoreState {
   id: number;
-  currentSourceLanguage: Language;
+  currentSourceLanguage: SourceLanguage;
   currentTargetLanguage: TargetLanguage;
 }
 
@@ -18,13 +18,15 @@ const TARGET_LANGUAGE_STORAGE_KEY = "currentTargetLanguage";
 
 const DEFAULT_VALUE: LanguageStoreState = {
   id: 0,
-  currentSourceLanguage: Languages.German,
+  currentSourceLanguage: SourceLanguages.German,
   currentTargetLanguage: TargetLanguages.English,
 };
 let data: LanguageStoreState = DEFAULT_VALUE;
 
-function isSourceLanguage(value: string | null): value is Language {
-  return Boolean(value && Languages[value as keyof typeof Languages]);
+function isSourceLanguage(value: string | null): value is SourceLanguage {
+  return Boolean(
+    value && SourceLanguages[value as keyof typeof SourceLanguages],
+  );
 }
 
 function isTargetLanguage(value: string | null): value is TargetLanguage {
@@ -47,7 +49,8 @@ function initReadFromLocalStorage() {
 
   try {
     const savedSourceLanguage =
-      localStorage.getItem(SOURCE_LANGUAGE_STORAGE_KEY) ?? Languages.German;
+      localStorage.getItem(SOURCE_LANGUAGE_STORAGE_KEY) ??
+      SourceLanguages.German;
     const savedTargetLanguage =
       localStorage.getItem(TARGET_LANGUAGE_STORAGE_KEY) ??
       TargetLanguages.English;
@@ -115,7 +118,7 @@ export const LanguageStore = {
       listeners = listeners.filter((l) => l !== listener);
     };
   },
-  setCurrentSourceLanguage(nextLanguage: Language) {
+  setCurrentSourceLanguage(nextLanguage: SourceLanguage) {
     try {
       if (
         isSourceLanguage(nextLanguage) &&
