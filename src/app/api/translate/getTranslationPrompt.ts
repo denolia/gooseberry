@@ -1,64 +1,59 @@
-import { Language, Languages } from "@/components/ui/Languages";
+import {
+  Language,
+  Languages,
+  TargetLanguage,
+  TargetLanguages,
+} from "@/components/ui/Languages";
 
-export const getTranslationPrompt = (language: Language | undefined) => {
-  const lang = language ?? Languages.German;
-  switch (lang) {
-    case "English":
-      // TODO: Replace with a dedicated English->Russian learner-optimized prompt
-      return `
-      
-      
-      
-      You are a professional translator and language assistant specializing in English-to-Russian translation. Your task is to provide accurate, concise and detailed translations optimized for language learners. All the translations and explanations must be written in Russian. If a value is not applicable, write "-". Put grammatically corrected text into the "origin" field, fix cases and punctuation. 
-      
-      
+function getBasePrompt(
+  sourceLanguage: Language,
+  targetLanguage: TargetLanguage,
+) {
+  return `You are a professional translator and language assistant specializing in ${sourceLanguage}-to-${targetLanguage} translation.
 
-1. For sentences: Provide the natural translation. Add more details about: stylistic kind of the text (informal, formal, rude, etc). Non-sentence fields are not applicable (article, verb_forms, etc). Provide grammatical analysis of the sentence.
+Your task is to provide accurate, concise, and detailed translations optimized for language learners.
+If a value is not applicable, write "-".
+Put grammatically corrected source text into the "original" field and fix obvious punctuation mistakes.
+All translations, explanations, comments, and "sample_translation" values must be written in ${targetLanguage}.
+Keep source-language examples in ${sourceLanguage}.
 
-2. For single words or phrases:
-   - All possible translations with nuances of meaning.
-   - Idiomatic uses and common collocations.
-   - Frequency indicator: Mark the word/phrase as common (✅), less common (⚠️), or rare (❌).
-   - Any other information that may be useful put in "comments".
-
-3. Example Sentences:
-   - Provide five example sentences in English (sample), each with a Russian translation (sample_translation).
-   - The examples should illustrate different meanings, contexts, and grammatical structures where applicable.`;
-    case "Norwegian":
-      // TODO: Replace with a dedicated Norwegian->Russian learner-optimized prompt
-      return `I study Norwegian. I speak Russian and know English and German well, so you can draw parallels with them. Explain all grammatical constructions and expressions. 
-      
- If a value is not applicable, write "-". Put grammatically corrected text into the "origin" field, fix cases and punctuation. All the translations and explanations must be written in Russian, except examples and references.
-
-
-1. For sentences: Provide the natural translation. Add more details about: stylistic kind of the text (informal, formal, rude, etc). Non-sentence fields are not applicable (article, verb_forms, etc). Provide explanation for each word in the sentence. 
+1. For sentences:
+   - Provide the natural translation.
+   - Add stylistic information when relevant (formal, informal, rude, poetic, technical, archaic).
+   - Non-sentence fields are not applicable when they do not fit.
+   - Provide grammatical analysis of the sentence.
 
 2. For single words or phrases:
-   - All possible translations with nuances of meaning.
-   - Idiomatic uses and common collocations.
-   - Frequency indicator: Mark the word/phrase as common (✅), less common (⚠️), or rare (❌).
-   - Any other information that may be useful put in "comments".
+   - Provide all important translations with nuances of meaning.
+   - Include idiomatic uses and common collocations.
+   - Mark frequency as common (✅), less common (⚠️), or rare (❌).
+   - Put any extra learner-relevant notes in "comments".
 
-3. Example Sentences:
-   - Provide five example sentences in Norwegian (sample), each with a Russian translation (sample_translation).
+3. Example sentences:
+   - Provide five example sentences in ${sourceLanguage}, each with a ${targetLanguage} translation in "sample_translation".
    - The examples should illustrate different meanings, contexts, and grammatical structures where applicable.`;
-    case "German":
+}
+
+export const getTranslationPrompt = (
+  language: Language | undefined,
+  targetLanguage: TargetLanguage | undefined,
+) => {
+  const sourceLanguage = language ?? Languages.German;
+  const outputLanguage = targetLanguage ?? TargetLanguages.English;
+
+  switch (sourceLanguage) {
+    case Languages.English:
+      return `${getBasePrompt(sourceLanguage, outputLanguage)}
+
+For English input, pay extra attention to tense, register, phrasal verbs, and common ambiguity.`;
+    case Languages.Norwegian:
+      return `${getBasePrompt(sourceLanguage, outputLanguage)}
+
+For Norwegian input, explain grammatical constructions clearly and draw concise parallels with English or German when helpful.`;
+    case Languages.German:
     default:
-      return `You are a professional translator and language assistant specializing in German-to-Russian translation. Your task is to provide accurate, concise and detailed translations optimized for language learners. All the translations and explanations must be written in Russian. If a value is not applicable, write "-". Put grammatically corrected text into the "origin" field, fix cases and punctuation. 
+      return `${getBasePrompt(sourceLanguage, outputLanguage)}
 
-1. **For sentences**: Provide the natural translation. Add more details about: stylistic kind of the text (informal, formal, rude, etc). Non-sentense fields are not applicable (article, verb_forms, etc). Provide grammatical analysis of the sentence. 
-
-2. **For single words or phrases**:
-
-In the details section provide detailed linguistic information:
-   - All possible translations with nuances of meaning.
-   - Any fixed Verb-Noun (e.g. Hilfe leisten = helfen, ) or Verb-Preposition-Case combinations (e.g., sich erinnern an + Akk., arbeiten als + Nom., arbeiten an + Dat., arbeiten bei + Dat. ).
-   - Idiomatic uses and common collocations (e.g., "ins Auge fallen" – бросаться в глаза).
-   - Frequency indicator: Mark the word/phrase as **common (✅), less common (⚠️), or rare (❌)**.
-   - Any other information that may be useful put in "comments".
-
-3. **Example Sentences**:
-   - Provide **five example sentences** in **German** (sample), each with a **Russian translation** (sample_translation).
-   - The examples should illustrate **different meanings, contexts, and grammatical structures** where applicable.`;
+For German input, include fixed Verb-Noun combinations and Verb-Preposition-Case patterns when they are relevant.`;
   }
 };

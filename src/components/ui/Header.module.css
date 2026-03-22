@@ -54,7 +54,7 @@
 }
 
 .languageControl {
-  min-width: 13rem;
+  min-width: 11.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;

@@ -4,19 +4,28 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 
 import { useEffect, useRef, useState } from "react";
-import { Language, LanguageOptions } from "@/components/ui/Languages";
-import { useCurrentLanguage } from "@/lib/languages/useCurrentLanguage";
+import {
+  Language,
+  LanguageOptions,
+  TargetLanguage,
+  TargetLanguageOptions,
+} from "@/components/ui/Languages";
+import { useLanguages } from "@/lib/languages/useLanguages";
 import { LanguageStore } from "@/lib/languages/languageStore";
 
 export function Header() {
   const { data: session } = useSession();
-  const currentLanguage = useCurrentLanguage();
+  const { currentSourceLanguage, currentTargetLanguage } = useLanguages();
 
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
-  const onChangeLanguage = (value: Language) => {
-    LanguageStore.setCurrentLanguage(value);
+  const onChangeSourceLanguage = (value: Language) => {
+    LanguageStore.setCurrentSourceLanguage(value);
+  };
+
+  const onChangeTargetLanguage = (value: TargetLanguage) => {
+    LanguageStore.setCurrentTargetLanguage(value);
   };
 
   useEffect(() => {
@@ -48,17 +57,32 @@ export function Header() {
     };
   }, [showMobileMenu]);
 
-  const renderLanguageControl = (id: string) => (
+  const renderLanguageControl = ({
+    id,
+    label,
+    value,
+    options,
+    onChange,
+  }: {
+    id: string;
+    label: string;
+    value: string | null;
+    options: readonly string[];
+    onChange: (value: string) => void;
+  }) => (
     <div className={styles.languageControl}>
+      <label className={styles.languageLabel} htmlFor={id}>
+        {label}
+      </label>
       <div className={styles.selectWrap}>
-        {currentLanguage && (
+        {value && (
           <select
             id={id}
             className={styles.languageSelect}
-            value={currentLanguage}
-            onChange={(e) => onChangeLanguage(e.target.value as Language)}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
           >
-            {LanguageOptions.map((lang) => (
+            {options.map((lang) => (
               <option key={lang} value={lang}>
                 {lang}
               </option>
@@ -69,6 +93,25 @@ export function Header() {
     </div>
   );
 
+  const renderLanguageControls = (idSuffix: string) => (
+    <>
+      {renderLanguageControl({
+        id: `header-source-language-select${idSuffix}`,
+        label: "Source",
+        value: currentSourceLanguage,
+        options: LanguageOptions,
+        onChange: (value) => onChangeSourceLanguage(value as Language),
+      })}
+      {renderLanguageControl({
+        id: `header-target-language-select${idSuffix}`,
+        label: "Target",
+        value: currentTargetLanguage,
+        options: TargetLanguageOptions,
+        onChange: (value) => onChangeTargetLanguage(value as TargetLanguage),
+      })}
+    </>
+  );
+
   return (
     <header className={styles.container}>
       <Link href="/" className={styles.logo}>
@@ -77,7 +120,7 @@ export function Header() {
 
       <div className={styles.rightSlot}>
         <div className={styles.desktopActions}>
-          {session && renderLanguageControl("header-language-select")}
+          {session && renderLanguageControls("")}
           {session ? (
             <button
               className={styles.secondaryAction}
@@ -112,7 +155,7 @@ export function Header() {
             id="header-mobile-menu"
             aria-hidden={!showMobileMenu}
           >
-            {session && renderLanguageControl("header-language-select-mobile")}
+            {session && renderLanguageControls("-mobile")}
             {session ? (
               <button
                 className={styles.secondaryAction}

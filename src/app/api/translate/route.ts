@@ -4,9 +4,20 @@ import { TranslationResponseSchema } from "@/app/utils/translationSchema";
 import { auth } from "@/auth";
 import { getTranslationPrompt } from "@/app/api/translate/getTranslationPrompt";
 import { insertTranslation } from "@/db/translationRepo";
+import {
+  TargetLanguage,
+  TargetLanguageCodes,
+  TargetLanguages,
+} from "@/components/ui/Languages";
 
 export const maxDuration = 60; // This function can run for a maximum of 60 seconds
 const timeoutMs = 60000; // timeout for the request in milliseconds
+
+function getTargetLanguage(value: unknown): TargetLanguage {
+  return value === TargetLanguages.Russian
+    ? TargetLanguages.Russian
+    : TargetLanguages.English;
+}
 
 export async function POST(request: Request) {
   // Check if the user is authenticated
@@ -15,7 +26,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const { text, language } = await request.json();
+    const { text, language, targetLanguage } = await request.json();
+    const currentTargetLanguage = getTargetLanguage(targetLanguage);
 
     // AbortController is needed for a custom timeout.
     const controller = new AbortController();
@@ -33,7 +45,7 @@ export async function POST(request: Request) {
         messages: [
           {
             role: "system",
-            content: getTranslationPrompt(language),
+            content: getTranslationPrompt(language, currentTargetLanguage),
           },
           { role: "user", content: text },
         ],
@@ -66,7 +78,7 @@ export async function POST(request: Request) {
         await insertTranslation({
           userId: session.user.id,
           sourceLang: language,
-          targetLang: "ru",
+          targetLang: TargetLanguageCodes[currentTargetLanguage],
           inputText: text,
           responseJson: validatedData,
           model: "gpt-4o",

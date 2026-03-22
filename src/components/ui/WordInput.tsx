@@ -8,10 +8,11 @@ import {
   TranslationResponse,
   TranslationResponseSchema,
 } from "@/app/utils/translationSchema";
-import { useCurrentLanguage } from "@/lib/languages/useCurrentLanguage";
+import { useLanguages } from "@/lib/languages/useLanguages";
 
 export function WordInput() {
-  const currentLanguage = useCurrentLanguage();
+  const { currentSourceLanguage: currentLanguage, currentTargetLanguage } =
+    useLanguages();
 
   const queryClient = useQueryClient();
   const [word, setWord] = useState("");
@@ -115,7 +116,11 @@ export function WordInput() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ text: word, language: currentLanguage }),
+        body: JSON.stringify({
+          text: word,
+          language: currentLanguage,
+          targetLanguage: currentTargetLanguage,
+        }),
       });
 
       const translation = await response.json();
