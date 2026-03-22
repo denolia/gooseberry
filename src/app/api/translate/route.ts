@@ -5,6 +5,8 @@ import { auth } from "@/auth";
 import { getTranslationPrompt } from "@/app/api/translate/getTranslationPrompt";
 import { insertTranslation } from "@/db/translationRepo";
 import {
+  Language,
+  Languages,
   TargetLanguage,
   TargetLanguageCodes,
   TargetLanguages,
@@ -12,6 +14,12 @@ import {
 
 export const maxDuration = 60; // This function can run for a maximum of 60 seconds
 const timeoutMs = 60000; // timeout for the request in milliseconds
+
+function getSourceLanguage(value: unknown): Language {
+  return value === Languages.Norwegian || value === Languages.English
+    ? value
+    : Languages.German;
+}
 
 function getTargetLanguage(value: unknown): TargetLanguage {
   return value === TargetLanguages.Russian
@@ -27,6 +35,7 @@ export async function POST(request: Request) {
   }
   try {
     const { text, language, targetLanguage } = await request.json();
+    const currentSourceLanguage = getSourceLanguage(language);
     const currentTargetLanguage = getTargetLanguage(targetLanguage);
 
     // AbortController is needed for a custom timeout.
@@ -45,7 +54,10 @@ export async function POST(request: Request) {
         messages: [
           {
             role: "system",
-            content: getTranslationPrompt(language, currentTargetLanguage),
+            content: getTranslationPrompt(
+              currentSourceLanguage,
+              currentTargetLanguage,
+            ),
           },
           { role: "user", content: text },
         ],
@@ -77,7 +89,7 @@ export async function POST(request: Request) {
       try {
         await insertTranslation({
           userId: session.user.id,
-          sourceLang: language,
+          sourceLang: currentSourceLanguage,
           targetLang: TargetLanguageCodes[currentTargetLanguage],
           inputText: text,
           responseJson: validatedData,

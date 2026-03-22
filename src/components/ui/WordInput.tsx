@@ -214,7 +214,7 @@ export function WordInput() {
           value={word}
           onChange={handleInputChange}
           onKeyUp={handleKeyUp}
-          placeholder={`Enter ${currentLanguage ? currentLanguage : ""} text...`}
+          placeholder={`Enter ${currentLanguage} text...`}
           disabled={isLoading}
         />
         <button

@@ -15,7 +15,7 @@ import { LanguageStore } from "@/lib/languages/languageStore";
 
 type LanguageControlProps = {
   id: string;
-  value: string | null;
+  value: string;
   options: readonly string[];
   onChange: (value: string) => void;
   label?: string;
@@ -38,20 +38,18 @@ function LanguageControl({
         </label>
       )}
       <div className={styles.selectWrap}>
-        {value && (
-          <select
-            id={id}
-            className={styles.languageSelect}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-          >
-            {options.map((lang) => (
-              <option key={lang} value={lang}>
-                {lang}
-              </option>
-            ))}
-          </select>
-        )}
+        <select
+          id={id}
+          className={styles.languageSelect}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {options.map((lang) => (
+            <option key={lang} value={lang}>
+              {lang}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   );

@@ -7,20 +7,19 @@ import {
 
 interface LanguageStoreState {
   id: number;
-  currentSourceLanguage: Language | null;
+  currentSourceLanguage: Language;
   currentTargetLanguage: TargetLanguage;
 }
 
 let nextId = 0;
 
 const SOURCE_LANGUAGE_STORAGE_KEY = "currentSourceLanguage";
-const LEGACY_SOURCE_LANGUAGE_STORAGE_KEY = "currentLanguage";
 const TARGET_LANGUAGE_STORAGE_KEY = "currentTargetLanguage";
 
 const DEFAULT_VALUE: LanguageStoreState = {
   id: 0,
   currentSourceLanguage: Languages.German,
-  currentTargetLanguage: TargetLanguages.Russian,
+  currentTargetLanguage: TargetLanguages.English,
 };
 let data: LanguageStoreState = DEFAULT_VALUE;
 
@@ -48,12 +47,10 @@ function initReadFromLocalStorage() {
 
   try {
     const savedSourceLanguage =
-      localStorage.getItem(SOURCE_LANGUAGE_STORAGE_KEY) ??
-      localStorage.getItem(LEGACY_SOURCE_LANGUAGE_STORAGE_KEY) ??
-      Languages.German;
+      localStorage.getItem(SOURCE_LANGUAGE_STORAGE_KEY) ?? Languages.German;
     const savedTargetLanguage =
       localStorage.getItem(TARGET_LANGUAGE_STORAGE_KEY) ??
-      TargetLanguages.Russian;
+      TargetLanguages.English;
 
     if (isSourceLanguage(savedSourceLanguage)) {
       data.currentSourceLanguage = savedSourceLanguage;
@@ -87,10 +84,7 @@ export const LanguageStore = {
     listeners = [...listeners, listener];
 
     const handler = (e: StorageEvent) => {
-      if (
-        e.key === SOURCE_LANGUAGE_STORAGE_KEY ||
-        e.key === LEGACY_SOURCE_LANGUAGE_STORAGE_KEY
-      ) {
+      if (e.key === SOURCE_LANGUAGE_STORAGE_KEY) {
         const nextLanguage = e.newValue;
 
         if (
@@ -129,7 +123,6 @@ export const LanguageStore = {
       ) {
         updateStore({ currentSourceLanguage: nextLanguage });
         localStorage.setItem(SOURCE_LANGUAGE_STORAGE_KEY, nextLanguage);
-        localStorage.setItem(LEGACY_SOURCE_LANGUAGE_STORAGE_KEY, nextLanguage);
 
         emitChange();
       }

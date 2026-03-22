@@ -3,7 +3,7 @@ import { LanguageStore } from "@/lib/languages/languageStore";
 import { Language, TargetLanguage } from "@/components/ui/Languages";
 
 export function useLanguages(): {
-  currentSourceLanguage: Language | null;
+  currentSourceLanguage: Language;
   currentTargetLanguage: TargetLanguage;
 } {
   return useSyncExternalStore(
