@@ -1,4 +1,4 @@
-export const SourceLanguages = {
+export const Languages = {
   German: "German",
   Norwegian: "Norwegian",
   English: "English",
@@ -17,37 +17,72 @@ export const SourceLanguages = {
   Chinese: "Chinese",
   Arabic: "Arabic",
   Hindi: "Hindi",
+  Russian: "Russian",
+} as const;
+
+export const SourceLanguages = {
+  German: Languages.German,
+  Norwegian: Languages.Norwegian,
+  English: Languages.English,
+  Spanish: Languages.Spanish,
+  French: Languages.French,
+  Italian: Languages.Italian,
+  Portuguese: Languages.Portuguese,
+  Dutch: Languages.Dutch,
+  Swedish: Languages.Swedish,
+  Danish: Languages.Danish,
+  Polish: Languages.Polish,
+  Turkish: Languages.Turkish,
+  Ukrainian: Languages.Ukrainian,
+  Japanese: Languages.Japanese,
+  Korean: Languages.Korean,
+  Chinese: Languages.Chinese,
+  Arabic: Languages.Arabic,
+  Hindi: Languages.Hindi,
 } as const;
 
 export const TargetLanguages = {
-  Russian: "Russian",
-  English: "English",
+  German: Languages.German,
+  Norwegian: Languages.Norwegian,
+  English: Languages.English,
+  Spanish: Languages.Spanish,
+  French: Languages.French,
+  Italian: Languages.Italian,
+  Portuguese: Languages.Portuguese,
+  Dutch: Languages.Dutch,
+  Swedish: Languages.Swedish,
+  Danish: Languages.Danish,
+  Polish: Languages.Polish,
+  Turkish: Languages.Turkish,
+  Ukrainian: Languages.Ukrainian,
+  Japanese: Languages.Japanese,
+  Korean: Languages.Korean,
+  Chinese: Languages.Chinese,
+  Arabic: Languages.Arabic,
+  Hindi: Languages.Hindi,
+  Russian: Languages.Russian,
 } as const;
 
-export const SourceLanguageCodes = {
-  [SourceLanguages.German]: "de",
-  [SourceLanguages.Norwegian]: "no",
-  [SourceLanguages.English]: "en",
-  [SourceLanguages.Spanish]: "es",
-  [SourceLanguages.French]: "fr",
-  [SourceLanguages.Italian]: "it",
-  [SourceLanguages.Portuguese]: "pt",
-  [SourceLanguages.Dutch]: "nl",
-  [SourceLanguages.Swedish]: "sv",
-  [SourceLanguages.Danish]: "da",
-  [SourceLanguages.Polish]: "pl",
-  [SourceLanguages.Turkish]: "tr",
-  [SourceLanguages.Ukrainian]: "uk",
-  [SourceLanguages.Japanese]: "ja",
-  [SourceLanguages.Korean]: "ko",
-  [SourceLanguages.Chinese]: "zh",
-  [SourceLanguages.Arabic]: "ar",
-  [SourceLanguages.Hindi]: "hi",
-} as const;
-
-export const TargetLanguageCodes = {
-  [TargetLanguages.Russian]: "ru",
-  [TargetLanguages.English]: "en",
+export const LanguageCodes = {
+  [Languages.German]: "de",
+  [Languages.Norwegian]: "no",
+  [Languages.English]: "en",
+  [Languages.Spanish]: "es",
+  [Languages.French]: "fr",
+  [Languages.Italian]: "it",
+  [Languages.Portuguese]: "pt",
+  [Languages.Dutch]: "nl",
+  [Languages.Swedish]: "sv",
+  [Languages.Danish]: "da",
+  [Languages.Polish]: "pl",
+  [Languages.Turkish]: "tr",
+  [Languages.Ukrainian]: "uk",
+  [Languages.Japanese]: "ja",
+  [Languages.Korean]: "ko",
+  [Languages.Chinese]: "zh",
+  [Languages.Arabic]: "ar",
+  [Languages.Hindi]: "hi",
+  [Languages.Russian]: "ru",
 } as const;
 
 export type SourceLanguage =
@@ -55,53 +90,66 @@ export type SourceLanguage =
 export type TargetLanguage =
   (typeof TargetLanguages)[keyof typeof TargetLanguages];
 export type SourceLanguageCode =
-  (typeof SourceLanguageCodes)[keyof typeof SourceLanguageCodes];
+  (typeof LanguageCodes)[SourceLanguage];
 export type TargetLanguageCode =
-  (typeof TargetLanguageCodes)[keyof typeof TargetLanguageCodes];
+  (typeof LanguageCodes)[TargetLanguage];
 
 export const SourceLanguageOptions = Object.values(SourceLanguages);
 export const TargetLanguageOptions = Object.values(TargetLanguages);
-export const SourceLanguageCodeOptions = Object.values(SourceLanguageCodes);
-export const TargetLanguageCodeOptions = Object.values(TargetLanguageCodes);
+export const SourceLanguageCodeOptions = SourceLanguageOptions.map(
+  (language) => LanguageCodes[language],
+);
+export const TargetLanguageCodeOptions = TargetLanguageOptions.map(
+  (language) => LanguageCodes[language],
+);
 
 export const SourceLanguageSelectOptions = SourceLanguageOptions.map(
   (language) => ({
     label: language,
-    value: SourceLanguageCodes[language],
+    value: LanguageCodes[language],
   }),
 );
 
 export const TargetLanguageSelectOptions = TargetLanguageOptions.map(
   (language) => ({
     label: language,
-    value: TargetLanguageCodes[language],
+    value: LanguageCodes[language],
   }),
 );
 
+const sourceLanguageSet = new Set<SourceLanguage>(SourceLanguageOptions);
+const targetLanguageSet = new Set<TargetLanguage>(TargetLanguageOptions);
+const sourceLanguageCodeSet = new Set<SourceLanguageCode>(
+  SourceLanguageCodeOptions,
+);
+const targetLanguageCodeSet = new Set<TargetLanguageCode>(
+  TargetLanguageCodeOptions,
+);
+
+export function getLanguageCode(
+  language: SourceLanguage | TargetLanguage,
+): SourceLanguageCode | TargetLanguageCode {
+  return LanguageCodes[language];
+}
+
 export function isSourceLanguage(value: unknown): value is SourceLanguage {
-  return (
-    typeof value === "string" &&
-    SourceLanguageOptions.includes(value as SourceLanguage)
-  );
+  return typeof value === "string" && sourceLanguageSet.has(value as SourceLanguage);
 }
 
 export function isTargetLanguage(value: unknown): value is TargetLanguage {
-  return (
-    typeof value === "string" &&
-    TargetLanguageOptions.includes(value as TargetLanguage)
-  );
+  return typeof value === "string" && targetLanguageSet.has(value as TargetLanguage);
 }
 
 export function isSourceLanguageCode(value: unknown): value is SourceLanguageCode {
   return (
     typeof value === "string" &&
-    SourceLanguageCodeOptions.includes(value as SourceLanguageCode)
+    sourceLanguageCodeSet.has(value as SourceLanguageCode)
   );
 }
 
 export function isTargetLanguageCode(value: unknown): value is TargetLanguageCode {
   return (
     typeof value === "string" &&
-    TargetLanguageCodeOptions.includes(value as TargetLanguageCode)
+    targetLanguageCodeSet.has(value as TargetLanguageCode)
   );
 }

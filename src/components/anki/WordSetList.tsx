@@ -6,11 +6,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import styles from "./WordSetList.module.css";
 import {
+  getLanguageCode,
   SourceLanguageCode,
-  SourceLanguageCodes,
+  SourceLanguages,
   SourceLanguageSelectOptions,
   TargetLanguageCode,
-  TargetLanguageCodes,
+  TargetLanguages,
   TargetLanguageSelectOptions,
 } from "@/components/ui/Languages";
 
@@ -30,10 +31,10 @@ export function WordSetList() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createSourceLang, setCreateSourceLang] = useState<SourceLanguageCode>(
-    SourceLanguageCodes.German,
+    getLanguageCode(SourceLanguages.German) as SourceLanguageCode,
   );
   const [createTargetLang, setCreateTargetLang] = useState<TargetLanguageCode>(
-    TargetLanguageCodes.English,
+    getLanguageCode(TargetLanguages.English) as TargetLanguageCode,
   );
   const wordSetsQueryKey = ["wordSets", session?.user?.id] as const;
 

@@ -5,12 +5,12 @@ import { auth } from "@/auth";
 import { getTranslationPrompt } from "@/app/api/translate/getTranslationPrompt";
 import { insertTranslation } from "@/db/translationRepo";
 import {
+  getLanguageCode,
   isSourceLanguage,
   isTargetLanguage,
   SourceLanguage,
   SourceLanguages,
   TargetLanguage,
-  TargetLanguageCodes,
   TargetLanguages,
 } from "@/components/ui/Languages";
 
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
         await insertTranslation({
           userId: session.user.id,
           sourceLang: currentSourceLanguage,
-          targetLang: TargetLanguageCodes[currentTargetLanguage],
+          targetLang: getLanguageCode(currentTargetLanguage),
           inputText: text,
           responseJson: validatedData,
           model: "gpt-4o",
