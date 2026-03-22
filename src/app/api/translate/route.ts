@@ -48,7 +48,7 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-5-mini",
         messages: [
           {
             role: "system",
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
           targetLang: getLanguageCode(currentTargetLanguage),
           inputText: text,
           responseJson: validatedData,
-          model: "gpt-4o",
+          model: "gpt-5-mini",
           promptVersion: "v1",
         });
       } catch (dbError) {
