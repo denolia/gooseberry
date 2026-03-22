@@ -5,6 +5,14 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import styles from "./WordSetList.module.css";
+import {
+  SourceLanguageCode,
+  SourceLanguageCodes,
+  SourceLanguageSelectOptions,
+  TargetLanguageCode,
+  TargetLanguageCodes,
+  TargetLanguageSelectOptions,
+} from "@/components/ui/Languages";
 
 interface WordSet {
   id: string;
@@ -21,8 +29,12 @@ export function WordSetList() {
   const queryClient = useQueryClient();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createName, setCreateName] = useState("");
-  const [createSourceLang, setCreateSourceLang] = useState("de");
-  const [createTargetLang, setCreateTargetLang] = useState("ru");
+  const [createSourceLang, setCreateSourceLang] = useState<SourceLanguageCode>(
+    SourceLanguageCodes.German,
+  );
+  const [createTargetLang, setCreateTargetLang] = useState<TargetLanguageCode>(
+    TargetLanguageCodes.English,
+  );
   const wordSetsQueryKey = ["wordSets", session?.user?.id] as const;
 
   const { data: wordSets = [], isPending, error } = useQuery({
@@ -142,20 +154,30 @@ export function WordSetList() {
           <div className={styles.languageRow}>
             <select
               value={createSourceLang}
-              onChange={(e) => setCreateSourceLang(e.target.value)}
+              onChange={(e) =>
+                setCreateSourceLang(e.target.value as SourceLanguageCode)
+              }
               className={styles.select}
             >
-              <option value="de">German</option>
-              <option value="no">Norwegian</option>
-              <option value="en">English</option>
+              {SourceLanguageSelectOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
             <span>→</span>
             <select
               value={createTargetLang}
-              onChange={(e) => setCreateTargetLang(e.target.value)}
+              onChange={(e) =>
+                setCreateTargetLang(e.target.value as TargetLanguageCode)
+              }
               className={styles.select}
             >
-              <option value="ru">Russian</option>
+              {TargetLanguageSelectOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
           <button

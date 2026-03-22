@@ -5,6 +5,8 @@ import { auth } from "@/auth";
 import { getTranslationPrompt } from "@/app/api/translate/getTranslationPrompt";
 import { insertTranslation } from "@/db/translationRepo";
 import {
+  isSourceLanguage,
+  isTargetLanguage,
   SourceLanguage,
   SourceLanguages,
   TargetLanguage,
@@ -16,16 +18,11 @@ export const maxDuration = 60; // This function can run for a maximum of 60 seco
 const timeoutMs = 60000; // timeout for the request in milliseconds
 
 function getSourceLanguage(value: unknown): SourceLanguage {
-  return value === SourceLanguages.Norwegian ||
-    value === SourceLanguages.English
-    ? value
-    : SourceLanguages.German;
+  return isSourceLanguage(value) ? value : SourceLanguages.German;
 }
 
 function getTargetLanguage(value: unknown): TargetLanguage {
-  return value === TargetLanguages.Russian
-    ? TargetLanguages.Russian
-    : TargetLanguages.English;
+  return isTargetLanguage(value) ? value : TargetLanguages.English;
 }
 
 export async function POST(request: Request) {

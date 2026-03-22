@@ -34,26 +34,55 @@ Keep source-language examples in ${sourceLanguage}.
    - The examples should illustrate different meanings, contexts, and grammatical structures where applicable.`;
 }
 
+function getLanguageSpecificGuidance(sourceLanguage: SourceLanguage) {
+  switch (sourceLanguage) {
+    case SourceLanguages.English:
+      return "For English input, pay extra attention to tense, register, phrasal verbs, and common ambiguity.";
+    case SourceLanguages.German:
+      return "For German input, include fixed Verb-Noun combinations and Verb-Preposition-Case patterns when they are relevant.";
+    case SourceLanguages.Norwegian:
+    case SourceLanguages.Swedish:
+    case SourceLanguages.Danish:
+      return `For ${sourceLanguage} input, explain grammatical constructions clearly and call out particle verbs, word order, and common false friends with English or German when helpful.`;
+    case SourceLanguages.Dutch:
+      return "For Dutch input, highlight separable verbs, word order shifts, diminutives, and false friends with English or German when useful.";
+    case SourceLanguages.Spanish:
+    case SourceLanguages.French:
+    case SourceLanguages.Italian:
+    case SourceLanguages.Portuguese:
+      return `For ${sourceLanguage} input, pay close attention to gender, clitic pronouns, contractions, and verb tense or mood contrasts.`;
+    case SourceLanguages.Polish:
+    case SourceLanguages.Ukrainian:
+      return `For ${sourceLanguage} input, explain aspect, case, declension patterns, and any stem changes that matter for learners.`;
+    case SourceLanguages.Turkish:
+      return "For Turkish input, explain agglutinative suffix chains, vowel harmony, evidential or modality nuances, and idiomatic postposition usage.";
+    case SourceLanguages.Japanese:
+      return 'For Japanese input, include kanji readings when useful, explain particles and politeness level, and add brief romaji only when it helps disambiguate the form.';
+    case SourceLanguages.Korean:
+      return "For Korean input, explain speech level, verb ending nuances, particles, and any sound changes that affect pronunciation or recognition.";
+    case SourceLanguages.Chinese:
+      return "For Chinese input, include pinyin when useful, explain measure words and aspect particles, and note when a form is formal, colloquial, or regionally marked.";
+    case SourceLanguages.Arabic:
+      return "For Arabic input, note whether the phrasing appears Modern Standard Arabic or dialectal when that is inferable, and explain root-pattern structure or transliteration when helpful.";
+    case SourceLanguages.Hindi:
+      return "For Hindi input, explain gender agreement, postpositions, aspect or auxiliary usage, and add transliteration only when it clarifies the form.";
+    default:
+      return "";
+  }
+}
+
 export const getTranslationPrompt = (
   sourceLanguage: SourceLanguage | undefined,
   targetLanguage: TargetLanguage | undefined,
 ) => {
   const currentSourceLanguage = sourceLanguage ?? SourceLanguages.German;
   const outputLanguage = targetLanguage ?? TargetLanguages.English;
+  const languageSpecificGuidance =
+    getLanguageSpecificGuidance(currentSourceLanguage);
 
-  switch (currentSourceLanguage) {
-    case SourceLanguages.English:
-      return `${getBasePrompt(currentSourceLanguage, outputLanguage)}
+  return languageSpecificGuidance
+    ? `${getBasePrompt(currentSourceLanguage, outputLanguage)}
 
-For English input, pay extra attention to tense, register, phrasal verbs, and common ambiguity.`;
-    case SourceLanguages.Norwegian:
-      return `${getBasePrompt(currentSourceLanguage, outputLanguage)}
-
-For Norwegian input, explain grammatical constructions clearly and draw concise parallels with English or German when helpful.`;
-    case SourceLanguages.German:
-    default:
-      return `${getBasePrompt(currentSourceLanguage, outputLanguage)}
-
-For German input, include fixed Verb-Noun combinations and Verb-Preposition-Case patterns when they are relevant.`;
-  }
+${languageSpecificGuidance}`
+    : getBasePrompt(currentSourceLanguage, outputLanguage);
 };

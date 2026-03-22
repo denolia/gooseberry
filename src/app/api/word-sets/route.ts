@@ -2,11 +2,19 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createWordSet, listWordSets } from "@/db/wordSetRepo";
 import { z } from "zod";
+import {
+  isSourceLanguageCode,
+  isTargetLanguageCode,
+} from "@/components/ui/Languages";
 
 const CreateWordSetSchema = z.object({
   name: z.string().min(1).max(200),
-  sourceLang: z.string().min(2).max(10),
-  targetLang: z.string().min(2).max(10),
+  sourceLang: z.string().refine(isSourceLanguageCode, {
+    message: "Invalid source language",
+  }),
+  targetLang: z.string().refine(isTargetLanguageCode, {
+    message: "Invalid target language",
+  }),
 });
 
 // GET /api/word-sets - List all word sets for current user

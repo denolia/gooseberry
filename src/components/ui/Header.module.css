@@ -43,7 +43,7 @@
   gap: 0.75rem;
   overflow: hidden;
   white-space: nowrap;
-  max-width: 32rem;
+  max-width: 40rem;
   opacity: 1;
   transform: translateX(0) scale(1);
   transform-origin: right center;
@@ -54,7 +54,7 @@
 }
 
 .languageControl {
-  min-width: 5.5rem;
+  min-width: 8.75rem;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;

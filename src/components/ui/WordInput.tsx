@@ -4,14 +4,34 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import styles from "./WordInput.module.css";
 import { StructuredResponseDisplay } from "@/components/ui/StructuredResponseDisplay";
+import { SourceLanguage, SourceLanguages } from "@/components/ui/Languages";
 import {
   TranslationResponse,
   TranslationResponseSchema,
 } from "@/app/utils/translationSchema";
 import { useLanguages } from "@/lib/languages/useLanguages";
 
+const SPECIAL_CHARACTERS_BY_LANGUAGE: Partial<
+  Record<SourceLanguage, readonly string[]>
+> = {
+  [SourceLanguages.German]: ["ß", "ä", "ü", "ö", "Ä", "Ü", "Ö"],
+  [SourceLanguages.Norwegian]: ["æ", "ø", "å", "Æ", "Ø", "Å"],
+  [SourceLanguages.Spanish]: ["á", "é", "í", "ñ", "ó", "ú", "ü", "¿", "¡"],
+  [SourceLanguages.French]: ["à", "â", "ç", "é", "è", "ê", "ë", "î", "ï", "ô", "ù", "û", "ü", "ÿ", "œ"],
+  [SourceLanguages.Italian]: ["à", "è", "é", "ì", "ò", "ù"],
+  [SourceLanguages.Portuguese]: ["á", "â", "ã", "à", "ç", "é", "ê", "í", "ó", "ô", "õ", "ú"],
+  [SourceLanguages.Dutch]: ["á", "é", "ë", "ï", "í", "ó", "ú"],
+  [SourceLanguages.Swedish]: ["å", "ä", "ö", "Å", "Ä", "Ö"],
+  [SourceLanguages.Danish]: ["æ", "ø", "å", "Æ", "Ø", "Å"],
+  [SourceLanguages.Polish]: ["ą", "ć", "ę", "ł", "ń", "ó", "ś", "ź", "ż"],
+  [SourceLanguages.Turkish]: ["ç", "ğ", "ı", "İ", "ö", "ş", "ü"],
+} as const;
+
 export function WordInput() {
   const { currentSourceLanguage, currentTargetLanguage } = useLanguages();
+  const specialCharacters =
+    SPECIAL_CHARACTERS_BY_LANGUAGE[currentSourceLanguage] ?? [];
+  const showSpecialCharacterControls = specialCharacters.length > 0;
 
   const queryClient = useQueryClient();
   const [word, setWord] = useState("");
@@ -93,6 +113,10 @@ export function WordInput() {
       }, 0);
     }
   }, [translation]);
+
+  useEffect(() => {
+    setShowSpecialChars(false);
+  }, [currentSourceLanguage]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setWord(e.target.value);
@@ -184,27 +208,29 @@ export function WordInput() {
 
   return (
     <div className={styles.container}>
-      <div className={styles.specialCharsContainer}>
-        <div
-          className={styles.specialCharToggle}
-          onClick={() => setShowSpecialChars(!showSpecialChars)}
-        >
-          Ä
+      {showSpecialCharacterControls && (
+        <div className={styles.specialCharsContainer}>
+          <div
+            className={styles.specialCharToggle}
+            onClick={() => setShowSpecialChars(!showSpecialChars)}
+          >
+            {specialCharacters[0]}
+          </div>
+          <div
+            className={`${styles.specialCharsWrapper} ${showSpecialChars ? styles.visible : ""}`}
+          >
+            {specialCharacters.map((char) => (
+              <button
+                key={char}
+                className={styles.specialCharButton}
+                onClick={() => insertSpecialChar(char)}
+              >
+                {char}
+              </button>
+            ))}
+          </div>
         </div>
-        <div
-          className={`${styles.specialCharsWrapper} ${showSpecialChars ? styles.visible : ""}`}
-        >
-          {["ß", "ä", "ü", "ö", "Ä", "Ü", "Ö"].map((char) => (
-            <button
-              key={char}
-              className={styles.specialCharButton}
-              onClick={() => insertSpecialChar(char)}
-            >
-              {char}
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
       <div className={styles.searchBar}>
         <input
           className={styles.input}

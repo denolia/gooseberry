@@ -7,11 +7,21 @@ import {
   updateWordSet,
 } from "@/db/wordSetRepo";
 import { z } from "zod";
+import {
+  isSourceLanguageCode,
+  isTargetLanguageCode,
+} from "@/components/ui/Languages";
 
 const UpdateWordSetSchema = z.object({
   name: z.string().min(1).max(200).optional(),
-  sourceLang: z.string().min(2).max(10).optional(),
-  targetLang: z.string().min(2).max(10).optional(),
+  sourceLang: z
+    .string()
+    .refine(isSourceLanguageCode, { message: "Invalid source language" })
+    .optional(),
+  targetLang: z
+    .string()
+    .refine(isTargetLanguageCode, { message: "Invalid target language" })
+    .optional(),
 });
 
 // GET /api/word-sets/[id] - Get word set details

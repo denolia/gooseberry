@@ -1,4 +1,6 @@
 import {
+  isSourceLanguage,
+  isTargetLanguage,
   SourceLanguage,
   SourceLanguages,
   TargetLanguage,
@@ -22,18 +24,6 @@ const DEFAULT_VALUE: LanguageStoreState = {
   currentTargetLanguage: TargetLanguages.English,
 };
 let data: LanguageStoreState = DEFAULT_VALUE;
-
-function isSourceLanguage(value: string | null): value is SourceLanguage {
-  return Boolean(
-    value && SourceLanguages[value as keyof typeof SourceLanguages],
-  );
-}
-
-function isTargetLanguage(value: string | null): value is TargetLanguage {
-  return Boolean(
-    value && TargetLanguages[value as keyof typeof TargetLanguages],
-  );
-}
 
 function updateStore(nextState: Partial<LanguageStoreState>) {
   data = {
