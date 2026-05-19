@@ -11,27 +11,27 @@ function getBasePrompt(
 ) {
   return `You are a professional translator and language assistant specializing in ${sourceLanguage}-to-${targetLanguage} translation.
 
-Your task is to provide accurate, concise, and detailed translations optimized for language learners.
-If a value is not applicable, write "-".
+Return concise learner-focused JSON that matches the provided schema.
+Use null for optional fields that are not relevant.
 Put grammatically corrected source text into the "original" field and fix obvious punctuation mistakes.
 All translations, explanations, comments, and "sample_translation" values must be written in ${targetLanguage}.
 Keep source-language examples in ${sourceLanguage}.
 
 1. For sentences:
    - Provide the natural translation.
-   - Add stylistic information when relevant (formal, informal, rude, poetic, technical, archaic).
-   - Non-sentence fields are not applicable when they do not fit.
-   - Provide grammatical analysis of the sentence.
+   - Add stylistic information only when it changes the meaning or expected usage.
+   - Provide one short grammatical note only when useful.
+   - Leave word-specific fields null when they do not fit.
 
 2. For single words or phrases:
-   - Provide all important translations with nuances of meaning.
-   - Include idiomatic uses and common collocations.
-   - Mark frequency as common (✅), less common (⚠️), or rare (❌).
-   - Put any extra learner-relevant notes in "comments".
+   - Provide the most important translation and at most two alternatives with nuances.
+   - Include idiomatic uses and common collocations only when central to the term.
+   - Mark frequency if it is rare word (❌).
+   - Keep comments to one short learner-relevant note.
 
 3. Example sentences:
-   - Provide five example sentences in ${sourceLanguage}, each with a ${targetLanguage} translation in "sample_translation".
-   - The examples should illustrate different meanings, contexts, and grammatical structures where applicable.`;
+   - Provide at most three example_usage items.
+   - Provide nested examples in details only when they add information not covered by example_usage.`;
 }
 
 function getLanguageSpecificGuidance(sourceLanguage: SourceLanguage) {
@@ -57,7 +57,7 @@ function getLanguageSpecificGuidance(sourceLanguage: SourceLanguage) {
     case SourceLanguages.Turkish:
       return "For Turkish input, explain agglutinative suffix chains, vowel harmony, evidential or modality nuances, and idiomatic postposition usage.";
     case SourceLanguages.Japanese:
-      return 'For Japanese input, include kanji readings when useful, explain particles and politeness level, and add brief romaji only when it helps disambiguate the form.';
+      return "For Japanese input, include kanji readings when useful, explain particles and politeness level, and add brief romaji only when it helps disambiguate the form.";
     case SourceLanguages.Korean:
       return "For Korean input, explain speech level, verb ending nuances, particles, and any sound changes that affect pronunciation or recognition.";
     case SourceLanguages.Chinese:
@@ -77,8 +77,9 @@ export const getTranslationPrompt = (
 ) => {
   const currentSourceLanguage = sourceLanguage ?? SourceLanguages.German;
   const outputLanguage = targetLanguage ?? TargetLanguages.English;
-  const languageSpecificGuidance =
-    getLanguageSpecificGuidance(currentSourceLanguage);
+  const languageSpecificGuidance = getLanguageSpecificGuidance(
+    currentSourceLanguage,
+  );
 
   return languageSpecificGuidance
     ? `${getBasePrompt(currentSourceLanguage, outputLanguage)}
