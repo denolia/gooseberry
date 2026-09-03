@@ -16,6 +16,7 @@ const SPECIAL_CHARACTERS_BY_LANGUAGE: Partial<
 > = {
   [SourceLanguages.German]: ["ß", "ä", "ü", "ö", "Ä", "Ü", "Ö"],
   [SourceLanguages.Norwegian]: ["æ", "ø", "å", "Æ", "Ø", "Å"],
+  [SourceLanguages.Finnish]: ["ä", "ö", "å", "Ä", "Ö", "Å"],
   [SourceLanguages.Spanish]: ["á", "é", "í", "ñ", "ó", "ú", "ü", "¿", "¡"],
   [SourceLanguages.French]: ["à", "â", "ç", "é", "è", "ê", "ë", "î", "ï", "ô", "ù", "û", "ü", "ÿ", "œ"],
   [SourceLanguages.Italian]: ["à", "è", "é", "ì", "ò", "ù"],

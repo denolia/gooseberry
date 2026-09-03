@@ -46,6 +46,8 @@ function getLanguageSpecificGuidance(sourceLanguage: SourceLanguage) {
       return `For ${sourceLanguage} input, explain grammatical constructions clearly and call out particle verbs, word order, and common false friends with English or German when helpful.`;
     case SourceLanguages.Dutch:
       return "For Dutch input, highlight separable verbs, word order shifts, diminutives, and false friends with English or German when useful.";
+    case SourceLanguages.Finnish:
+      return "For Finnish input, explain grammatical cases, consonant gradation, vowel harmony, possessive suffixes, and infinitive or participle forms when they matter; identify the dictionary form of inflected words and note important differences between standard and colloquial Finnish.";
     case SourceLanguages.Spanish:
     case SourceLanguages.French:
     case SourceLanguages.Italian:
