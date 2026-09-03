@@ -31,7 +31,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.providerAccountId = account.providerAccountId;
         console.log(
           "[JWT] Stored providerAccountId in token:",
-          account.providerAccountId
+          account.providerAccountId,
         );
       }
       return token;
@@ -39,22 +39,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async session({ session, token }) {
       console.log(
         "[Session] Token providerAccountId:",
-        token.providerAccountId
+        token.providerAccountId,
       );
       if (session.user && token.providerAccountId) {
-        // Attach internal app_user.id to session
-        const userId = await getUserIdByProviderUserId(
-          "google",
-          token.providerAccountId as string
-        );
-        if (userId) {
-          session.user.id = userId;
-          console.log("[Session] Attached userId to session:", userId);
-        } else {
-          console.error(
-            "[Session] Failed to find user in DB for providerAccountId:",
-            token.providerAccountId
+        try {
+          // Attach internal app_user.id to session
+          const userId = await getUserIdByProviderUserId(
+            "google",
+            token.providerAccountId as string,
           );
+          if (userId) {
+            session.user.id = userId;
+            console.log("[Session] Attached userId to session:", userId);
+          } else {
+            console.error(
+              "[Session] Failed to find user in DB for providerAccountId:",
+              token.providerAccountId,
+            );
+          }
+        } catch (error) {
+          console.error("[Session] Failed to load user from DB:", error);
         }
       } else {
         console.error("[Session] Missing providerAccountId in token");

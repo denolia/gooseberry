@@ -1,4 +1,4 @@
-import { db } from "@/db/drizzle";
+import { getDb } from "@/db/drizzle";
 import { wordSet, wordSetItem } from "@/db/schema";
 import { and, eq, desc, inArray } from "drizzle-orm";
 
@@ -8,6 +8,7 @@ export async function createWordSet(input: {
   sourceLang: string;
   targetLang: string;
 }) {
+  const db = getDb();
   const [set] = await db
     .insert(wordSet)
     .values({
@@ -22,6 +23,7 @@ export async function createWordSet(input: {
 }
 
 export async function listWordSets(userId: string) {
+  const db = getDb();
   return db
     .select()
     .from(wordSet)
@@ -30,6 +32,7 @@ export async function listWordSets(userId: string) {
 }
 
 export async function getWordSet(id: string, userId: string) {
+  const db = getDb();
   const [set] = await db
     .select()
     .from(wordSet)
@@ -48,6 +51,7 @@ export async function updateWordSet(
     targetLang?: string;
   },
 ) {
+  const db = getDb();
   const [set] = await db
     .update(wordSet)
     .set({ ...updates, updatedAt: new Date() })
@@ -58,6 +62,7 @@ export async function updateWordSet(
 }
 
 export async function deleteWordSet(id: string, userId: string) {
+  const db = getDb();
   await db
     .delete(wordSet)
     .where(and(eq(wordSet.id, id), eq(wordSet.userId, userId)));
@@ -80,6 +85,7 @@ export async function addItemsToWordSet(
 ) {
   if (items.length === 0) return;
 
+  const db = getDb();
   await db.insert(wordSetItem).values(
     items.map((item) => ({
       wordSetId,
@@ -103,6 +109,7 @@ export async function getExistingSourceTranslationIds(
 ): Promise<string[]> {
   if (sourceTranslationIds.length === 0) return [];
 
+  const db = getDb();
   const rows = await db
     .select({ sourceTranslationId: wordSetItem.sourceTranslationId })
     .from(wordSetItem)
@@ -119,6 +126,7 @@ export async function getExistingSourceTranslationIds(
 }
 
 export async function getWordSetItems(wordSetId: string) {
+  const db = getDb();
   return db
     .select()
     .from(wordSetItem)
@@ -127,6 +135,7 @@ export async function getWordSetItems(wordSetId: string) {
 }
 
 export async function getWordSetItem(itemId: string) {
+  const db = getDb();
   const [item] = await db
     .select()
     .from(wordSetItem)
@@ -151,6 +160,7 @@ export async function updateWordSetItem(
     position?: number;
   },
 ) {
+  const db = getDb();
   const [item] = await db
     .update(wordSetItem)
     .set({ ...updates, updatedAt: new Date() })
@@ -163,6 +173,7 @@ export async function updateWordSetItem(
 }
 
 export async function deleteWordSetItem(wordSetId: string, itemId: string) {
+  const db = getDb();
   const [item] = await db
     .delete(wordSetItem)
     .where(
@@ -174,6 +185,7 @@ export async function deleteWordSetItem(wordSetId: string, itemId: string) {
 }
 
 export async function updateLastExportedAt(wordSetId: string) {
+  const db = getDb();
   await db
     .update(wordSet)
     .set({ lastExportedAt: new Date(), updatedAt: new Date() })
@@ -181,6 +193,7 @@ export async function updateLastExportedAt(wordSetId: string) {
 }
 
 export async function getWordSetItemCount(wordSetId: string): Promise<number> {
+  const db = getDb();
   const items = await db
     .select({ id: wordSetItem.id })
     .from(wordSetItem)

@@ -1,4 +1,4 @@
-import { db } from "@/db/drizzle";
+import { getDb } from "@/db/drizzle";
 import { appUser, translationHistory } from "@/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
@@ -9,6 +9,7 @@ export async function upsertUser(input: {
   name?: string | null;
   imageUrl?: string | null;
 }) {
+  const db = getDb();
   const [row] = await db
     .insert(appUser)
     .values({
@@ -42,6 +43,7 @@ export async function insertTranslation(input: {
   model?: string;
   promptVersion?: string;
 }) {
+  const db = getDb();
   await db.insert(translationHistory).values({
     userId: input.userId,
     sourceLang: input.sourceLang,
@@ -54,6 +56,7 @@ export async function insertTranslation(input: {
 }
 
 export async function listLast50(userId: string) {
+  const db = getDb();
   return db
     .select()
     .from(translationHistory)
@@ -66,6 +69,7 @@ export async function getUserIdByProviderUserId(
   provider: "google",
   providerUserId: string,
 ): Promise<string | null> {
+  const db = getDb();
   const [row] = await db
     .select({ id: appUser.id })
     .from(appUser)
@@ -84,6 +88,7 @@ export async function translationExists(
   userId: string,
   inputText: string,
 ): Promise<boolean> {
+  const db = getDb();
   const [row] = await db
     .select({ id: translationHistory.id })
     .from(translationHistory)
@@ -99,6 +104,7 @@ export async function translationExists(
 }
 
 export async function getTranslationById(id: string, userId: string) {
+  const db = getDb();
   const [row] = await db
     .select()
     .from(translationHistory)
@@ -113,6 +119,7 @@ export async function getTranslationById(id: string, userId: string) {
 export async function getTranslationsByIds(ids: string[], userId: string) {
   if (ids.length === 0) return [];
 
+  const db = getDb();
   return db
     .select()
     .from(translationHistory)

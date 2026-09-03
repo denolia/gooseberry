@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import styles from "./MainTabs.module.css";
-import { tabs } from "@/components/ui/mainTabs";
+import { tabs } from "@/components/ui/tabs";
 
 export function MainTabs() {
   const { status } = useSession();
