@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { TranslationResponseSchema } from "@/app/utils/translationSchema";
+import {
+  BaseTranslationResponseSchema,
+  FinnishTranslationResponseSchema,
+} from "@/app/utils/translationSchema";
 import { auth } from "@/auth";
 import { getTranslationPrompt } from "@/app/api/translate/getTranslationPrompt";
 import { insertTranslation } from "@/db/translationRepo";
@@ -129,6 +132,10 @@ export async function POST(request: Request) {
     );
     const currentSourceLanguage = getSourceLanguage(sourceLanguage);
     const currentTargetLanguage = getTargetLanguage(targetLanguage);
+    const responseSchema =
+      currentSourceLanguage === SourceLanguages.Finnish
+        ? FinnishTranslationResponseSchema
+        : BaseTranslationResponseSchema;
     const inputLength = typeof text === "string" ? text.length : 0;
 
     // AbortController is needed for a custom timeout.
@@ -158,7 +165,7 @@ export async function POST(request: Request) {
             { role: "user", content: text },
           ],
           response_format: zodResponseFormat(
-            TranslationResponseSchema,
+            responseSchema,
             "translation_response",
           ),
           reasoning_effort: "low",
@@ -198,7 +205,7 @@ export async function POST(request: Request) {
     try {
       phase = "validation";
       const validatedData = timeSync(timings, "validation", () =>
-        TranslationResponseSchema.parse(
+        responseSchema.parse(
           JSON.parse(data.choices?.[0]?.message?.content ?? ""),
         ),
       );

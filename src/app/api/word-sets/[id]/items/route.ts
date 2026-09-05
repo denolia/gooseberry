@@ -187,6 +187,7 @@ export async function POST(
       const mappedFields = mapTranslationToWordSetItem(
         translationData,
         translation.id,
+        translation.sourceLang,
       );
 
       return {

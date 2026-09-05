@@ -39,7 +39,7 @@ export function TranslationCard({
     Record<string, { fingerprint: string; itemId: string }>
   >({});
   const [draft, setDraft] = useState<CardDraft>(() => ({
-    ...mapTranslationToWordSetItem(response, ""),
+    ...mapTranslationToWordSetItem(response, "", sourceLang),
     examples: (response.example_usage ?? []).map((e) => ({
       sample: e.sample,
       translation: e.sample_translation,

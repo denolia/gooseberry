@@ -3,6 +3,7 @@ import styles from "./StructuredResponseDisplay.module.css";
 import { TranslationResponse } from "@/app/utils/translationSchema";
 import { TranslationCard } from "@/components/anki/TranslationCard";
 import { useState } from "react";
+import { LanguageCodes, SourceLanguages } from "@/components/ui/Languages";
 
 function hasValue(line: string | null | undefined | null): line is string {
   if (!line || line === "-") {
@@ -25,6 +26,9 @@ export function StructuredResponseDisplay({
   const toggleRawVisibility = () => setIsRawVisible(!isRawVisible);
 
   const { original, translation, details, example_usage } = response;
+  const isFinnishSource =
+    sourceLang === SourceLanguages.Finnish ||
+    sourceLang === LanguageCodes[SourceLanguages.Finnish];
 
   return (
     <div className={styles.structuredResponse}>
@@ -56,10 +60,10 @@ export function StructuredResponseDisplay({
             {hasValue(details.genitive) && (
               <span>Genitive: {details.genitive}</span>
             )}
-            {hasValue(details.standard_form) && (
+            {isFinnishSource && hasValue(details.standard_form) && (
               <div>Standard: {details.standard_form}</div>
             )}
-            {hasValue(details.colloquial_form) && (
+            {isFinnishSource && hasValue(details.colloquial_form) && (
               <div>Common colloquial: {details.colloquial_form}</div>
             )}
           </div>
@@ -84,7 +88,7 @@ export function StructuredResponseDisplay({
           )}
 
           {details.stylistic_kind && <div>Style: {details.stylistic_kind}</div>}
-          {details.language_variant && (
+          {isFinnishSource && details.language_variant && (
             <div>
               Finnish register: {details.language_variant.replace("-", " ")}
             </div>
@@ -157,12 +161,13 @@ export function StructuredResponseDisplay({
           <div>
             {example_usage.map((example, index) => (
               <div key={index}>
-                {example.language_variant === "standard" && (
+                {isFinnishSource && example.language_variant === "standard" && (
                   <strong>Standard: </strong>
                 )}
-                {example.language_variant === "colloquial" && (
-                  <strong>Common colloquial: </strong>
-                )}
+                {isFinnishSource &&
+                  example.language_variant === "colloquial" && (
+                    <strong>Common colloquial: </strong>
+                  )}
                 <span className={styles.italic}>{example.sample}</span> -{" "}
                 {example.sample_translation}
               </div>

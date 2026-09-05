@@ -6,7 +6,7 @@ const LanguageVariantSchema = z.enum([
   "register-neutral",
 ]);
 
-const TranslationDetailsSchema = z.object({
+const BaseTranslationDetailsSchema = z.object({
   article: z.string().nullable(),
 
   plural: z.string().nullable(),
@@ -65,26 +65,52 @@ const TranslationDetailsSchema = z.object({
       "archaic",
     ])
     .nullable(), // Stylistic classification
-  language_variant: LanguageVariantSchema.nullable().optional(),
-  standard_form: z.string().nullable().optional(),
-  colloquial_form: z.string().nullable().optional(),
   sentence_grammatical_analysis: z.string().nullable(), // Sentence analysis
   comments: z.string().nullable(), // Additional comments
 });
 
-export const TranslationResponseSchema = z.object({
+const BaseExampleUsageSchema = z.object({
+  sample: z.string(),
+  sample_translation: z.string(),
+});
+
+export const BaseTranslationResponseSchema = z.object({
   original: z.string(), // The original German sentence
   type: z
     .enum(["noun", "verb", "adjective", "adverb", "sentence", "other"])
     .nullable(),
   translation: z.string(), // The natural Russian translation
-  details: TranslationDetailsSchema,
+  details: BaseTranslationDetailsSchema,
+  example_usage: z.array(BaseExampleUsageSchema).nullable(),
+});
+
+export const FinnishTranslationResponseSchema =
+  BaseTranslationResponseSchema.extend({
+    details: BaseTranslationDetailsSchema.extend({
+      language_variant: LanguageVariantSchema.nullable(),
+      standard_form: z.string().nullable(),
+      colloquial_form: z.string().nullable(),
+    }),
+    example_usage: z
+      .array(
+        BaseExampleUsageSchema.extend({
+          language_variant: LanguageVariantSchema.nullable(),
+        }),
+      )
+      .nullable(),
+  });
+
+// The application-level schema accepts both base and Finnish responses. Finnish-only
+// fields stay optional so translations saved before their introduction remain valid.
+export const TranslationResponseSchema = BaseTranslationResponseSchema.extend({
+  details: BaseTranslationDetailsSchema.extend({
+    language_variant: LanguageVariantSchema.nullable().optional(),
+    standard_form: z.string().nullable().optional(),
+    colloquial_form: z.string().nullable().optional(),
+  }),
   example_usage: z
     .array(
-      // Optional additional example usages if needed
-      z.object({
-        sample: z.string(),
-        sample_translation: z.string(),
+      BaseExampleUsageSchema.extend({
         language_variant: LanguageVariantSchema.nullable().optional(),
       }),
     )

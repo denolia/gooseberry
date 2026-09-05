@@ -1,5 +1,13 @@
 import { TranslationResponse } from "@/app/utils/translationSchema";
 import { AnkiNote } from "@/app/utils/ankiSchema";
+import { LanguageCodes, SourceLanguages } from "@/components/ui/Languages";
+
+function isFinnishSourceLanguage(sourceLanguage?: string) {
+  return (
+    sourceLanguage === SourceLanguages.Finnish ||
+    sourceLanguage === LanguageCodes[SourceLanguages.Finnish]
+  );
+}
 
 /**
  * Converts a translation from history to word_set_item fields
@@ -8,6 +16,7 @@ import { AnkiNote } from "@/app/utils/ankiSchema";
 export function mapTranslationToWordSetItem(
   translation: TranslationResponse,
   translationHistoryId: string,
+  sourceLanguage?: string,
 ): {
   original: string;
   translation: string;
@@ -25,6 +34,7 @@ export function mapTranslationToWordSetItem(
     example_usage,
     type,
   } = translation;
+  const includeFinnishFields = isFinnishSourceLanguage(sourceLanguage);
 
   // Field 1: Original (with article for nouns)
   let originalField = original;
@@ -56,14 +66,16 @@ export function mapTranslationToWordSetItem(
     wordFormsField = parts.join(", ");
   }
 
-  const registerCounterparts = [
-    details.standard_form && details.standard_form !== original
-      ? `Standard: ${details.standard_form}`
-      : null,
-    details.colloquial_form && details.colloquial_form !== original
-      ? `Common colloquial: ${details.colloquial_form}`
-      : null,
-  ].filter((form): form is string => Boolean(form));
+  const registerCounterparts = includeFinnishFields
+    ? [
+        details.standard_form && details.standard_form !== original
+          ? `Standard: ${details.standard_form}`
+          : null,
+        details.colloquial_form && details.colloquial_form !== original
+          ? `Common colloquial: ${details.colloquial_form}`
+          : null,
+      ].filter((form): form is string => Boolean(form))
+    : [];
 
   if (registerCounterparts.length > 0) {
     wordFormsField = [wordFormsField, ...registerCounterparts]
@@ -83,10 +95,10 @@ export function mapTranslationToWordSetItem(
 
   const sampleField = allSamples
     .map((sample) => {
-      if (sample.language_variant === "standard") {
+      if (includeFinnishFields && sample.language_variant === "standard") {
         return `Standard: ${sample.sample}`;
       }
-      if (sample.language_variant === "colloquial") {
+      if (includeFinnishFields && sample.language_variant === "colloquial") {
         return `Common colloquial: ${sample.sample}`;
       }
       return sample.sample;
@@ -110,7 +122,7 @@ export function mapTranslationToWordSetItem(
   if (details.stylistic_kind) {
     commentParts.push(`Style: ${details.stylistic_kind}`);
   }
-  if (details.language_variant) {
+  if (includeFinnishFields && details.language_variant) {
     commentParts.push(
       `Finnish register: ${details.language_variant.replace("-", " ")}`,
     );
