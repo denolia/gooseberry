@@ -183,6 +183,16 @@
   line-height: 2.05;
 }
 
+.tokens ::selection {
+  color: inherit;
+  background: transparent;
+}
+
+.tokens ::-moz-selection {
+  color: inherit;
+  background: transparent;
+}
+
 .token {
   position: relative;
   display: inline;
@@ -207,6 +217,11 @@
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.selectionPreview {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .analyzingToken {

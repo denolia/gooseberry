@@ -120,6 +120,7 @@ export function TextAnalyzer() {
   const [readerText, setReaderText] = useState("");
   const [editorExpanded, setEditorExpanded] = useState(true);
   const [selectedTokenIds, setSelectedTokenIds] = useState<number[]>([]);
+  const [selectionPreviewIds, setSelectionPreviewIds] = useState<number[]>([]);
   const [analysis, setAnalysis] = useState<SelectionAnalysis>();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -127,6 +128,7 @@ export function TextAnalyzer() {
   const activeRequest = useRef<AbortController | null>(null);
   const readerRef = useRef<HTMLDivElement>(null);
   const handledTextSelection = useRef(false);
+  const touchSelectionTimer = useRef<number | undefined>(undefined);
   const previousLanguagePair = useRef(
     `${currentSourceLanguage}:${currentTargetLanguage}`,
   );
@@ -142,7 +144,21 @@ export function TextAnalyzer() {
     winningConstruction?.tokenIds ?? selectedTokenIds,
   );
 
-  useEffect(() => () => activeRequest.current?.abort(), []);
+  useEffect(
+    () => () => {
+      activeRequest.current?.abort();
+      window.clearTimeout(touchSelectionTimer.current);
+    },
+    [],
+  );
+  useEffect(() => {
+    const updateSelectionPreview = () => {
+      setSelectionPreviewIds(getNativeSelectedIds());
+    };
+    document.addEventListener("selectionchange", updateSelectionPreview);
+    return () =>
+      document.removeEventListener("selectionchange", updateSelectionPreview);
+  }, [readerText]);
   useEffect(() => {
     const cached = readCache(currentSourceLanguage, currentTargetLanguage);
     setText(cached.text ?? "");
@@ -190,6 +206,7 @@ export function TextAnalyzer() {
     activeRequest.current?.abort();
     setAnalysis(undefined);
     setSelectedTokenIds([]);
+    setSelectionPreviewIds([]);
     setError("");
   }, [currentSourceLanguage, currentTargetLanguage]);
 
@@ -202,6 +219,7 @@ export function TextAnalyzer() {
     setEditorExpanded(false);
     setAnalysis(undefined);
     setSelectedTokenIds([]);
+    setSelectionPreviewIds([]);
     setError("");
   }
 
@@ -214,6 +232,7 @@ export function TextAnalyzer() {
     const controller = new AbortController();
     activeRequest.current = controller;
     setSelectedTokenIds(uniqueIds);
+    setSelectionPreviewIds([]);
     setAnalysis(undefined);
     setIsLoading(true);
     setError("");
@@ -244,21 +263,25 @@ export function TextAnalyzer() {
     }
   }
 
-  function analyzeNativeSelection() {
+  function getNativeSelectedIds() {
     const selection = window.getSelection();
     const container = readerRef.current;
-    if (!selection || selection.isCollapsed || !container) return false;
+    if (!selection || selection.isCollapsed || !container) return [];
     const range = selection.getRangeAt(0);
-    if (!container.contains(range.commonAncestorContainer)) return false;
-    const ids = Array.from(
+    if (!container.contains(range.commonAncestorContainer)) return [];
+    return Array.from(
       container.querySelectorAll<HTMLElement>("[data-token-id]"),
     )
       .filter((element) => range.intersectsNode(element))
       .map((element) => Number(element.dataset.tokenId))
       .filter(Number.isInteger);
+  }
+
+  function analyzeNativeSelection() {
+    const ids = getNativeSelectedIds();
     if (!ids.length) return false;
     handledTextSelection.current = true;
-    selection.removeAllRanges();
+    window.getSelection()?.removeAllRanges();
     void analyzeSelection(ids);
     window.setTimeout(() => {
       handledTextSelection.current = false;
@@ -266,8 +289,20 @@ export function TextAnalyzer() {
     return true;
   }
 
+  function scheduleTouchSelectionAnalysis() {
+    window.clearTimeout(touchSelectionTimer.current);
+    touchSelectionTimer.current = window.setTimeout(() => {
+      analyzeNativeSelection();
+    }, 450);
+  }
+
   function handleReaderClick(event: React.MouseEvent<HTMLDivElement>) {
-    if (handledTextSelection.current) return;
+    if (
+      handledTextSelection.current ||
+      window.getSelection()?.isCollapsed === false
+    ) {
+      return;
+    }
     const element = (event.target as HTMLElement).closest<HTMLElement>(
       "[data-token-id]",
     );
@@ -404,6 +439,7 @@ export function TextAnalyzer() {
               ref={readerRef}
               onClick={handleReaderClick}
               onMouseUp={analyzeNativeSelection}
+              onTouchEnd={scheduleTouchSelectionAnalysis}
               onKeyDown={(event) => {
                 const element = (
                   event.target as HTMLElement
@@ -421,7 +457,7 @@ export function TextAnalyzer() {
                     data-token-id={token.id}
                     role="button"
                     tabIndex={0}
-                    className={`${styles.token} ${highlightedTokenIds.has(token.id) ? styles.selectedToken : ""} ${isLoading && selectedTokenIds.includes(token.id) ? styles.analyzingToken : ""}`}
+                    className={`${styles.token} ${highlightedTokenIds.has(token.id) ? styles.selectedToken : ""} ${selectionPreviewIds.includes(token.id) ? styles.selectionPreview : ""} ${isLoading && selectedTokenIds.includes(token.id) ? styles.analyzingToken : ""}`}
                   >
                     {token.text}
                   </span>
