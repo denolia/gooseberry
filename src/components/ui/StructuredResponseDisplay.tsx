@@ -1,6 +1,7 @@
 "use client";
 import styles from "./StructuredResponseDisplay.module.css";
 import { TranslationResponse } from "@/app/utils/translationSchema";
+import { TranslationCard } from "@/components/anki/TranslationCard";
 import { useState } from "react";
 
 function hasValue(line: string | null | undefined | null): line is string {
@@ -12,8 +13,12 @@ function hasValue(line: string | null | undefined | null): line is string {
 
 export function StructuredResponseDisplay({
   response,
+  sourceLang,
+  targetLang,
 }: {
   response: TranslationResponse;
+  sourceLang?: string;
+  targetLang?: string;
 }) {
   const [isRawVisible, setIsRawVisible] = useState(false);
 
@@ -36,6 +41,13 @@ export function StructuredResponseDisplay({
         details.alternative_translations.length > 0 && (
           <div>{details.alternative_translations.join(", ")}</div>
         )}
+
+      <TranslationCard
+        key={JSON.stringify([response, sourceLang, targetLang])}
+        response={response}
+        sourceLang={sourceLang}
+        targetLang={targetLang}
+      />
 
       {/* Details Section */}
       {details && (

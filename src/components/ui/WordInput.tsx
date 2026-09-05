@@ -4,12 +4,22 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import styles from "./WordInput.module.css";
 import { StructuredResponseDisplay } from "@/components/ui/StructuredResponseDisplay";
-import { SourceLanguage, SourceLanguages } from "@/components/ui/Languages";
+import {
+  getLanguageCode,
+  isSourceLanguage,
+  SourceLanguage,
+  SourceLanguages,
+} from "@/components/ui/Languages";
 import {
   TranslationResponse,
   TranslationResponseSchema,
 } from "@/app/utils/translationSchema";
 import { useLanguages } from "@/lib/languages/useLanguages";
+
+type TranslationEntry = TranslationResponse & {
+  sourceLang?: string;
+  targetLang?: string;
+};
 
 const SPECIAL_CHARACTERS_BY_LANGUAGE: Partial<
   Record<SourceLanguage, readonly string[]>
@@ -18,9 +28,38 @@ const SPECIAL_CHARACTERS_BY_LANGUAGE: Partial<
   [SourceLanguages.Norwegian]: ["æ", "ø", "å", "Æ", "Ø", "Å"],
   [SourceLanguages.Finnish]: ["ä", "ö", "å", "Ä", "Ö", "Å"],
   [SourceLanguages.Spanish]: ["á", "é", "í", "ñ", "ó", "ú", "ü", "¿", "¡"],
-  [SourceLanguages.French]: ["à", "â", "ç", "é", "è", "ê", "ë", "î", "ï", "ô", "ù", "û", "ü", "ÿ", "œ"],
+  [SourceLanguages.French]: [
+    "à",
+    "â",
+    "ç",
+    "é",
+    "è",
+    "ê",
+    "ë",
+    "î",
+    "ï",
+    "ô",
+    "ù",
+    "û",
+    "ü",
+    "ÿ",
+    "œ",
+  ],
   [SourceLanguages.Italian]: ["à", "è", "é", "ì", "ò", "ù"],
-  [SourceLanguages.Portuguese]: ["á", "â", "ã", "à", "ç", "é", "ê", "í", "ó", "ô", "õ", "ú"],
+  [SourceLanguages.Portuguese]: [
+    "á",
+    "â",
+    "ã",
+    "à",
+    "ç",
+    "é",
+    "ê",
+    "í",
+    "ó",
+    "ô",
+    "õ",
+    "ú",
+  ],
   [SourceLanguages.Dutch]: ["á", "é", "ë", "ï", "í", "ó", "ú"],
   [SourceLanguages.Swedish]: ["å", "ä", "ö", "Å", "Ä", "Ö"],
   [SourceLanguages.Danish]: ["æ", "ø", "å", "Æ", "Ø", "Å"],
@@ -36,8 +75,8 @@ export function WordInput() {
 
   const queryClient = useQueryClient();
   const [word, setWord] = useState("");
-  const [translation, setTranslation] = useState<TranslationResponse>();
-  const [history, setHistory] = useState<TranslationResponse[]>([]);
+  const [translation, setTranslation] = useState<TranslationEntry>();
+  const [history, setHistory] = useState<TranslationEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showSpecialChars, setShowSpecialChars] = useState(false);
@@ -46,14 +85,24 @@ export function WordInput() {
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function fetchHistoryFromDB(): Promise<TranslationResponse[]> {
+  async function fetchHistoryFromDB(): Promise<TranslationEntry[]> {
     const response = await fetch("/api/history/list");
     if (!response.ok) {
       throw new Error("Failed to fetch history");
     }
     const data = await response.json();
     return data.history.map(
-      (item: any) => item.responseJson as TranslationResponse,
+      (item: {
+        responseJson: TranslationResponse;
+        sourceLang: string;
+        targetLang: string;
+      }) => ({
+        ...item.responseJson,
+        sourceLang: isSourceLanguage(item.sourceLang)
+          ? getLanguageCode(item.sourceLang)
+          : item.sourceLang,
+        targetLang: item.targetLang,
+      }),
     );
   }
 
@@ -151,8 +200,13 @@ export function WordInput() {
       if (translation.error) {
         setError(translation.error);
       } else if (translation) {
-        setTranslation(translation);
-        saveToHistory(translation);
+        const entry = {
+          ...translation,
+          sourceLang: getLanguageCode(currentSourceLanguage),
+          targetLang: getLanguageCode(currentTargetLanguage),
+        };
+        setTranslation(entry);
+        saveToHistory(entry);
       }
     } catch (error) {
       console.error("Translation error:", error);
@@ -168,7 +222,7 @@ export function WordInput() {
   };
 
   // Save translation to localStorage and update state
-  const saveToHistory = (entry: TranslationResponse) => {
+  const saveToHistory = (entry: TranslationEntry) => {
     const updatedHistory = [entry, ...history];
     if (updatedHistory.length > 50) {
       updatedHistory.pop();
@@ -191,14 +245,18 @@ export function WordInput() {
     setHistory([]);
   };
 
-  function loadHistoryItem(entry: TranslationResponse) {
+  function loadHistoryItem(entry: TranslationEntry) {
     setError("");
     try {
       // Validate if the entry matches the TranslationResponse schema
       const validEntry = TranslationResponseSchema.parse(entry);
 
       // If valid, set it as the translation
-      setTranslation(validEntry);
+      setTranslation({
+        ...validEntry,
+        sourceLang: entry.sourceLang,
+        targetLang: entry.targetLang,
+      });
     } catch (error) {
       console.error("Invalid entry format:", error);
       alert(
@@ -254,7 +312,13 @@ export function WordInput() {
       <div className={styles.translation}>
         {isLoading && <div>Translating...</div>}
         {error && <div>Error: {error}</div>}
-        {translation && <StructuredResponseDisplay response={translation} />}
+        {translation && (
+          <StructuredResponseDisplay
+            response={translation}
+            sourceLang={translation.sourceLang}
+            targetLang={translation.targetLang}
+          />
+        )}
       </div>
 
       <div className={styles.history}>

@@ -14,13 +14,15 @@ import { TranslationResponseSchema } from "@/app/utils/translationSchema";
 import { generateAnkiGuid } from "@/lib/anki/guidGenerator";
 import { z } from "zod";
 
+import { CardFieldsSchema } from "@/app/utils/cardDraft";
+
 const AddItemsSchema = z.object({
   translationHistoryIds: z.array(z.string().uuid()),
 });
 
 const UpdateItemSchema = z.object({
-  original: z.string().optional(),
-  translation: z.string().optional(),
+  original: z.string().trim().min(1).optional(),
+  translation: z.string().trim().min(1).optional(),
   wordForms: z.string().optional(),
   sample: z.string().optional(),
   sampleTranslation: z.string().optional(),
@@ -90,6 +92,52 @@ export async function POST(
     }
 
     const body = await request.json();
+    if ("card" in body) {
+      const input = z
+        .object({
+          card: CardFieldsSchema,
+          sourceLang: z.string(),
+          targetLang: z.string(),
+        })
+        .parse(body);
+      if (
+        input.sourceLang !== wordSet.sourceLang ||
+        input.targetLang !== wordSet.targetLang
+      ) {
+        return NextResponse.json(
+          {
+            error: "Choose a set with the same languages as this translation.",
+          },
+          { status: 400 },
+        );
+      }
+      const existing = await getWordSetItems(id);
+      const duplicate = existing.find((item) =>
+        Object.entries(input.card).every(
+          ([key, value]) => item[key as keyof typeof input.card] === value,
+        ),
+      );
+      if (duplicate)
+        return NextResponse.json({
+          success: true,
+          count: 0,
+          skippedCount: 1,
+          itemId: duplicate.id,
+        });
+      const inserted = await addItemsToWordSet(id, [
+        {
+          ...input.card,
+          ankiNoteGuid: generateAnkiGuid(id, crypto.randomUUID()),
+          position: Math.max(-1, ...existing.map((item) => item.position)) + 1,
+        },
+      ]);
+      return NextResponse.json({
+        success: true,
+        count: 1,
+        skippedCount: 0,
+        itemId: inserted?.[0].id,
+      });
+    }
     const { translationHistoryIds } = AddItemsSchema.parse(body);
 
     // Get translations from history
@@ -106,7 +154,10 @@ export async function POST(
     }
 
     const existingSourceTranslationIds = new Set(
-      await getExistingSourceTranslationIds(id, translations.map((t) => t.id)),
+      await getExistingSourceTranslationIds(
+        id,
+        translations.map((t) => t.id),
+      ),
     );
 
     const newTranslations = translations.filter(

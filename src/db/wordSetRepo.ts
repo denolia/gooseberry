@@ -86,21 +86,24 @@ export async function addItemsToWordSet(
   if (items.length === 0) return;
 
   const db = getDb();
-  await db.insert(wordSetItem).values(
-    items.map((item) => ({
-      wordSetId,
-      ankiNoteGuid: item.ankiNoteGuid,
-      original: item.original,
-      translation: item.translation,
-      wordForms: item.wordForms ?? "",
-      sample: item.sample ?? "",
-      sampleTranslation: item.sampleTranslation ?? "",
-      comments: item.comments ?? "",
-      tags: item.tags ?? "",
-      sourceTranslationId: item.sourceTranslationId ?? null,
-      position: item.position,
-    })),
-  );
+  return db
+    .insert(wordSetItem)
+    .values(
+      items.map((item) => ({
+        wordSetId,
+        ankiNoteGuid: item.ankiNoteGuid,
+        original: item.original,
+        translation: item.translation,
+        wordForms: item.wordForms ?? "",
+        sample: item.sample ?? "",
+        sampleTranslation: item.sampleTranslation ?? "",
+        comments: item.comments ?? "",
+        tags: item.tags ?? "",
+        sourceTranslationId: item.sourceTranslationId ?? null,
+        position: item.position,
+      })),
+    )
+    .returning({ id: wordSetItem.id });
 }
 
 export async function getExistingSourceTranslationIds(
