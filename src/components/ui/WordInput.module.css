@@ -52,6 +52,12 @@
 }
 
 .loadFromHistoryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: 0 0 2rem;
+  min-width: 2rem;
   width: 2rem;
   height: 2rem;
   padding: 0;
@@ -60,10 +66,19 @@
   border: none;
   border-radius: 0;
   cursor: pointer;
-  font-size: 0.8rem;
   transition:
     background-color 0.2s ease,
     transform 0.2s;
+}
+
+.loadFromHistoryButton svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .loadFromHistoryButton:hover {
@@ -183,4 +198,98 @@
   .history li {
     align-items: flex-start;
   }
+}
+
+.streamingCard {
+  min-width: 0;
+  padding: clamp(1rem, 3vw, 1.75rem);
+  border: 1px solid var(--border-color);
+  border-top: 2px solid var(--accent);
+  background: var(--surface-raised);
+  overflow-wrap: anywhere;
+}
+.streamStatus {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--foreground);
+  font-size: 0.8rem;
+  opacity: 0.75;
+  min-height: 1.5rem;
+}
+.statusDot {
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: breathe 1.8s ease-in-out infinite;
+}
+.streamOriginal {
+  margin: 1rem 0 0.5rem;
+  font-size: clamp(1.2rem, 3vw, 1.65rem);
+  line-height: 1.4;
+}
+.streamTranslation {
+  min-height: 2.5rem;
+  font-size: clamp(1.1rem, 2.5vw, 1.35rem);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.streamDetails {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-color);
+}
+.streamLabel {
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+.skeleton {
+  display: block;
+  width: min(100%, 28rem);
+  height: 0.8rem;
+  margin: 0.4rem 0;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--foreground) 9%, var(--surface-raised));
+  animation: breathe 1.8s ease-in-out infinite;
+}
+.shortSkeleton {
+  width: min(65%, 18rem);
+}
+.streamError {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-accent);
+  line-height: 1.5;
+}
+.translateButton:disabled,
+.loadFromHistoryButton:disabled {
+  opacity: 0.65;
+  cursor: default;
+  transform: none;
+}
+@keyframes breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .statusDot {
+    animation: none;
+  }
+}
+
+.completedCard h2 {
+  margin: 1rem 0 0.5rem;
+  font-size: clamp(1.2rem, 3vw, 1.65rem);
+  line-height: 1.4;
+}
+.completedCard h3 {
+  font-size: clamp(1.1rem, 2.5vw, 1.35rem);
+  line-height: 1.6;
 }

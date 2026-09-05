@@ -1,3 +1,4 @@
+import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { zodResponseFormat } from "openai/helpers/zod";
 import {
@@ -33,23 +34,6 @@ type TimingName =
 
 type Timings = Partial<Record<TimingName, number>>;
 
-type OpenAIChatCompletionResponse = {
-  choices?: Array<{
-    finish_reason?: string | null;
-    message?: {
-      content?: string | null;
-    };
-  }>;
-  usage?: {
-    prompt_tokens?: number;
-    completion_tokens?: number;
-    total_tokens?: number;
-    completion_tokens_details?: {
-      reasoning_tokens?: number;
-    };
-  };
-};
-
 function durationMs(start: number) {
   return Math.round((performance.now() - start) * 100) / 100;
 }
@@ -82,11 +66,7 @@ function getServerTimingHeader(timings: Timings) {
     .join(", ");
 }
 
-function jsonWithTimings(
-  body: unknown,
-  timings: Timings,
-  init?: ResponseInit,
-) {
+function jsonWithTimings(body: unknown, timings: Timings, init?: ResponseInit) {
   const headers = new Headers(init?.headers);
   headers.set("Server-Timing", getServerTimingHeader(timings));
 
@@ -138,152 +118,157 @@ export async function POST(request: Request) {
         : BaseTranslationResponseSchema;
     const inputLength = typeof text === "string" ? text.length : 0;
 
-    // AbortController is needed for a custom timeout.
-    const controller = new AbortController();
+    if (typeof text !== "string" || !text.trim()) {
+      return jsonWithTimings({ error: "Enter text to translate." }, timings, {
+        status: 400,
+      });
+    }
 
-    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    phase = "openai";
-    const response = await timeAsync(timings, "openai", () =>
-      fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: translationModel,
-          max_completion_tokens: maxCompletionTokens,
-          messages: [
+    const abortController = new AbortController();
+    const abort = () => abortController.abort();
+    request.signal.addEventListener("abort", abort, { once: true });
+    if (request.signal.aborted) abort();
+    const encoder = new TextEncoder();
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      async start(output) {
+        const send = (event: unknown) => {
+          if (!cancelled)
+            output.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+        };
+        timeoutId = setTimeout(abort, timeoutMs);
+        try {
+          phase = "openai";
+          const openaiStart = performance.now();
+          const client = new OpenAI({ maxRetries: 0 });
+          const stream = client.chat.completions.stream(
             {
-              role: "system",
-              content: getTranslationPrompt(
-                currentSourceLanguage,
-                currentTargetLanguage,
+              model: translationModel,
+              max_completion_tokens: maxCompletionTokens,
+              messages: [
+                {
+                  role: "system",
+                  content: getTranslationPrompt(
+                    currentSourceLanguage,
+                    currentTargetLanguage,
+                  ),
+                },
+                { role: "user", content: text },
+              ],
+              response_format: zodResponseFormat(
+                responseSchema,
+                "translation_response",
               ),
+              reasoning_effort: "minimal",
+              stream_options: { include_usage: true },
             },
-            { role: "user", content: text },
-          ],
-          response_format: zodResponseFormat(
-            responseSchema,
-            "translation_response",
-          ),
-          reasoning_effort: "low",
-        }),
-        signal: controller.signal, // Attach the signal to fetch
-      }),
-    );
-
-    // Clear the timeout when request completes
-    clearTimeout(timeoutId);
-    timeoutId = undefined;
-
-    const openaiRequestId = response.headers.get("x-request-id");
-
-    if (!response.ok) {
-      const error = await response.json();
-
-      console.error("OpenAI API error:", {
-        error,
-        inputLength,
-        model: translationModel,
-        openaiRequestId,
-        phase,
-        sourceLanguage: currentSourceLanguage,
-        targetLanguage: getLanguageCode(currentTargetLanguage),
-        timings,
-      });
-      throw new Error("Translation request failed");
-    }
-
-    phase = "openaiJson";
-    const data = await timeAsync(
-      timings,
-      "openaiJson",
-      () => response.json() as Promise<OpenAIChatCompletionResponse>,
-    );
-    try {
-      phase = "validation";
-      const validatedData = timeSync(timings, "validation", () =>
-        responseSchema.parse(
-          JSON.parse(data.choices?.[0]?.message?.content ?? ""),
-        ),
-      );
-
-      // Save to database. This is awaited today, so it is part of user-visible latency.
-      try {
-        phase = "db";
-        await timeAsync(timings, "db", () =>
-          insertTranslation({
-            userId: session.user.id,
-            sourceLang: currentSourceLanguage,
-            targetLang: getLanguageCode(currentTargetLanguage),
-            inputText: text,
-            responseJson: validatedData,
+            { signal: abortController.signal },
+          );
+          let lastPreview = "";
+          stream.on("content.delta", ({ parsed }) => {
+            if (!parsed || typeof parsed !== "object") return;
+            const partial = parsed as {
+              original?: unknown;
+              translation?: unknown;
+            };
+            const preview = {
+              type: "preview",
+              original:
+                typeof partial.original === "string" ? partial.original : "",
+              translation:
+                typeof partial.translation === "string"
+                  ? partial.translation
+                  : "",
+            };
+            const serialized = JSON.stringify(preview);
+            if (serialized !== lastPreview) {
+              lastPreview = serialized;
+              send(preview);
+            }
+          });
+          const data = await stream.finalChatCompletion();
+          timings.openai = durationMs(openaiStart);
+          clearTimeout(timeoutId);
+          phase = "validation";
+          const validatedData = timeSync(timings, "validation", () =>
+            responseSchema.parse(
+              JSON.parse(data.choices[0]?.message.content ?? ""),
+            ),
+          );
+          // Display the validated card before waiting for persistence.
+          send({ type: "result", response: validatedData });
+          try {
+            phase = "db";
+            await timeAsync(timings, "db", () =>
+              insertTranslation({
+                userId: session.user.id,
+                sourceLang: currentSourceLanguage,
+                targetLang: getLanguageCode(currentTargetLanguage),
+                inputText: text,
+                responseJson: validatedData,
+                model: translationModel,
+                promptVersion: "v1",
+              }),
+            );
+          } catch (error) {
+            console.error("Failed to save translation to DB:", {
+              error: getErrorMessage(error),
+              timings,
+            });
+          }
+          timings.total = durationMs(totalStart);
+          console.info("Translation request completed", {
             model: translationModel,
-            promptVersion: "v1",
-          }),
-        );
-      } catch (dbError) {
-        console.error("Failed to save translation to DB:", {
-          error: getErrorMessage(dbError),
-          inputLength,
-          phase,
-          timings,
-        });
-        // Don't fail the request - user still gets translation
-      }
-
-      timings.total = durationMs(totalStart);
-      console.info("Translation request completed", {
-        finishReason: data.choices?.[0]?.finish_reason,
-        inputLength,
-        model: translationModel,
-        openaiRequestId,
-        sourceLanguage: currentSourceLanguage,
-        targetLanguage: getLanguageCode(currentTargetLanguage),
-        timings,
-        usage: {
-          completionTokens: data.usage?.completion_tokens,
-          promptTokens: data.usage?.prompt_tokens,
-          reasoningTokens:
-            data.usage?.completion_tokens_details?.reasoning_tokens,
-          totalTokens: data.usage?.total_tokens,
-        },
-      });
-
-      return jsonWithTimings(validatedData, timings);
-    } catch (error) {
-      timings.total = durationMs(totalStart);
-      console.error("Validation error:", {
-        error: getErrorMessage(error),
-        inputLength,
-        model: translationModel,
-        openaiRequestId,
-        phase,
-        timings,
-      });
-      return jsonWithTimings(
-        { error: "Invalid response format" },
-        timings,
-        { status: 500 },
-      );
-    }
+            inputLength,
+            timings,
+            finishReason: data.choices[0]?.finish_reason,
+            usage: {
+              completionTokens: data.usage?.completion_tokens,
+              promptTokens: data.usage?.prompt_tokens,
+              reasoningTokens:
+                data.usage?.completion_tokens_details?.reasoning_tokens,
+            },
+          });
+          send({ type: "done", timings });
+        } catch (error) {
+          console.error("Translation stream failed", {
+            phase,
+            error: getErrorMessage(error),
+            timings,
+          });
+          send({
+            type: "error",
+            error: abortController.signal.aborted
+              ? "Translation timed out. Please try again."
+              : "Could not finish the translation. Please try again.",
+          });
+        } finally {
+          clearTimeout(timeoutId);
+          request.signal.removeEventListener("abort", abort);
+          if (!cancelled) output.close();
+        }
+      },
+      cancel() {
+        cancelled = true;
+        abort();
+      },
+    });
+    return new Response(body, {
+      headers: {
+        "Content-Type": "application/x-ndjson; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+      },
+    });
   } catch (error) {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-
     timings.total = durationMs(totalStart);
     console.error("Translation error:", {
       error: getErrorMessage(error),
       phase,
       timings,
     });
-    return jsonWithTimings(
-      { error: "Translation failed" },
-      timings,
-      { status: 500 },
-    );
+    return jsonWithTimings({ error: "Translation failed" }, timings, {
+      status: 500,
+    });
   }
 }

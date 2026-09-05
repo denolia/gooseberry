@@ -14,12 +14,23 @@ import {
   TranslationResponse,
   TranslationResponseSchema,
 } from "@/app/utils/translationSchema";
+import { readJsonLines } from "@/app/utils/readJsonLines";
 import { useLanguages } from "@/lib/languages/useLanguages";
 
 type TranslationEntry = TranslationResponse & {
   sourceLang?: string;
   targetLang?: string;
 };
+
+const HISTORY_LABEL_LIMIT = 100;
+
+function getHistoryLabel(entry: TranslationEntry) {
+  const label = `${entry.original} - ${entry.translation}`;
+
+  return label.length > HISTORY_LABEL_LIMIT
+    ? `${label.slice(0, HISTORY_LABEL_LIMIT).trimEnd()}...`
+    : label;
+}
 
 const SPECIAL_CHARACTERS_BY_LANGUAGE: Partial<
   Record<SourceLanguage, readonly string[]>
@@ -98,6 +109,12 @@ export function WordInput() {
   const [translation, setTranslation] = useState<TranslationEntry>();
   const [history, setHistory] = useState<TranslationEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [preview, setPreview] = useState<{
+    original: string;
+    translation: string;
+  }>();
+  const activeRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => activeRequest.current?.abort(), []);
   const [error, setError] = useState("");
   const [showSpecialChars, setShowSpecialChars] = useState(false);
 
@@ -201,37 +218,79 @@ export function WordInput() {
   };
 
   async function translate() {
+    if (activeRequest.current || !word.trim()) return;
+    const controller = new AbortController();
+    activeRequest.current = controller;
     setError("");
+    setTranslation(undefined);
+    setPreview({ original: word, translation: "" });
     setIsLoading(true);
+    let receivedResult = false;
     try {
       const response = await fetch("/api/translate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           text: word,
           sourceLanguage: currentSourceLanguage,
           targetLanguage: currentTargetLanguage,
         }),
       });
-
-      const translation = await response.json();
-      if (translation.error) {
-        setError(translation.error);
-      } else if (translation) {
-        const entry = {
-          ...translation,
-          sourceLang: getLanguageCode(currentSourceLanguage),
-          targetLang: getLanguageCode(currentTargetLanguage),
-        };
-        setTranslation(entry);
-        saveToHistory(entry);
+      if (!response.ok) {
+        const body = await response.json();
+        throw new Error(body.error || "Translation failed. Please try again.");
       }
+      if (!response.body)
+        throw new Error("Streaming is unavailable. Please try again.");
+      for await (const value of readJsonLines(response.body)) {
+        if (!value || typeof value !== "object")
+          throw new Error("Invalid translation response.");
+        const event = value as Record<string, unknown>;
+        if (event.type === "preview" && !receivedResult) {
+          setPreview({
+            original:
+              typeof event.original === "string" && event.original
+                ? event.original
+                : word,
+            translation:
+              typeof event.translation === "string" ? event.translation : "",
+          });
+        } else if (event.type === "result" && !receivedResult) {
+          const entry = {
+            ...TranslationResponseSchema.parse(event.response),
+            sourceLang: getLanguageCode(currentSourceLanguage),
+            targetLang: getLanguageCode(currentTargetLanguage),
+          };
+          receivedResult = true;
+          setTranslation(entry);
+          setPreview(undefined);
+          saveToHistory(entry);
+        } else if (event.type === "error") {
+          throw new Error(
+            typeof event.error === "string"
+              ? event.error
+              : "Translation failed.",
+          );
+        }
+      }
+      if (!receivedResult)
+        throw new Error(
+          "Connection interrupted. The translation is incomplete. Please try again.",
+        );
     } catch (error) {
-      console.error("Translation error:", error);
+      if (!controller.signal.aborted && !receivedResult) {
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Translation failed. Please try again.",
+        );
+      }
     } finally {
-      setIsLoading(false);
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        setIsLoading(false);
+      }
     }
   }
 
@@ -266,6 +325,8 @@ export function WordInput() {
   };
 
   function loadHistoryItem(entry: TranslationEntry) {
+    if (activeRequest.current) return;
+    setPreview(undefined);
     setError("");
     try {
       // Validate if the entry matches the TranslationResponse schema
@@ -324,20 +385,67 @@ export function WordInput() {
         <button
           className={styles.translateButton}
           onClick={translate}
-          disabled={isLoading}
+          disabled={isLoading || !word.trim()}
         >
-          Translate
+          {isLoading ? "Translating…" : "Translate"}
         </button>
       </div>
       <div className={styles.translation}>
-        {isLoading && <div>Translating...</div>}
-        {error && <div>Error: {error}</div>}
+        {preview && (
+          <section
+            className={styles.streamingCard}
+            aria-label="Translation in progress"
+            aria-busy={isLoading}
+          >
+            <div className={styles.streamStatus} role="status">
+              {isLoading && (
+                <span className={styles.statusDot} aria-hidden="true" />
+              )}
+              {error
+                ? "Incomplete translation"
+                : preview.translation
+                  ? "Adding details & examples"
+                  : "Preparing your translation"}
+            </div>
+            <h2 className={styles.streamOriginal}>{preview.original}</h2>
+            <div className={styles.streamTranslation}>
+              {preview.translation ||
+                (isLoading && (
+                  <span className={styles.skeleton} aria-hidden="true" />
+                ))}
+            </div>
+            {isLoading && (
+              <div className={styles.streamDetails} aria-hidden="true">
+                <span className={styles.streamLabel}>
+                  Language notes & examples
+                </span>
+                <span className={styles.skeleton} />
+                <span
+                  className={`${styles.skeleton} ${styles.shortSkeleton}`}
+                />
+              </div>
+            )}
+          </section>
+        )}
+        {error && (
+          <div className={styles.streamError} role="alert">
+            {error}
+          </div>
+        )}
         {translation && (
-          <StructuredResponseDisplay
-            response={translation}
-            sourceLang={translation.sourceLang}
-            targetLang={translation.targetLang}
-          />
+          <section
+            className={`${styles.streamingCard} ${styles.completedCard}`}
+            aria-label="Translation"
+          >
+            <div className={styles.streamStatus} role="status">
+              Translation ready
+            </div>
+            <StructuredResponseDisplay
+              response={translation}
+              sourceLang={translation.sourceLang}
+              targetLang={translation.targetLang}
+            />
+          </section>
         )}
       </div>
 
@@ -351,12 +459,18 @@ export function WordInput() {
               <li key={index}>
                 <button
                   className={styles.loadFromHistoryButton}
+                  disabled={isLoading}
                   onClick={() => loadHistoryItem(entry)}
+                  aria-label={`Open translation: ${entry.original}`}
+                  title="Open translation"
                 >
-                  🔎
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <circle cx="10.75" cy="10.75" r="6.25" />
+                    <path d="m15.4 15.4 4.1 4.1" />
+                  </svg>
                 </button>
-                <span>
-                  {entry.original} - {entry.translation}
+                <span title={`${entry.original} - ${entry.translation}`}>
+                  {getHistoryLabel(entry)}
                 </span>
               </li>
             ))}
