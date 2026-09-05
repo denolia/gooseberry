@@ -437,9 +437,6 @@ export function WordInput() {
             className={`${styles.streamingCard} ${styles.completedCard}`}
             aria-label="Translation"
           >
-            <div className={styles.streamStatus} role="status">
-              Translation ready
-            </div>
             <StructuredResponseDisplay
               response={translation}
               sourceLang={translation.sourceLang}

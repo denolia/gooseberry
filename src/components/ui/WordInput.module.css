@@ -204,7 +204,7 @@
   min-width: 0;
   padding: clamp(1rem, 3vw, 1.75rem);
   border: 1px solid var(--border-color);
-  border-top: 2px solid var(--accent);
+  border-left: var(--active-indicator-thickness) solid var(--accent);
   background: var(--surface-raised);
   overflow-wrap: anywhere;
 }

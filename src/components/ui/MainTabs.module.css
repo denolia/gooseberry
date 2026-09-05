@@ -43,8 +43,8 @@
   color: var(--foreground);
   background: var(--background);
   /*background: color-mix(in srgb, var(--background) 88%, transparent);*/
-  box-shadow:
-          inset 0 -5px 0 0 var(--accent);
+  box-shadow: inset 0 calc(-1 * var(--active-indicator-thickness)) 0 0
+    var(--accent);
 }
 
 .panel {
