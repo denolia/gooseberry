@@ -206,7 +206,7 @@
   background: var(--input-background);
   color: var(--foreground);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 0;
   font: inherit;
   font-size: 0.85rem;
 }
@@ -242,7 +242,7 @@
 .select {
   min-width: 0;
   font-size: 0.85rem;
-  border-radius: 6px;
+  border-radius: 0;
   padding: 0.65rem 0.75rem;
 }
 .container :focus-visible {

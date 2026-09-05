@@ -20,7 +20,7 @@
   max-width: 220px;
   padding: 0.45rem 0.5rem;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 0;
   color: var(--foreground);
   background: var(--input-background);
   font: inherit;
