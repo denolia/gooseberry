@@ -115,6 +115,33 @@ export function WordInput() {
   }>();
   const activeRequest = useRef<AbortController | null>(null);
   useEffect(() => () => activeRequest.current?.abort(), []);
+  useEffect(() => {
+    const loadDraft = (event?: Event) => {
+      const eventText =
+        event instanceof CustomEvent && typeof event.detail === "string"
+          ? event.detail
+          : "";
+      let storedText = "";
+      try {
+        storedText = localStorage.getItem("translationDraft") ?? "";
+        if (storedText) localStorage.removeItem("translationDraft");
+      } catch {
+        /* Storage is optional. */
+      }
+      const nextText = eventText || storedText;
+      if (nextText) {
+        setWord(nextText);
+        setTranslation(undefined);
+        setPreview(undefined);
+        setError("");
+      }
+    };
+
+    loadDraft();
+    window.addEventListener("gooseberry:translation-draft", loadDraft);
+    return () =>
+      window.removeEventListener("gooseberry:translation-draft", loadDraft);
+  }, []);
   const [error, setError] = useState("");
   const [showSpecialChars, setShowSpecialChars] = useState(false);
 

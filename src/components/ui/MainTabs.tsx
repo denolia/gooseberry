@@ -17,7 +17,12 @@ export function MainTabs() {
   return (
     <nav className={styles.tabList} aria-label="Main sections">
       {tabs.map((tab) => {
-        const href = tab.id === "translation" ? "/" : "/anki";
+        const href =
+          tab.id === "translation"
+            ? "/"
+            : tab.id === "analyzer"
+              ? "/analyzer"
+              : "/anki";
         const isActive = pathname === href;
 
         return (

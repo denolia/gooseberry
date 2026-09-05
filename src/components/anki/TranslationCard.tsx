@@ -1,5 +1,5 @@
 "use client";
-import { ReactNode, useId, useState } from "react";
+import { ReactNode, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -19,11 +19,13 @@ export function TranslationCard({
   response,
   sourceLang,
   targetLang,
+  prepareCard,
   children,
 }: {
   response: TranslationResponse;
   sourceLang?: string;
   targetLang?: string;
+  prepareCard?: () => Promise<CardDraft>;
   children: ReactNode;
 }) {
   const { data: session } = useSession();
@@ -34,6 +36,7 @@ export function TranslationCard({
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const preparedCard = useRef(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState<
     Record<string, { fingerprint: string; itemId: string }>
@@ -77,6 +80,13 @@ export function TranslationCard({
     setBusy(true);
     setError("");
     try {
+      let nextDraft = draft;
+      if (prepareCard && !preparedCard.current) {
+        nextDraft = await prepareCard();
+        preparedCard.current = true;
+        setDraft(nextDraft);
+      }
+      const nextFingerprint = JSON.stringify(fieldsFromDraft(nextDraft));
       let destination = setId;
       if (creating || !destination) {
         const res = await fetch("/api/word-sets", {
@@ -101,15 +111,18 @@ export function TranslationCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           existing
-            ? { itemId: existing.itemId, ...fieldsFromDraft(draft) }
-            : { card: fieldsFromDraft(draft), sourceLang, targetLang },
+            ? { itemId: existing.itemId, ...fieldsFromDraft(nextDraft) }
+            : { card: fieldsFromDraft(nextDraft), sourceLang, targetLang },
         ),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not save card.");
       setSaved((old) => ({
         ...old,
-        [destination]: { fingerprint, itemId: existing?.itemId ?? data.itemId },
+        [destination]: {
+          fingerprint: nextFingerprint,
+          itemId: existing?.itemId ?? data.itemId,
+        },
       }));
       setEditing(false);
       try {
