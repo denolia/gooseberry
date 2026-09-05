@@ -82,75 +82,14 @@ export function StructuredResponseDisplay({
               )}
           </div>
 
-          <div className={styles.paragraph}>Type: {response.type}</div>
-          {details.usage_frequency && (
-            <div> Frequency: {details.usage_frequency}</div>
-          )}
-
-          {details.stylistic_kind && <div>Style: {details.stylistic_kind}</div>}
-          {isFinnishSource && details.language_variant && (
-            <div>
-              Finnish register: {details.language_variant.replace("-", " ")}
+          {hasValue(details.sentence_grammatical_analysis) && (
+            <div className={styles.paragraph}>
+              <h4>Analysis:</h4>
+              <div className={styles.rawResponseContent}>
+                <div>{details.sentence_grammatical_analysis}</div>
+              </div>
             </div>
           )}
-          {details.comments && <div>Comments: {details.comments}</div>}
-
-          <div className={styles.paragraph}>
-            {details.verb_preposition_case &&
-              details.verb_preposition_case.length > 0 && (
-                <div className={styles.paragraph}>
-                  <h4>Verb + Prep + Case:</h4>
-
-                  {details.verb_preposition_case.map((phrase, index) => (
-                    <div key={index}>
-                      {phrase.sample} - {phrase.sample_translation}
-                    </div>
-                  ))}
-                </div>
-              )}
-            {details.verb_noun && details.verb_noun.length > 0 && (
-              <div className={styles.paragraph}>
-                <h4>Verb + Noun:</h4>
-
-                {details.verb_noun.map((phrase, index) => (
-                  <div key={index}>
-                    {phrase.sample} - {phrase.sample_translation}
-                  </div>
-                ))}
-              </div>
-            )}
-            {details.common_phrases && details.common_phrases.length > 0 && (
-              <div className={styles.paragraph}>
-                <h4>Common Phrases:</h4>
-
-                {details.common_phrases.map((phrase, index) => (
-                  <div key={index}>
-                    {phrase.sample} - {phrase.sample_translation}
-                  </div>
-                ))}
-              </div>
-            )}
-            {details.idioms && details.idioms.length > 0 && (
-              <div className={styles.paragraph}>
-                <h4>Idioms:</h4>
-
-                {details.idioms.map((idiom, index) => (
-                  <div key={index}>
-                    {idiom.sample} - {idiom.sample_translation}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {hasValue(details.sentence_grammatical_analysis) && (
-              <div className={styles.paragraph}>
-                <h4>Analysis:</h4>
-                <div className={styles.rawResponseContent}>
-                  <div>{details.sentence_grammatical_analysis}</div>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       )}
 
@@ -176,17 +115,92 @@ export function StructuredResponseDisplay({
         </div>
       )}
 
-      {/* Fallback Raw Response */}
-      {/* Collapsible Raw Response */}
-      <div className={styles.rawResponse}>
-        <button onClick={toggleRawVisibility} className={styles.toggleButton}>
-          {isRawVisible ? "Hide Raw Response" : "Show Raw Response"}
-        </button>
-        {isRawVisible && (
-          <div className={styles.rawResponseContent}>
-            <div>{JSON.stringify(response, null, 2)}</div>
+      <div className={styles.secondaryDetails}>
+        {details.verb_preposition_case &&
+          details.verb_preposition_case.length > 0 && (
+            <div className={styles.paragraph}>
+              <h4>Verb + Prep + Case:</h4>
+              {details.verb_preposition_case.map((phrase, index) => (
+                <div key={index}>
+                  {phrase.sample} - {phrase.sample_translation}
+                </div>
+              ))}
+            </div>
+          )}
+        {details.verb_noun && details.verb_noun.length > 0 && (
+          <div className={styles.paragraph}>
+            <h4>Verb + Noun:</h4>
+            {details.verb_noun.map((phrase, index) => (
+              <div key={index}>
+                {phrase.sample} - {phrase.sample_translation}
+              </div>
+            ))}
           </div>
         )}
+        {details.common_phrases && details.common_phrases.length > 0 && (
+          <div className={styles.paragraph}>
+            <h4>Common Phrases:</h4>
+            {details.common_phrases.map((phrase, index) => (
+              <div key={index}>
+                {phrase.sample} - {phrase.sample_translation}
+              </div>
+            ))}
+          </div>
+        )}
+        {details.idioms && details.idioms.length > 0 && (
+          <div className={styles.paragraph}>
+            <h4>Idioms:</h4>
+            {details.idioms.map((idiom, index) => (
+              <div key={index}>
+                {idiom.sample} - {idiom.sample_translation}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {(response.type ||
+          details.usage_frequency ||
+          details.stylistic_kind ||
+          (isFinnishSource && details.language_variant) ||
+          details.comments) && (
+          <div className={styles.paragraph}>
+            {response.type && <div>Type: {response.type}</div>}
+            {details.usage_frequency && (
+              <div>Frequency: {details.usage_frequency}</div>
+            )}
+            {details.stylistic_kind && (
+              <div>Style: {details.stylistic_kind}</div>
+            )}
+            {isFinnishSource && details.language_variant && (
+              <div>
+                Finnish register: {details.language_variant.replace("-", " ")}
+              </div>
+            )}
+            {details.comments && <div>Comments: {details.comments}</div>}
+          </div>
+        )}
+
+        <div className={styles.rawResponse}>
+          {isRawVisible && (
+            <div className={styles.rawResponseContent}>
+              <div>{JSON.stringify(response, null, 2)}</div>
+            </div>
+          )}
+          <div className={styles.rawResponseActions}>
+            <button
+              type="button"
+              onClick={toggleRawVisibility}
+              className={styles.toggleButton}
+              aria-expanded={isRawVisible}
+              aria-label={
+                isRawVisible ? "Hide raw response" : "Show raw response"
+              }
+              title={isRawVisible ? "Hide raw response" : "Show raw response"}
+            >
+              <span aria-hidden="true">&lt;/&gt;</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
