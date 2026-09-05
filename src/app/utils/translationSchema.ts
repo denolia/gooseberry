@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+const LanguageVariantSchema = z.enum([
+  "standard",
+  "colloquial",
+  "register-neutral",
+]);
+
 const TranslationDetailsSchema = z.object({
   article: z.string().nullable(),
 
@@ -59,6 +65,9 @@ const TranslationDetailsSchema = z.object({
       "archaic",
     ])
     .nullable(), // Stylistic classification
+  language_variant: LanguageVariantSchema.nullable().optional(),
+  standard_form: z.string().nullable().optional(),
+  colloquial_form: z.string().nullable().optional(),
   sentence_grammatical_analysis: z.string().nullable(), // Sentence analysis
   comments: z.string().nullable(), // Additional comments
 });
@@ -76,6 +85,7 @@ export const TranslationResponseSchema = z.object({
       z.object({
         sample: z.string(),
         sample_translation: z.string(),
+        language_variant: LanguageVariantSchema.nullable().optional(),
       }),
     )
     .nullable(),

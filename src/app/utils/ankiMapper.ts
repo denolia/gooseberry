@@ -56,13 +56,42 @@ export function mapTranslationToWordSetItem(
     wordFormsField = parts.join(", ");
   }
 
+  const registerCounterparts = [
+    details.standard_form && details.standard_form !== original
+      ? `Standard: ${details.standard_form}`
+      : null,
+    details.colloquial_form && details.colloquial_form !== original
+      ? `Common colloquial: ${details.colloquial_form}`
+      : null,
+  ].filter((form): form is string => Boolean(form));
+
+  if (registerCounterparts.length > 0) {
+    wordFormsField = [wordFormsField, ...registerCounterparts]
+      .filter(Boolean)
+      .join(" * ");
+  }
+
   // Field 4 & 5: Sample and Sample translation
   // Combine example_usage, common_phrases, idioms, verb_preposition_case, verb_noun
-  const allSamples: Array<{ sample: string; sample_translation: string }> = [];
+  const allSamples: Array<{
+    sample: string;
+    sample_translation: string;
+    language_variant?: "standard" | "colloquial" | "register-neutral" | null;
+  }> = [];
 
   if (example_usage) allSamples.push(...example_usage);
 
-  const sampleField = allSamples.map((s) => s.sample).join("; ");
+  const sampleField = allSamples
+    .map((sample) => {
+      if (sample.language_variant === "standard") {
+        return `Standard: ${sample.sample}`;
+      }
+      if (sample.language_variant === "colloquial") {
+        return `Common colloquial: ${sample.sample}`;
+      }
+      return sample.sample;
+    })
+    .join("; ");
   const sampleTranslationField = allSamples
     .map((s) => s.sample_translation)
     .join("; ");
@@ -80,6 +109,11 @@ export function mapTranslationToWordSetItem(
   }
   if (details.stylistic_kind) {
     commentParts.push(`Style: ${details.stylistic_kind}`);
+  }
+  if (details.language_variant) {
+    commentParts.push(
+      `Finnish register: ${details.language_variant.replace("-", " ")}`,
+    );
   }
   if (details.sentence_grammatical_analysis) {
     commentParts.push(details.sentence_grammatical_analysis);
