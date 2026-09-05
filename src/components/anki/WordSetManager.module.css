@@ -149,7 +149,9 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
-  transition: background 0.2s ease, border-color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .item:hover {
@@ -346,5 +348,145 @@
 
   .editActions {
     flex-direction: column;
+  }
+}
+
+/* Compact library rows, with the editor expanded only when needed. */
+.title {
+  font-size: 1.65rem;
+  overflow-wrap: anywhere;
+}
+.header {
+  margin-bottom: 1rem;
+}
+.meta {
+  font-size: 0.8rem;
+}
+.backButton {
+  border: 0;
+  padding: 0.35rem 0;
+  margin-bottom: 0.35rem;
+  color: var(--text-secondary);
+}
+.actions {
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.toolbar {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+.toolbar input {
+  flex: 1;
+  min-width: 0;
+}
+.toolbar a {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.items {
+  gap: 0;
+  border-top: 1px solid var(--border-color);
+}
+.item {
+  border: 0;
+  border-bottom: 1px solid var(--border-color);
+  padding: 1rem 0.25rem;
+  align-items: center;
+}
+.itemContent {
+  min-width: 0;
+  gap: 0.25rem;
+  overflow-wrap: anywhere;
+}
+.itemMain {
+  font-size: 0.95rem;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.itemDetail {
+  font-size: 0.8rem;
+}
+.itemActions {
+  flex-direction: row;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+.toggleButton,
+.editButton,
+.deleteButton {
+  border: 0;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 5px;
+}
+.toggleButton {
+  color: var(--text-secondary);
+}
+.item.disabled {
+  opacity: 1;
+}
+.disabled .itemContent {
+  color: var(--text-secondary);
+}
+.tag {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  color: var(--text-secondary);
+}
+.tags {
+  margin-top: 0.2rem;
+  gap: 0.25rem;
+}
+.input,
+.textarea {
+  border-radius: 6px;
+  font-size: 0.85rem;
+  padding: 0.6rem 0.7rem;
+}
+.addButton,
+.exportButton,
+.saveButton,
+.cancelButton {
+  border-radius: 6px;
+  font-size: 0.85rem;
+  padding: 0.6rem 0.75rem;
+}
+.exportButton {
+  background: var(--foreground);
+  color: var(--background);
+}
+.container :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  .actions {
+    flex-direction: row;
+    width: auto;
+  }
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .item {
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+  .itemActions {
+    width: auto;
+  }
+  .toggleButton,
+  .editButton,
+  .deleteButton {
+    flex: 0 1 auto;
+  }
+  .editActions {
+    flex-direction: row;
   }
 }

@@ -2,6 +2,13 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { CardEditor } from "./CardEditor";
+import {
+  CardDraft,
+  draftFromFields,
+  fieldsFromDraft,
+} from "@/app/utils/cardDraft";
 import { TranslationSelector } from "./TranslationSelector";
 import styles from "./WordSetManager.module.css";
 
@@ -39,7 +46,11 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const [error, setError] = useState<string | null>(null);
   const [showSelector, setShowSelector] = useState(false);
   const [editingItem, setEditingItem] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<Partial<WordSetItem>>({});
+  const [editValues, setEditValues] = useState<CardDraft | null>(null);
+  const [search, setSearch] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [name, setName] = useState("");
   const [exporting, setExporting] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -49,7 +60,9 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       loadWordSet();
       loadItems();
     } else if (status === "authenticated") {
-      setError("Your session could not be initialized. Please sign out and sign in again.");
+      setError(
+        "Your session could not be initialized. Please sign out and sign in again.",
+      );
       setLoading(false);
     }
   }, [session?.user?.id, status, wordSetId]);
@@ -71,7 +84,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       const response = await fetch(`/api/word-sets/${wordSetId}`);
       if (!response.ok) {
         if (response.status === 404) {
-          router.push("/?tab=anki");
+          router.push("/anki");
           return;
         }
         throw new Error("Failed to load word set");
@@ -92,7 +105,9 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       const data = await response.json();
       setItems(data.items);
     } catch (err) {
-      console.error("Failed to load items:", err);
+      setStatusMessage(
+        err instanceof Error ? err.message : "Failed to load items",
+      );
     }
   };
 
@@ -164,29 +179,35 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
 
   const startEditing = (item: WordSetItem) => {
     setEditingItem(item.id);
-    setEditValues(item);
+    setEditValues(draftFromFields(item));
   };
 
   const cancelEditing = () => {
     setEditingItem(null);
-    setEditValues({});
+    setEditValues(null);
   };
 
   const saveEdit = async (itemId: string) => {
+    if (!editValues || saving) return;
+    setSaving(true);
     try {
       const response = await fetch(`/api/word-sets/${wordSetId}/items`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId, ...editValues }),
+        body: JSON.stringify({ itemId, ...fieldsFromDraft(editValues) }),
       });
 
       if (!response.ok) throw new Error("Failed to update item");
 
       setEditingItem(null);
-      setEditValues({});
+      setEditValues(null);
       loadItems();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update item");
+      setStatusMessage(
+        err instanceof Error ? err.message : "Failed to update item",
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -230,7 +251,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
     }
   };
 
-  if (status === "loading" || loading) {
+  if (status === "loading" || (status === "authenticated" && loading)) {
     return <div className={styles.loading}>Loading...</div>;
   }
 
@@ -243,20 +264,90 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
     return <div className={styles.error}>{error || "Word set not found"}</div>;
   }
 
+  const filteredItems = items.filter((item) =>
+    `${item.original} ${item.translation} ${item.tags}`
+      .toLowerCase()
+      .includes(search.toLowerCase()),
+  );
+  async function rename() {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/word-sets/${wordSetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      if (!res.ok) throw new Error("Could not rename set.");
+      await loadWordSet();
+      setRenaming(false);
+    } catch (err) {
+      setStatusMessage(
+        err instanceof Error ? err.message : "Could not rename set.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
   return (
     <div className={styles.container}>
       <div className={styles.header}>
         <div>
           <button
-            onClick={() => router.push("/?tab=anki")}
+            onClick={() => router.push("/anki")}
             className={styles.backButton}
           >
             ← Back to Sets
           </button>
-          <h1 className={styles.title}>{wordSet.name}</h1>
+          {renaming ? (
+            <form
+              className={styles.actions}
+              onSubmit={(e) => {
+                e.preventDefault();
+                rename();
+              }}
+            >
+              <input
+                aria-label="Set name"
+                className={styles.input}
+                autoFocus
+                maxLength={200}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <button
+                className={styles.saveButton}
+                disabled={saving || !name.trim()}
+              >
+                Save name
+              </button>
+              <button
+                type="button"
+                className={styles.cancelButton}
+                onClick={() => setRenaming(false)}
+              >
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <div className={styles.actions}>
+              <h1 className={styles.title}>{wordSet.name}</h1>
+              <button
+                className={styles.editButton}
+                onClick={() => {
+                  setName(wordSet.name);
+                  setRenaming(true);
+                }}
+              >
+                Rename
+              </button>
+            </div>
+          )}
           <p className={styles.meta}>
-            {wordSet.sourceLang.toUpperCase()} → {wordSet.targetLang.toUpperCase()} •{" "}
-            {items.length} items
+            {wordSet.sourceLang.toUpperCase()} →{" "}
+            {wordSet.targetLang.toUpperCase()} • {items.length}{" "}
+            {items.length === 1 ? "card" : "cards"} ·{" "}
+            {items.filter((item) => item.isEnabled).length} included in export
           </p>
         </div>
         <div className={styles.actions}>
@@ -264,7 +355,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
             onClick={() => setShowSelector(true)}
             className={styles.addButton}
           >
-            + Add Words
+            Add from history
           </button>
           <div className={styles.exportContainer}>
             <button
@@ -295,12 +386,20 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       </div>
 
       {statusMessage && (
-        <div className={styles.statusMessage}>{statusMessage}</div>
+        <div role="status" className={styles.statusMessage}>
+          {statusMessage}
+        </div>
       )}
 
-      <div className={styles.exportWarning}>
-        `.apkg` exports currently create independent Anki notes per study
-        direction, not sibling cards on one shared note.
+      <div className={styles.toolbar}>
+        <input
+          className={styles.input}
+          aria-label="Search cards"
+          placeholder="Search words, translations or tags…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <Link href="/">Translate & add words ↗</Link>
       </div>
 
       {showSelector && (
@@ -313,97 +412,64 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
 
       {items.length === 0 ? (
         <div className={styles.empty}>
-          No words in this set yet. Click "Add Words" to get started!
+          No cards yet. Save a word from a translation, or add words from your
+          history.
         </div>
       ) : (
         <div className={styles.items}>
-          {items.map((item) => (
+          {filteredItems.length === 0 && (
+            <p className={styles.empty}>No cards match “{search}”.</p>
+          )}
+          {filteredItems.map((item) => (
             <div
               key={item.id}
               className={`${styles.item} ${!item.isEnabled ? styles.disabled : ""}`}
             >
-              {editingItem === item.id ? (
-                <div className={styles.editForm}>
-                  <input
-                    value={editValues.original || ""}
-                    onChange={(e) =>
-                      setEditValues({ ...editValues, original: e.target.value })
-                    }
-                    placeholder="Original"
-                    className={styles.input}
-                  />
-                  <input
-                    value={editValues.translation || ""}
-                    onChange={(e) =>
-                      setEditValues({ ...editValues, translation: e.target.value })
-                    }
-                    placeholder="Translation"
-                    className={styles.input}
-                  />
-                  <input
-                    value={editValues.wordForms || ""}
-                    onChange={(e) =>
-                      setEditValues({ ...editValues, wordForms: e.target.value })
-                    }
-                    placeholder="Word forms"
-                    className={styles.input}
-                  />
-                  <textarea
-                    value={editValues.sample || ""}
-                    onChange={(e) =>
-                      setEditValues({ ...editValues, sample: e.target.value })
-                    }
-                    placeholder="Examples (semicolon-separated)"
-                    className={styles.textarea}
-                    rows={2}
-                  />
-                  <textarea
-                    value={editValues.sampleTranslation || ""}
-                    onChange={(e) =>
-                      setEditValues({
-                        ...editValues,
-                        sampleTranslation: e.target.value,
-                      })
-                    }
-                    placeholder="Example translations (semicolon-separated)"
-                    className={styles.textarea}
-                    rows={2}
-                  />
-                  <input
-                    value={editValues.comments || ""}
-                    onChange={(e) =>
-                      setEditValues({ ...editValues, comments: e.target.value })
-                    }
-                    placeholder="Comments"
-                    className={styles.input}
-                  />
-                  <input
-                    value={editValues.tags || ""}
-                    onChange={(e) =>
-                      setEditValues({ ...editValues, tags: e.target.value })
-                    }
-                    placeholder="Tags (space-separated)"
-                    className={styles.input}
+              {editingItem === item.id && editValues ? (
+                <form
+                  className={styles.editForm}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    saveEdit(item.id);
+                  }}
+                >
+                  <CardEditor
+                    value={editValues}
+                    onChange={setEditValues}
+                    disabled={saving}
                   />
                   <div className={styles.editActions}>
                     <button
-                      onClick={() => saveEdit(item.id)}
+                      disabled={
+                        saving ||
+                        !editValues.original.trim() ||
+                        !editValues.translation.trim()
+                      }
                       className={styles.saveButton}
                     >
-                      Save
+                      {saving ? "Saving…" : "Save changes"}
                     </button>
-                    <button onClick={cancelEditing} className={styles.cancelButton}>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={cancelEditing}
+                      className={styles.cancelButton}
+                    >
                       Cancel
                     </button>
                   </div>
-                </div>
+                </form>
               ) : (
                 <>
                   <div className={styles.itemContent}>
                     <div className={styles.itemMain}>
-                      <strong className={styles.original}>{item.original}</strong>
+                      <strong className={styles.original}>
+                        {item.original}
+                      </strong>
                       <span className={styles.arrow}>→</span>
-                      <span className={styles.translation}>{item.translation}</span>
+                      <span className={styles.translation}>
+                        {item.translation}
+                      </span>
                     </div>
                     {item.wordForms && (
                       <div className={styles.itemDetail}>
@@ -428,10 +494,12 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                   </div>
                   <div className={styles.itemActions}>
                     <button
+                      aria-pressed={item.isEnabled}
+                      aria-label={`Include ${item.original} in export`}
                       onClick={() => toggleEnabled(item)}
                       className={styles.toggleButton}
                     >
-                      {item.isEnabled ? "Disable" : "Enable"}
+                      {item.isEnabled ? "Included" : "Excluded"}
                     </button>
                     <button
                       onClick={() => startEditing(item)}

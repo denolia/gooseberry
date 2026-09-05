@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 import styles from "./WordSetList.module.css";
 import {
@@ -28,6 +29,7 @@ export function WordSetList() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createSourceLang, setCreateSourceLang] = useState<SourceLanguageCode>(
@@ -38,7 +40,11 @@ export function WordSetList() {
   );
   const wordSetsQueryKey = ["wordSets", session?.user?.id] as const;
 
-  const { data: wordSets = [], isPending, error } = useQuery({
+  const {
+    data: wordSets = [],
+    isPending,
+    error,
+  } = useQuery({
     queryKey: wordSetsQueryKey,
     enabled: status === "authenticated" && Boolean(session?.user?.id),
     queryFn: async (): Promise<WordSet[]> => {
@@ -106,7 +112,10 @@ export function WordSetList() {
     }
   };
 
-  if (status === "loading" || isPending) {
+  if (
+    status === "loading" ||
+    (status === "authenticated" && !!session?.user?.id && isPending)
+  ) {
     return <div className={styles.loading}>Loading...</div>;
   }
 
@@ -134,11 +143,17 @@ export function WordSetList() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
+        <div>
+          <h2>Your Anki sets</h2>
+          <p className={styles.setMeta}>
+            Save words as you translate. Refine and export them here.
+          </p>
+        </div>
         <button
           className={styles.createButton}
           onClick={() => setShowCreateForm(!showCreateForm)}
         >
-          {showCreateForm ? "Cancel" : "+ Create New Set"}
+          {showCreateForm ? "Cancel" : "+ New set"}
         </button>
       </div>
 
@@ -146,6 +161,8 @@ export function WordSetList() {
         <form onSubmit={handleCreate} className={styles.createForm}>
           <input
             type="text"
+            aria-label="Set name"
+            maxLength={200}
             placeholder="Set name (e.g., 'German Verbs')"
             value={createName}
             onChange={(e) => setCreateName(e.target.value)}
@@ -154,6 +171,7 @@ export function WordSetList() {
           />
           <div className={styles.languageRow}>
             <select
+              aria-label="Source language"
               value={createSourceLang}
               onChange={(e) =>
                 setCreateSourceLang(e.target.value as SourceLanguageCode)
@@ -168,6 +186,7 @@ export function WordSetList() {
             </select>
             <span>→</span>
             <select
+              aria-label="Translation language"
               value={createTargetLang}
               onChange={(e) =>
                 setCreateTargetLang(e.target.value as TargetLanguageCode)
@@ -186,45 +205,61 @@ export function WordSetList() {
             className={styles.submitButton}
             disabled={createMutation.isPending}
           >
-            {createMutation.isPending ? "Creating..." : "Create & Add Words"}
+            {createMutation.isPending ? "Creating..." : "Create set"}
           </button>
         </form>
       )}
 
+      {wordSets.length > 0 && (
+        <input
+          className={styles.search}
+          aria-label="Search sets"
+          placeholder="Find a set…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      )}
       {wordSets.length === 0 ? (
         <div className={styles.empty}>
-          No word sets yet. Create your first one!
+          Your next translation can be your first card. Create a set here or
+          save a word directly from a translation.
         </div>
       ) : (
         <div className={styles.list}>
-          {wordSets.map((set) => (
-            <div key={set.id} className={styles.card}>
-              <div
-                className={styles.cardContent}
-                onClick={() => router.push(`/anki/${set.id}`)}
-              >
-                <h3 className={styles.setName}>{set.name}</h3>
-                <div className={styles.setMeta}>
-                  {set.sourceLang.toUpperCase()} → {set.targetLang.toUpperCase()}
-                  {set.lastExportedAt && (
-                    <span className={styles.exported}>
-                      • Last exported:{" "}
-                      {new Date(set.lastExportedAt).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
+          {!wordSets.some((set) =>
+            set.name.toLowerCase().includes(search.toLowerCase()),
+          ) && <p className={styles.empty}>No sets match “{search}”.</p>}
+          {wordSets
+            .filter((set) =>
+              set.name.toLowerCase().includes(search.toLowerCase()),
+            )
+            .map((set) => (
+              <div key={set.id} className={styles.card}>
+                <Link className={styles.cardContent} href={`/anki/${set.id}`}>
+                  <h3 className={styles.setName}>{set.name}</h3>
+                  <div className={styles.setMeta}>
+                    {set.sourceLang.toUpperCase()} →{" "}
+                    {set.targetLang.toUpperCase()}
+                    {set.lastExportedAt && (
+                      <span className={styles.exported}>
+                        • Last exported:{" "}
+                        {new Date(set.lastExportedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </Link>
+                <button
+                  aria-label={`Delete ${set.name}`}
+                  className={styles.deleteButton}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(set.id, set.name);
+                  }}
+                >
+                  Delete
+                </button>
               </div>
-              <button
-                className={styles.deleteButton}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(set.id, set.name);
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          ))}
+            ))}
         </div>
       )}
     </div>
