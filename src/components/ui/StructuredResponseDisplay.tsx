@@ -28,26 +28,23 @@ export function StructuredResponseDisplay({
 
   return (
     <div className={styles.structuredResponse}>
-      {/* Header */}
-      <h2>
-        {hasValue(details.article) &&
-          response.type === "noun" &&
-          `${details.article} `}{" "}
-        {original}
-      </h2>
-      <h3>{translation}</h3>
-
-      {details.alternative_translations &&
-        details.alternative_translations.length > 0 && (
-          <div>{details.alternative_translations.join(", ")}</div>
-        )}
-
       <TranslationCard
         key={JSON.stringify([response, sourceLang, targetLang])}
         response={response}
         sourceLang={sourceLang}
         targetLang={targetLang}
-      />
+      >
+        <h2>
+          {hasValue(details.article) &&
+            response.type === "noun" &&
+            `${details.article} `}
+          {original}
+        </h2>
+        <h3>{translation}</h3>
+        {!!details.alternative_translations?.length && (
+          <div>{details.alternative_translations.join(", ")}</div>
+        )}
+      </TranslationCard>
 
       {/* Details Section */}
       {details && (

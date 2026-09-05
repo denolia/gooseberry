@@ -1,6 +1,6 @@
 # Anki capture and library redesign
 
-The decision to keep a word happens at translation time. The primary action now sits immediately beneath the translated meaning: choose a set and save, with the last successfully used set remembered per account and language pair in this browser. Create a compatible set without leaving the result. Editing expands in place and preserves the original translation. Each example stays paired with its translation when edited or removed. Forms, notes and tags remain available in a disclosure.
+The decision to keep a word happens at translation time. The result header shows the word and meaning on the left and a single Save card button on the right. Save uses the last successfully used compatible set, remembered per account and language pair in this browser. After saving, that button becomes Edit. If there is no compatible set, Save opens the set-creation controls. Edit expands the destination controls and card editor above the word and preserves the original translation. Each example stays paired with its translation when edited or removed. Forms, notes and tags remain available in a disclosure.
 
 Approaches considered:
 

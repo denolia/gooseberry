@@ -1,13 +1,57 @@
 .container {
-  margin: 1rem 0 1.25rem;
-  border-block: 1px solid var(--border-color);
+  margin-bottom: 1.25rem;
+  min-width: 0;
+}
+.resultRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.meaning {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.container button {
+  padding: 0.6rem 0.8rem;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-secondary);
+  background: var(--button-secondary-bg);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.container button:hover {
+  background: var(--button-secondary-hover);
+}
+.container .primary {
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+}
+.container .primary:hover {
+  background: var(--accent-strong);
+}
+.container button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.resultRow > button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.editor {
+  margin-bottom: 1.25rem;
+  padding: 0 0 1rem;
+  border-bottom: 1px solid var(--border-color);
 }
 .bar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.45rem;
-  padding: 0.7rem 0;
+  padding: 0 0 1rem;
   font-size: 0.8rem;
 }
 .label {
@@ -18,66 +62,45 @@
 .bar input {
   min-width: 0;
   max-width: 220px;
-  padding: 0.45rem 0.5rem;
+  padding: 0.55rem 0.5rem;
   border: 1px solid var(--border-color);
   border-radius: 0;
   color: var(--foreground);
   background: var(--input-background);
   font: inherit;
 }
-.bar button {
-  padding: 0.5rem 0.65rem;
-  border: 0;
-  border-radius: 6px;
-  color: var(--text-secondary);
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
-}
-.bar button:hover {
-  background: var(--button-secondary-hover);
-}
-.bar .primary {
-  background: var(--accent);
-  color: white;
-  font-weight: 600;
-}
-.bar .primary:hover {
-  background: var(--accent-strong);
-}
-.bar button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
 .bar a {
   margin-left: auto;
   color: var(--text-secondary);
   padding: 0.45rem 0 0.45rem 0.4rem;
 }
-.editor {
-  padding: 0.5rem 0 1rem;
-}
-.hint,
-.success,
 .error {
   font-size: 0.8rem;
   margin: 0.5rem 0 0.75rem;
-  color: var(--text-secondary);
-}
-.success {
-  color: var(--success);
-}
-.error {
   color: var(--danger);
 }
 .container :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 @media (max-width: 560px) {
   .bar select,
   .bar input {
     flex: 1;
     max-width: none;
+  }
+  .resultRow {
+    gap: 0.6rem;
   }
 }
