@@ -423,7 +423,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
           {filteredItems.map((item) => (
             <div
               key={item.id}
-              className={`${styles.item} ${!item.isEnabled ? styles.disabled : ""}`}
+              className={`${styles.item} ${editingItem === item.id ? styles.editing : ""} ${!item.isEnabled ? styles.disabled : ""}`}
             >
               {editingItem === item.id && editValues ? (
                 <form

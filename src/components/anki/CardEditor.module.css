@@ -12,7 +12,7 @@
 }
 .columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.75rem;
   flex: 1;
   min-width: 0;
@@ -62,10 +62,32 @@
   background: var(--button-secondary-hover);
   color: var(--foreground);
 }
-.example {
+.examples {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+.exampleLabel {
   display: flex;
-  gap: 0.5rem;
   align-items: center;
+  gap: 0.4rem;
+  min-height: 1.75rem;
+}
+.editor .removeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  color: var(--danger);
+}
+.editor .removeButton:hover {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.addExample {
+  justify-self: start;
 }
 .more {
   font-size: 0.8rem;
@@ -91,8 +113,5 @@
 @media (max-width: 560px) {
   .columns {
     grid-template-columns: 1fr;
-  }
-  .example {
-    align-items: flex-end;
   }
 }

@@ -154,7 +154,7 @@
     border-color 0.2s ease;
 }
 
-.item:hover {
+.item:not(.editing):hover {
   background: var(--item-hover);
   border-color: var(--item-selected-border);
 }
