@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+const TargetLanguageTextSchema = z
+  .string()
+  .describe(
+    "Write this text in the target language specified by the system prompt.",
+  );
+
 const LanguageVariantSchema = z.enum([
   "standard",
   "colloquial",
@@ -23,7 +29,7 @@ const BaseTranslationDetailsSchema = z.object({
     .array(
       z.object({
         sample: z.string(),
-        sample_translation: z.string(),
+        sample_translation: TargetLanguageTextSchema,
       }),
     )
     .nullable(),
@@ -31,16 +37,16 @@ const BaseTranslationDetailsSchema = z.object({
     .array(
       z.object({
         sample: z.string(),
-        sample_translation: z.string(),
+        sample_translation: TargetLanguageTextSchema,
       }),
     )
     .nullable(),
-  alternative_translations: z.array(z.string()).nullable(),
+  alternative_translations: z.array(TargetLanguageTextSchema).nullable(),
   common_phrases: z
     .array(
       z.object({
         sample: z.string(),
-        sample_translation: z.string(),
+        sample_translation: TargetLanguageTextSchema,
       }),
     )
     .nullable(),
@@ -48,7 +54,7 @@ const BaseTranslationDetailsSchema = z.object({
     .array(
       z.object({
         sample: z.string(),
-        sample_translation: z.string(),
+        sample_translation: TargetLanguageTextSchema,
       }),
     )
     .nullable(),
@@ -65,13 +71,13 @@ const BaseTranslationDetailsSchema = z.object({
       "archaic",
     ])
     .nullable(), // Stylistic classification
-  sentence_grammatical_analysis: z.string().nullable(), // Sentence analysis
-  comments: z.string().nullable(), // Additional comments
+  sentence_grammatical_analysis: TargetLanguageTextSchema.nullable(),
+  comments: TargetLanguageTextSchema.nullable(),
 });
 
 const BaseExampleUsageSchema = z.object({
   sample: z.string(),
-  sample_translation: z.string(),
+  sample_translation: TargetLanguageTextSchema,
 });
 
 export const BaseTranslationResponseSchema = z.object({
@@ -79,7 +85,7 @@ export const BaseTranslationResponseSchema = z.object({
   type: z
     .enum(["noun", "verb", "adjective", "adverb", "sentence", "other"])
     .nullable(),
-  translation: z.string(), // The natural Russian translation
+  translation: TargetLanguageTextSchema,
   details: BaseTranslationDetailsSchema,
   example_usage: z.array(BaseExampleUsageSchema).nullable(),
 });

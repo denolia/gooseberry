@@ -14,8 +14,12 @@ function getBasePrompt(
 Return concise learner-focused JSON that matches the provided schema.
 Use null for optional fields that are not relevant.
 Put grammatically corrected source text into the "original" field and fix obvious punctuation mistakes.
-All translations, explanations, comments, and "sample_translation" values must be written in ${targetLanguage}.
-Keep source-language examples in ${sourceLanguage}.
+
+MANDATORY LANGUAGE CONTRACT:
+- Write "translation", every "alternative_translations" item, every "sample_translation", "sentence_grammatical_analysis", and "comments" in ${targetLanguage}.
+- In particular, grammatical explanations and learner notes must be in ${targetLanguage}, never in ${sourceLanguage}.
+- Use ${sourceLanguage} only for "original", source-language word forms (article, plural, genitive, verb forms, and Finnish register counterparts), and "sample" values containing examples or phrases.
+- A ${sourceLanguage} term may be quoted inside an explanation when necessary, but all surrounding explanatory prose must remain in ${targetLanguage}.
 
 1. For sentences:
    - Provide the natural translation.
@@ -31,7 +35,9 @@ Keep source-language examples in ${sourceLanguage}.
 
 3. Example sentences:
    - Provide at most three example_usage items.
-   - Provide nested examples in details only when they add information not covered by example_usage.`;
+   - Provide nested examples in details only when they add information not covered by example_usage.
+
+Before returning the JSON, inspect every explanatory field. If any explanation or comment is written in ${sourceLanguage}, rewrite it in ${targetLanguage}.`;
 }
 
 function getLanguageSpecificGuidance(sourceLanguage: SourceLanguage) {

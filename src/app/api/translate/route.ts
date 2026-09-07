@@ -207,7 +207,7 @@ export async function POST(request: Request) {
                 inputText: text,
                 responseJson: validatedData,
                 model: translationModel,
-                promptVersion: "v1",
+                promptVersion: "v2",
               }),
             );
           } catch (error) {
