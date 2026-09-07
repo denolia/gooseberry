@@ -8,6 +8,7 @@
   width: 100%;
   min-height: 3.5rem;
   padding: var(--input-padding);
+  padding-right: 3.25rem;
   font-size: 1rem;
   border: 1px solid var(--border-color);
   border-radius: 0;
@@ -95,6 +96,52 @@
   align-items: center;
   justify-content: center;
   gap: 0.85rem;
+}
+
+.inputWrapper {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.clearButton {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  padding: 0;
+  color: color-mix(in srgb, var(--foreground) 55%, transparent);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.clearButton svg {
+  width: 1.8rem;
+  height: 1.8rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.clearButton:hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.clearButton:focus-visible {
+  color: var(--foreground);
+  outline: 2px solid var(--accent);
+  outline-offset: -4px;
 }
 
 .translateButton {

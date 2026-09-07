@@ -236,6 +236,11 @@ export function WordInput() {
     setWord(e.target.value);
   };
 
+  const clearInput = () => {
+    setWord("");
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
   const insertSpecialChar = (char: string) => {
     setWord((prevWord) => prevWord + char);
     // Focus the input field after inserting the character
@@ -399,16 +404,31 @@ export function WordInput() {
         </div>
       )}
       <div className={styles.searchBar}>
-        <input
-          className={styles.input}
-          ref={inputRef}
-          type="text"
-          value={word}
-          onChange={handleInputChange}
-          onKeyUp={handleKeyUp}
-          placeholder={`Enter ${currentSourceLanguage} text...`}
-          disabled={isLoading}
-        />
+        <div className={styles.inputWrapper}>
+          <input
+            className={styles.input}
+            ref={inputRef}
+            type="text"
+            value={word}
+            onChange={handleInputChange}
+            onKeyUp={handleKeyUp}
+            placeholder={`Enter ${currentSourceLanguage} text...`}
+            disabled={isLoading}
+          />
+          {word && !isLoading ? (
+            <button
+              type="button"
+              className={styles.clearButton}
+              onClick={clearInput}
+              aria-label="Clear input"
+              title="Clear input"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 7l10 10M17 7 7 17" />
+              </svg>
+            </button>
+          ) : null}
+        </div>
         <button
           className={styles.translateButton}
           onClick={translate}
