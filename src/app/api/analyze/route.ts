@@ -1,3 +1,4 @@
+import { startUsage, finishUsage } from "@/db/usageRepo";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -108,6 +109,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  let usageId: string | undefined;
+  let completion: OpenAI.Chat.Completions.ChatCompletion | undefined;
+  let usageStatus: "succeeded" | "failed" = "failed";
   try {
     const input = RequestSchema.parse(await request.json());
     const sourceLanguage = isSourceLanguage(input.sourceLanguage)
@@ -134,8 +138,14 @@ export async function POST(request: Request) {
     const selectedIds = new Set(selectedTokenIds);
     const contextTokens = getContextTokens(tokens, selectedIds);
     const contextIds = new Set(contextTokens.map((token) => token.id));
-    const client = new OpenAI({ maxRetries: 1 });
-    const completion = await client.chat.completions.parse({
+    usageId = await startUsage({
+      userId: session.user.id,
+      operation: "analyze",
+      model: analysisModel,
+      inputWords: selectedTokenIds.length,
+    });
+    const client = new OpenAI({ maxRetries: 0 });
+    completion = await client.chat.completions.create({
       model: analysisModel,
       max_completion_tokens: 2400,
       reasoning_effort: "minimal",
@@ -161,7 +171,12 @@ export async function POST(request: Request) {
       ),
     });
 
-    const parsed = completion.choices[0]?.message.parsed;
+    if (completion.choices[0]?.finish_reason !== "stop")
+      throw new Error("Analysis did not complete.");
+    const content = completion.choices[0]?.message.content;
+    const parsed = content
+      ? ModelResponseSchema.parse(JSON.parse(content))
+      : null;
     if (!parsed) throw new Error("The model returned no analysis.");
 
     const selectionText = tokens
@@ -211,9 +226,9 @@ export async function POST(request: Request) {
           left.tokenIds.length - right.tokenIds.length,
       );
 
-    return NextResponse.json(
-      SelectionAnalysisSchema.parse({ selection, constructions }),
-    );
+    const result = SelectionAnalysisSchema.parse({ selection, constructions });
+    usageStatus = "succeeded";
+    return NextResponse.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -226,5 +241,7 @@ export async function POST(request: Request) {
       { error: "Could not analyze this selection. Please try again." },
       { status: 500 },
     );
+  } finally {
+    if (usageId) await finishUsage(usageId, usageStatus, completion);
   }
 }

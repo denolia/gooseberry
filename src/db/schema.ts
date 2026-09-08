@@ -119,3 +119,33 @@ export const wordSetItem = pgTable(
     guidIdx: index("word_set_item_guid_idx").on(t.ankiNoteGuid),
   }),
 );
+
+// Separate from saved history: unsuccessful calls may still consume tokens.
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    operation: text("operation").notNull(),
+    model: text("model").notNull(),
+    status: text("status").notNull().default("pending"),
+    inputWords: integer("input_words").notNull(),
+    inputTokens: integer("input_tokens"),
+    cachedInputTokens: integer("cached_input_tokens"),
+    outputTokens: integer("output_tokens"),
+    reasoningTokens: integer("reasoning_tokens"),
+    responseId: text("response_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => ({
+    byUserCreatedAt: index("ai_usage_user_created_at_idx").on(
+      t.userId,
+      t.createdAt,
+    ),
+  }),
+);

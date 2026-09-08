@@ -1,3 +1,5 @@
+import { startUsage, finishUsage } from "@/db/usageRepo";
+import { countInputWords } from "@/lib/admin/wordCount";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { zodResponseFormat } from "openai/helpers/zod";
@@ -124,6 +126,12 @@ export async function POST(request: Request) {
       });
     }
 
+    const usageId = await startUsage({
+      userId: session.user.id,
+      operation: "translate",
+      model: translationModel,
+      inputWords: countInputWords(text),
+    });
     const abortController = new AbortController();
     const abort = () => abortController.abort();
     request.signal.addEventListener("abort", abort, { once: true });
@@ -137,6 +145,15 @@ export async function POST(request: Request) {
             output.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
         };
         timeoutId = setTimeout(abort, timeoutMs);
+        let completion:
+          | {
+              id: string;
+              model: string;
+              usage?: OpenAI.Completions.CompletionUsage | null;
+            }
+          | undefined;
+        let usageStatus: "succeeded" | "failed" = "failed";
+        let usageFinalized = false;
         try {
           phase = "openai";
           const openaiStart = performance.now();
@@ -164,6 +181,9 @@ export async function POST(request: Request) {
             },
             { signal: abortController.signal },
           );
+          stream.on("chunk", (chunk) => {
+            if (chunk.usage) completion = chunk;
+          });
           let lastPreview = "";
           stream.on("content.delta", ({ parsed }) => {
             if (!parsed || typeof parsed !== "object") return;
@@ -187,6 +207,7 @@ export async function POST(request: Request) {
             }
           });
           const data = await stream.finalChatCompletion();
+          completion = data;
           timings.openai = durationMs(openaiStart);
           clearTimeout(timeoutId);
           phase = "validation";
@@ -195,6 +216,7 @@ export async function POST(request: Request) {
               JSON.parse(data.choices[0]?.message.content ?? ""),
             ),
           );
+          usageStatus = "succeeded";
           // Display the validated card before waiting for persistence.
           send({ type: "result", response: validatedData });
           try {
@@ -229,6 +251,8 @@ export async function POST(request: Request) {
                 data.usage?.completion_tokens_details?.reasoning_tokens,
             },
           });
+          await finishUsage(usageId, usageStatus, completion);
+          usageFinalized = true;
           send({ type: "done", timings });
         } catch (error) {
           console.error("Translation stream failed", {
@@ -243,6 +267,8 @@ export async function POST(request: Request) {
               : "Could not finish the translation. Please try again.",
           });
         } finally {
+          if (!usageFinalized)
+            await finishUsage(usageId, usageStatus, completion);
           clearTimeout(timeoutId);
           request.signal.removeEventListener("abort", abort);
           if (!cancelled) output.close();
