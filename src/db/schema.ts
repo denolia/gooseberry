@@ -6,9 +6,18 @@ import {
   jsonb,
   index,
   unique,
+  uniqueIndex,
   integer,
   boolean,
+  customType,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+
+const bytea = customType<{ data: Uint8Array; driverData: unknown }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 export const appUser = pgTable(
   "app_user",
@@ -19,6 +28,9 @@ export const appUser = pgTable(
     email: text("email"),
     name: text("name"),
     imageUrl: text("image_url"),
+    tier: text("tier").default("free").notNull(),
+    premiumGrantedAt: timestamp("premium_granted_at", { withTimezone: true }),
+    premiumGrantedBy: uuid("premium_granted_by"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -28,6 +40,51 @@ export const appUser = pgTable(
     providerUserUnique: unique().on(t.provider, t.providerUserId),
   }),
 );
+
+export const userPreference = pgTable("user_preference", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => appUser.id, { onDelete: "cascade" }),
+  defaultSourceLang: text("default_source_lang").default("German").notNull(),
+  defaultTargetLang: text("default_target_lang").default("English").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const premiumRequest = pgTable(
+  "premium_request",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    status: text("status").default("pending").notNull(),
+    message: text("message"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedBy: uuid("resolved_by"),
+  },
+  (t) => ({
+    onePendingPerUser: uniqueIndex("premium_request_one_pending_user_idx")
+      .on(t.userId)
+      .where(sql`${t.status} = 'pending'`),
+    byStatusCreatedAt: index("premium_request_status_created_at_idx").on(
+      t.status,
+      t.createdAt,
+    ),
+  }),
+);
+
+export const speechAudioCache = pgTable("speech_audio_cache", {
+  cacheKey: text("cache_key").primaryKey(),
+  audioData: bytea("audio_data").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
 
 export const translationHistory = pgTable(
   "translation_history",
