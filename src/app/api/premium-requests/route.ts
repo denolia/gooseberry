@@ -43,7 +43,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const adminUrl = new URL("/admin", request.url).toString();
+  let adminUrl = new URL("/admin", request.url).toString();
+  if (process.env.APP_URL) {
+    try {
+      adminUrl = new URL("/admin", process.env.APP_URL).toString();
+    } catch {
+      console.error("APP_URL is invalid; using the request origin in email.");
+    }
+  }
   const notificationSent = await sendPremiumRequestEmail({
     name: result.user.name,
     email: result.user.email,

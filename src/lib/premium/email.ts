@@ -18,10 +18,13 @@ export async function sendPremiumRequestEmail(
   request: PremiumRequestEmail,
 ): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
-  const to = process.env.PREMIUM_REQUEST_EMAIL_TO;
+  const to = (process.env.PREMIUM_REQUEST_EMAIL_TO ?? "")
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean);
   const from = process.env.PREMIUM_REQUEST_EMAIL_FROM;
 
-  if (!apiKey || !to || !from) {
+  if (!apiKey || !to.length || !from) {
     console.warn(
       "Premium request saved without email notification: email environment variables are incomplete.",
     );
@@ -42,7 +45,7 @@ export async function sendPremiumRequestEmail(
       },
       body: JSON.stringify({
         from,
-        to: [to],
+        to,
         subject: `Premium request from ${requester}`,
         html: `<h1>New Learn.words premium request</h1>
           <p><strong>Name:</strong> ${escapeHtml(request.name || "—")}</p>
