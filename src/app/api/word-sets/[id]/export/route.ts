@@ -106,7 +106,7 @@ export async function POST(
       return new NextResponse(new Uint8Array(apkgBuffer), {
         status: 200,
         headers: {
-          "Content-Type": "application/octet-stream",
+          "Content-Type": "application/apkg",
           "Content-Disposition": `attachment; filename="${fileName}"`,
           "Content-Length": apkgBuffer.length.toString(),
         },

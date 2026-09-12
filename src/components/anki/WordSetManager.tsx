@@ -37,6 +37,11 @@ interface WordSetManagerProps {
   wordSetId: string;
 }
 
+interface PreparedAnkiExport {
+  file: File;
+  cardCount: number;
+}
+
 export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -53,6 +58,8 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const [name, setName] = useState("");
   const [exporting, setExporting] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [preparedAnkiExport, setPreparedAnkiExport] =
+    useState<PreparedAnkiExport | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -104,6 +111,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       if (!response.ok) throw new Error("Failed to load items");
       const data = await response.json();
       setItems(data.items);
+      setPreparedAnkiExport(null);
     } catch (err) {
       setStatusMessage(
         err instanceof Error ? err.message : "Failed to load items",
@@ -174,6 +182,89 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       alert(err instanceof Error ? err.message : "Failed to export");
     } finally {
       setExporting(false);
+    }
+  };
+
+  const prepareForAnkiDroid = async () => {
+    if (!wordSet) return;
+
+    try {
+      setExporting(true);
+      setShowExportMenu(false);
+      setPreparedAnkiExport(null);
+
+      const response = await fetch(
+        `/api/word-sets/${wordSetId}/export?format=apkg`,
+        { method: "POST" },
+      );
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to prepare deck");
+      }
+
+      const blob = await response.blob();
+      const dateStr = new Date().toISOString().split("T")[0];
+      const safeName = wordSet.name.replace(/[^a-zA-Z0-9]/g, "_");
+      const file = new File([blob], `${safeName}_${dateStr}.apkg`, {
+        type: "application/apkg",
+      });
+      const cardCount = items.filter((item) => item.isEnabled).length;
+
+      setPreparedAnkiExport({ file, cardCount });
+      setStatusMessage(
+        "Your deck is ready. Tap Open in AnkiDroid to continue.",
+      );
+      loadWordSet();
+    } catch (err) {
+      setStatusMessage(
+        err instanceof Error ? err.message : "Failed to prepare deck",
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const downloadPreparedAnkiExport = () => {
+    if (!preparedAnkiExport) return;
+
+    const url = window.URL.createObjectURL(preparedAnkiExport.file);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = preparedAnkiExport.file.name;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const openInAnkiDroid = async () => {
+    if (!preparedAnkiExport) return;
+
+    const shareData: ShareData = {
+      files: [preparedAnkiExport.file],
+      title: wordSet?.name || "Gooseberry deck",
+    };
+
+    if (!navigator.share || !navigator.canShare?.(shareData)) {
+      downloadPreparedAnkiExport();
+      setStatusMessage(
+        "Sharing files is not supported here. The deck was downloaded instead; open it with AnkiDroid.",
+      );
+      return;
+    }
+
+    try {
+      await navigator.share(shareData);
+      setStatusMessage(
+        "Deck shared. Choose AnkiDroid and confirm the import there.",
+      );
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      downloadPreparedAnkiExport();
+      setStatusMessage(
+        "The Android share menu could not open. The deck was downloaded instead.",
+      );
     }
   };
 
@@ -280,6 +371,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       });
       if (!res.ok) throw new Error("Could not rename set.");
       await loadWordSet();
+      setPreparedAnkiExport(null);
       setRenaming(false);
     } catch (err) {
       setStatusMessage(
@@ -368,6 +460,12 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
             {showExportMenu && !exporting && (
               <div className={styles.exportMenu}>
                 <button
+                  onClick={prepareForAnkiDroid}
+                  className={styles.exportMenuItem}
+                >
+                  Export to AnkiDroid
+                </button>
+                <button
                   onClick={() => handleExport("apkg")}
                   className={styles.exportMenuItem}
                 >
@@ -384,6 +482,47 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
           </div>
         </div>
       </div>
+
+      {preparedAnkiExport && (
+        <div
+          className={styles.ankiDroidHandoff}
+          role="region"
+          aria-live="polite"
+        >
+          <div>
+            <strong>Ready for AnkiDroid</strong>
+            <p>
+              {preparedAnkiExport.cardCount}{" "}
+              {preparedAnkiExport.cardCount === 1 ? "card" : "cards"} prepared.
+              Android will ask which app should receive the deck.
+            </p>
+          </div>
+          <div className={styles.ankiDroidActions}>
+            <button
+              type="button"
+              className={styles.openInAnkiDroidButton}
+              onClick={openInAnkiDroid}
+            >
+              Open in AnkiDroid
+            </button>
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={downloadPreparedAnkiExport}
+            >
+              Download instead
+            </button>
+            <button
+              type="button"
+              className={styles.dismissButton}
+              onClick={() => setPreparedAnkiExport(null)}
+              aria-label="Dismiss prepared AnkiDroid export"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {statusMessage && (
         <div role="status" className={styles.statusMessage}>
