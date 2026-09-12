@@ -10,6 +10,7 @@ import {
   fieldsFromDraft,
 } from "@/app/utils/cardDraft";
 import { TranslationSelector } from "./TranslationSelector";
+import { createAnkiDroidIntentUrl } from "@/lib/anki/ankiDroidIntent";
 import styles from "./WordSetManager.module.css";
 
 interface WordSet {
@@ -38,7 +39,8 @@ interface WordSetManagerProps {
 }
 
 interface PreparedAnkiExport {
-  url: string;
+  downloadUrl: string;
+  intentUrl: string;
   cardCount: number;
 }
 
@@ -203,7 +205,12 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       }
 
       const data = await response.json();
-      setPreparedAnkiExport({ url: data.url, cardCount: data.cardCount });
+      const downloadUrl = new URL(data.url, window.location.origin).toString();
+      setPreparedAnkiExport({
+        downloadUrl,
+        intentUrl: createAnkiDroidIntentUrl(downloadUrl),
+        cardCount: data.cardCount,
+      });
       setStatusMessage(
         "Your deck is ready. Tap Open in AnkiDroid to continue.",
       );
@@ -220,7 +227,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
     if (!preparedAnkiExport) return;
 
     const anchor = document.createElement("a");
-    anchor.href = preparedAnkiExport.url;
+    anchor.href = preparedAnkiExport.downloadUrl;
     anchor.download = "";
     document.body.appendChild(anchor);
     anchor.click();
@@ -461,7 +468,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
           <div className={styles.ankiDroidActions}>
             <a
               className={styles.openInAnkiDroidButton}
-              href={preparedAnkiExport.url}
+              href={preparedAnkiExport.intentUrl}
             >
               Open in AnkiDroid
             </a>
