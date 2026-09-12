@@ -10,10 +10,13 @@ import { createApkgPackage } from "@/lib/anki/apkgExporter";
 import { createCsvContent } from "@/lib/anki/csvExporter";
 import { createHash } from "node:crypto";
 import { generateSpeechMp3 } from "@/lib/audio/speech";
+import { hasPremiumAccess } from "@/lib/premium/entitlements";
+import { cacheSpeech, getCachedSpeech } from "@/db/speechCacheRepo";
 
 export const maxDuration = 60;
 
 const AUDIO_GENERATION_CONCURRENCY = 4;
+const MAX_AUDIO_EXPORT_ITEMS = 50;
 const MAX_DIRECT_EXPORT_BYTES = 4_300_000;
 
 async function mapWithConcurrency<T, R>(
@@ -71,6 +74,16 @@ export async function POST(
       );
     }
 
+    if (includeAudio && !(await hasPremiumAccess(session.user.id))) {
+      return NextResponse.json(
+        {
+          error:
+            "AI pronunciation in Anki decks is a Premium feature. Request access from your profile.",
+        },
+        { status: 403 },
+      );
+    }
+
     // Verify ownership
     const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
@@ -97,6 +110,15 @@ export async function POST(
       );
     }
 
+    if (includeAudio && enabledItems.length > MAX_AUDIO_EXPORT_ITEMS) {
+      return NextResponse.json(
+        {
+          error: `Audio exports currently support up to ${MAX_AUDIO_EXPORT_ITEMS} included cards. Exclude some cards or export without pronunciation.`,
+        },
+        { status: 400 },
+      );
+    }
+
     let ankiNotes = enabledItems.map((item) =>
       mapWordSetItemToAnkiNote(item, true),
     );
@@ -112,13 +134,17 @@ export async function POST(
         AUDIO_GENERATION_CONCURRENCY,
         async (item) => {
           const filename = audioFilename(wordSet.sourceLang, item.original);
+          const cached = await getCachedSpeech(filename);
+          if (cached) return { filename, data: cached };
+          const data = await generateSpeechMp3(
+            item.original,
+            wordSet.sourceLang.toUpperCase(),
+            request.signal,
+          );
+          await cacheSpeech(filename, data);
           return {
             filename,
-            data: await generateSpeechMp3(
-              item.original,
-              wordSet.sourceLang.toUpperCase(),
-              request.signal,
-            ),
+            data,
           };
         },
       );

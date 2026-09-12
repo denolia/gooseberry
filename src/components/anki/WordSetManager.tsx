@@ -313,6 +313,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       .includes(search.toLowerCase()),
   );
   const enabledItemCount = items.filter((item) => item.isEnabled).length;
+  const hasPremium = session?.user?.tier === "premium";
   async function rename() {
     if (!name.trim()) return;
     setSaving(true);
@@ -484,12 +485,12 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                 </fieldset>
 
                 <label
-                  className={`${styles.audioOption} ${exportFormat === "csv" ? styles.optionDisabled : ""}`}
+                  className={`${styles.audioOption} ${exportFormat === "csv" || !hasPremium ? styles.optionDisabled : ""}`}
                 >
                   <input
                     type="checkbox"
                     checked={includeExportAudio}
-                    disabled={exportFormat === "csv"}
+                    disabled={exportFormat === "csv" || !hasPremium}
                     onChange={(event) =>
                       setIncludeExportAudio(event.target.checked)
                     }
@@ -502,14 +503,23 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                       Gooseberry.
                     </small>
                   </span>
-                  <span className={styles.optionBadge}>AI voice</span>
+                  <span className={styles.optionBadge}>Premium</span>
                 </label>
                 <p className={styles.optionHint}>
-                  {exportFormat === "csv"
-                    ? "Audio can only be embedded in an Anki deck. Choose Anki deck to enable this option."
-                    : includeExportAudio
-                      ? "This takes longer because each pronunciation is generated before the download starts."
-                      : "Text-only export is quick and creates the smallest file."}
+                  {!hasPremium ? (
+                    <>
+                      Audio-enabled decks are available with Premium.{" "}
+                      <Link href="/profile">
+                        Request access from your profile.
+                      </Link>
+                    </>
+                  ) : exportFormat === "csv" ? (
+                    "Audio can only be embedded in an Anki deck. Choose Anki deck to enable this option."
+                  ) : includeExportAudio ? (
+                    "This takes longer because each pronunciation is generated before the download starts."
+                  ) : (
+                    "Text-only export is quick and creates the smallest file."
+                  )}
                 </p>
                 <div className={styles.dialogActions}>
                   <button

@@ -279,6 +279,10 @@
   font-size: 0.78rem;
   line-height: 1.4;
 }
+.optionHint a {
+  color: var(--accent);
+  text-decoration: underline;
+}
 
 .dialogActions {
   display: flex;
