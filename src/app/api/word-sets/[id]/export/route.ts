@@ -63,9 +63,10 @@ export async function POST(
       mapWordSetItemToAnkiNote(item, true),
     );
 
-    // Generate deck name: Gooseberry::de-ru::2026-01-13
+    // Keep the Anki deck stable across exports so re-imports update it.
     const dateStr = new Date().toISOString().split("T")[0];
-    const deckName = `Gooseberry::${wordSet.sourceLang}-${wordSet.targetLang}::${dateStr}`;
+    const deckSegment = wordSet.name.trim().replaceAll("::", " - ");
+    const deckName = `Gooseberry::${wordSet.sourceLang}-${wordSet.targetLang}::${deckSegment}`;
 
     // Generate safe filename
     const safeFileName = wordSet.name.replace(/[^a-zA-Z0-9]/g, "_");

@@ -1,290 +1,281 @@
-import { AnkiNote } from "@/app/utils/ankiSchema";
+import initSqlJs from "sql.js";
+import { Deck, Note, Notetype, Package } from "ankipack";
+import type { AnkiNote } from "@/app/utils/ankiSchema";
 
-type AnkiExportInstance = {
-  addCard(front: string, back: string, options?: { tags?: string[] }): void;
-  save(): Promise<ArrayBuffer>;
-  _getNoteGuid?: (topDeckId: string | number, front: string, back: string) => string;
-};
+export const GOOSEBERRY_NOTE_TYPE_ID = 1760000000001;
+export const GOOSEBERRY_NOTE_TYPE_NAME = "Gooseberry Vocabulary v1";
+
+export const GOOSEBERRY_FIELD_NAMES = [
+  "Gooseberry ID",
+  "Original",
+  "Translation",
+  "Word Forms",
+  "Sample",
+  "Sample Translation",
+  "Comments",
+  "Source Language",
+  "Target Language",
+] as const;
+
+const CARD_CSS = `
+.card {
+  box-sizing: border-box;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: clamp(20px, 4vw, 32px);
+  line-height: 1.35;
+  text-align: center;
+  color: #172033;
+  background: #ffffff;
+}
+
+.direction {
+  margin-bottom: 18px;
+  color: #64748b;
+  font-size: 0.55em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.prompt,
+.answer {
+  font-weight: 650;
+}
+
+.forms {
+  margin-top: 24px;
+  color: #334155;
+}
+
+.example {
+  margin-top: 28px;
+  text-align: left;
+}
+
+.example-source {
+  font-style: italic;
+}
+
+.example-translation {
+  margin-top: 8px;
+  font-weight: 600;
+}
+
+.comments {
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid #cbd5e1;
+  color: #475569;
+  font-size: 0.65em;
+  text-align: left;
+}
+
+#typeans {
+  box-sizing: border-box;
+  width: min(100%, 560px);
+  margin-top: 24px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+hr#answer {
+  margin: 28px 0;
+  border: 0;
+  border-top: 1px solid #94a3b8;
+}
+
+.card.nightMode,
+.card.night_mode,
+.nightMode .card,
+.night_mode .card {
+  color: #e2e8f0;
+  background: #0f172a;
+}
+
+.nightMode .direction,
+.night_mode .direction,
+.nightMode .comments,
+.night_mode .comments {
+  color: #94a3b8;
+}
+
+.nightMode .forms,
+.night_mode .forms {
+  color: #cbd5e1;
+}
+`;
+
+const DETAILS = `
+{{#Word Forms}}<div class="forms">{{Word Forms}}</div>{{/Word Forms}}
+{{#Sample}}<div class="example"><div class="example-source">{{Sample}}</div>{{#Sample Translation}}<div class="example-translation">{{Sample Translation}}</div>{{/Sample Translation}}</div>{{/Sample}}
+{{#Comments}}<div class="comments">{{Comments}}</div>{{/Comments}}
+`;
+
+export function createGooseberryNotetype(): Notetype {
+  return new Notetype({
+    id: GOOSEBERRY_NOTE_TYPE_ID,
+    name: GOOSEBERRY_NOTE_TYPE_NAME,
+    sortFieldIndex: 1,
+    css: CARD_CSS,
+    fields: GOOSEBERRY_FIELD_NAMES.map((name) => ({ name })),
+    templates: [
+      {
+        name: "Recognition",
+        questionFormat: `
+<div class="direction">{{Source Language}} → {{Target Language}}</div>
+<div class="prompt">{{Original}}</div>
+`,
+        answerFormat: `
+{{FrontSide}}
+<hr id="answer">
+<div class="answer">{{Translation}}</div>
+${DETAILS}
+`,
+      },
+      {
+        name: "Production",
+        questionFormat: `
+<div class="direction">{{Target Language}} → {{Source Language}}</div>
+<div class="prompt">{{Translation}}</div>
+`,
+        answerFormat: `
+{{FrontSide}}
+<hr id="answer">
+<div class="answer">{{Original}}</div>
+${DETAILS}
+`,
+      },
+      {
+        name: "Word Forms",
+        questionFormat: `
+{{#Word Forms}}
+<div class="direction">Word forms</div>
+<div class="prompt">{{Original}}</div>
+<div class="forms">{{Translation}}</div>
+{{/Word Forms}}
+`,
+        answerFormat: `
+{{FrontSide}}
+<hr id="answer">
+<div class="answer">{{Word Forms}}</div>
+{{#Sample}}<div class="example"><div class="example-source">{{Sample}}</div>{{#Sample Translation}}<div class="example-translation">{{Sample Translation}}</div>{{/Sample Translation}}</div>{{/Sample}}
+{{#Comments}}<div class="comments">{{Comments}}</div>{{/Comments}}
+`,
+      },
+      {
+        name: "Example",
+        questionFormat: `
+{{#Sample}}{{#Sample Translation}}
+<div class="direction">Example</div>
+<div class="forms">{{Translation}}</div>
+<div class="prompt example">{{Sample Translation}}</div>
+{{/Sample Translation}}{{/Sample}}
+`,
+        answerFormat: `
+{{FrontSide}}
+<hr id="answer">
+<div class="answer">{{Original}}</div>
+<div class="example example-source">{{Sample}}</div>
+{{#Comments}}<div class="comments">{{Comments}}</div>{{/Comments}}
+`,
+      },
+      {
+        name: "Type Answer",
+        questionFormat: `
+<div class="direction">Type {{Source Language}}</div>
+<div class="prompt">{{Translation}}</div>
+{{type:Original}}
+`,
+        answerFormat: `
+{{FrontSide}}
+<hr id="answer">
+{{type:Original}}
+${DETAILS}
+`,
+      },
+    ],
+  });
+}
+
+export function buildAnkiPackage(
+  deckName: string,
+  notes: AnkiNote[],
+  sourceLang: string,
+  targetLang: string,
+): Package {
+  const notetype = createGooseberryNotetype();
+  const deck = new Deck({
+    name: deckName,
+    description:
+      "Vocabulary cards generated by Gooseberry. Each note creates related recognition, production, grammar, example, and typed-answer cards.",
+    config: null,
+  });
+
+  for (const note of notes) {
+    deck.addNote(
+      new Note({
+        notetype,
+        guid: note.guid,
+        tags: parseTags(note.tags),
+        fields: [
+          escapeField(note.sourceId || note.guid),
+          escapeField(note.original),
+          escapeField(note.translation),
+          escapeField(note.wordForms),
+          escapeField(note.sample),
+          escapeField(note.sampleTranslation),
+          escapeField(note.comments),
+          escapeField(sourceLang),
+          escapeField(targetLang),
+        ],
+      }),
+    );
+  }
+
+  const pkg = new Package();
+  pkg.addDeck(deck);
+  return pkg;
+}
 
 export async function createApkgPackage(
   deckName: string,
   notes: AnkiNote[],
-  sourceLang: string = "DE",
-  targetLang: string = "RU",
+  sourceLang: string,
+  targetLang: string,
 ): Promise<Buffer> {
-  // Dynamic import to avoid webpack bundling issues
-  const AnkiExport = (await import("anki-apkg-export")).default;
+  const SQL = await initSqlJs();
+  const bytes = await buildAnkiPackage(
+    deckName,
+    notes,
+    sourceLang,
+    targetLang,
+  ).toUint8Array(SQL);
 
-  const apkg = new AnkiExport(deckName) as AnkiExportInstance;
-
-  for (const note of notes) {
-    // Card 1: Origin -> Translation
-    addStableCard(
-      apkg,
-      `${note.guid}:card1`,
-      createCard1Front(note, sourceLang, targetLang),
-      createCard1Back(note),
-    );
-
-    // Card 2: Translation -> Origin
-    addStableCard(
-      apkg,
-      `${note.guid}:card2`,
-      createCard2Front(note, sourceLang, targetLang),
-      createCard2Back(note),
-    );
-
-    if (note.wordForms) {
-      // Card 3: Origin -> Word Forms
-      addStableCard(
-        apkg,
-        `${note.guid}:card3`,
-        createCard3Front(note),
-        createCard3Back(note),
-      );
-    }
-    // Card 4: Sample Translation -> Sample
-    addStableCard(
-      apkg,
-      `${note.guid}:card4`,
-      createCard4Front(note),
-      createCard4Back(note),
-    );
-
-    // Card 5: Input Origin (type answer)
-    addStableCard(
-      apkg,
-      `${note.guid}:card5`,
-      createCard5Front(note, sourceLang),
-      createCard5Back(note),
-    );
-  }
-
-  const zip = await apkg.save();
-  return Buffer.from(new Uint8Array(zip));
+  return Buffer.from(bytes);
 }
 
-function addStableCard(
-  apkg: AnkiExportInstance,
-  guid: string,
-  front: string,
-  back: string,
-) {
-  const originalGetNoteGuid = apkg._getNoteGuid;
-
-  if (!originalGetNoteGuid) {
-    apkg.addCard(front, back);
-    return;
-  }
-
-  apkg._getNoteGuid = () => guid;
-
-  try {
-    apkg.addCard(front, back);
-  } finally {
-    apkg._getNoteGuid = originalGetNoteGuid;
-  }
-}
-
-// Card 1: origin->translation
-function createCard1Front(
-  note: AnkiNote,
-  sourceLang: string,
-  targetLang: string,
-): string {
-  return `
-<div style="text-align: center;">${sourceLang}->${targetLang}</div>
-<div style="text-align: center;">${note.original}</div>
-`;
-}
-
-function createCard1Back(note: AnkiNote): string {
-  // Note: In anki-apkg, we manually render FrontSide since it's not a template variable
-  const parts: string[] = [];
-
-  parts.push(`<hr id="answer" width="100%" style="margin-left:0">`);
-  parts.push(`<div style="text-align: center;">${note.translation}</div>`);
-
-  if (note.wordForms) {
-    parts.push(
-      `<div style="text-align: center; margin-top: 30px;">[${note.wordForms}]</div>`,
-    );
-  }
-
-  if (note.sample) {
-    parts.push(
-      `<div style="text-align: left; margin-top: 30px; font-style: italic">${note.sample}</div>`,
-    );
-  }
-
-  if (note.sampleTranslation) {
-    parts.push(
-      `<div style="text-align: left; font-weight: bold">${note.sampleTranslation}</div>`,
-    );
-  }
-
-  if (note.comments) {
-    parts.push(`<hr id="comments" width="100%" style="margin-left:0">`);
-    parts.push(`Comments: ${note.comments}`);
-  }
-
-  return parts.join("\n");
-}
-
-// Card 2: translation->origin
-function createCard2Front(
-  note: AnkiNote,
-  sourceLang: string,
-  targetLang: string,
-): string {
-  return `
-<div id="prefix" style="text-align: center;">${targetLang}->${sourceLang}</div>
-${note.translation}
-`;
-}
-
-function createCard2Back(note: AnkiNote): string {
-  const parts = [`<hr id="answer" width="100%" style="margin-left:0">`];
-  parts.push(note.original);
-
-  if (note.wordForms) {
-    parts.push(
-      `<div style="text-align: center; margin-top: 30px;">[${note.wordForms}]</div>`,
-    );
-  }
-
-  if (note.sample) {
-    parts.push(
-      `<div style="text-align: left; margin-top: 30px; font-style: italic">${note.sample}</div>`,
-    );
-  }
-
-  if (note.sampleTranslation) {
-    parts.push(
-      `<div style="text-align: left; font-weight: bold">${note.sampleTranslation}</div>`,
-    );
-  }
-
-  if (note.comments) {
-    parts.push(`<hr id="comments" width="100%" style="margin-left:0">`);
-    parts.push(`Comments: ${note.comments}`);
-  }
-
-  return parts.join("\n");
-}
-
-// Card 3: Origin -> word forms
-function createCard3Front(note: AnkiNote): string {
-  return `
-<div id="prefix" style="text-align: center;">WORD FORMS</div>
-${note.original}
-<div style="text-align: center; margin-top: 30px;">[${note.translation}]</div>
-<hr id="answer" width="100%" style="margin-left:0">
-`;
-}
-
-function createCard3Back(note: AnkiNote): string {
-  const parts: string[] = [];
-
-  if (note.wordForms) {
-    parts.push(
-      `<div style="text-align: center; margin-top: 30px;">[${note.wordForms}]</div>`,
-    );
-  }
-
-  if (note.sample) {
-    parts.push(
-      `<div style="text-align: left; margin-top: 30px; font-style: italic">${note.sample}</div>`,
-    );
-  }
-
-  if (note.sampleTranslation) {
-    parts.push(
-      `<div style="text-align: left; font-weight: bold">${note.sampleTranslation}</div>`,
-    );
-  }
-
-  if (note.comments) {
-    parts.push(`<hr id="comments" width="100%" style="margin-left:0">`);
-    parts.push(`Comments: ${note.comments}`);
-  }
-
-  return parts.join("\n");
-}
-
-// Card 4: Sample Translation -> Sample
-function createCard4Front(note: AnkiNote): string {
-  return `
-<div id="prefix" style="text-align: center;">SAMPLE</div>
-<div style="text-align: center; margin-top: 10px;">[${note.translation}]</div>
-<div style="text-align: left; margin-top: 30px; font-weight: bold">${note.sampleTranslation}</div>
-<hr id="answer" width="100%" style="margin-left:0">
-`;
-}
-
-function createCard4Back(note: AnkiNote): string {
-  const parts = [
-    `<div id="prefix" style="text-align: center;">SAMPLE</div>`,
-    `<div style="text-align: center;">${note.original}</div>`,
-    `<div style="text-align: center; margin-top: 0px;">[${note.translation}]</div>`,
-    `<div style="text-align: left; margin-top: 30px;">${note.sampleTranslation}</div>`,
-    `<hr id="answer" width="100%" style="margin-left:0">`,
+function parseTags(tags: string): string[] {
+  return [
+    ...new Set(
+      tags
+        .split(/\s+/)
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    ),
   ];
-
-  if (note.sample) {
-    parts.push(`<div style="text-align: left">${note.sample}</div>`);
-  }
-
-  if (note.comments) {
-    parts.push(`<hr id="comments" width="100%" style="margin-left:0">`);
-    parts.push(`Comments: ${note.comments}`);
-  }
-
-  return parts.join("\n");
 }
 
-// Card 5: Input origin
-function createCard5Front(note: AnkiNote, sourceLang: string): string {
-  return `
-<div id="prefix" style="text-align: center;">INPUT ${sourceLang}</div>
-${note.translation}
-<div style="margin-top: 30px;">
-    <input type="text" placeholder="Type your answer...">
-</div>
-`;
-}
-
-function createCard5Back(note: AnkiNote): string {
-  const parts = [
-    note.translation,
-    `<div style="margin-top: 30px;">`,
-    `Answer: ${note.original}`,
-    `</div>`,
-    `<hr id="answer" width="100%" style="margin-left:0">`,
-  ];
-
-  if (note.wordForms) {
-    parts.push(
-      `<div style="text-align: center; margin-top: 30px;">[${note.wordForms}]</div>`,
-    );
-  }
-
-  if (note.sample) {
-    parts.push(
-      `<div style="text-align: left; margin-top: 30px; font-style: italic">${note.sample}</div>`,
-    );
-  }
-
-  if (note.sampleTranslation) {
-    parts.push(
-      `<div style="text-align: left; font-weight: bold">${note.sampleTranslation}</div>`,
-    );
-  }
-
-  if (note.comments) {
-    parts.push(`<hr id="comments" width="100%" style="margin-left:0">`);
-    parts.push(`Comments: ${note.comments}`);
-  }
-
-  return parts.join("\n");
+function escapeField(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;")
+    .replaceAll("\r\n", "<br>")
+    .replaceAll("\n", "<br>")
+    .replaceAll("\r", "<br>");
 }

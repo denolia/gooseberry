@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["sql.js", "anki-apkg-export"],
+  serverExternalPackages: ["sql.js", "ankipack"],
 };
 
 export default nextConfig;

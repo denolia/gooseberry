@@ -33,23 +33,25 @@ The main screen is built around fast input, quick character insertion for langua
 
 ### CSV Export
 
-CSV is currently the most reliable export format for Anki. It preserves more than just the source word and translation, including examples, grammar details, and word forms. You can map these fields in Anki note types and card templates to build richer study cards.
+CSV is the portable fallback. It preserves more than just the source word and translation, including examples, grammar details, and word forms, but requires manual field mapping to an existing Anki note type.
 
 ### `.apkg` Export Behavior
 
-Because of a limitation in the current third-party export library, `.apkg` exports do not yet create a single Anki note with multiple sibling cards. Instead, each study direction or variant is exported as a separate note/card entry.
+`.apkg` exports include the `Gooseberry Vocabulary v1` note type, its structured fields, styling, and five card templates:
 
-Practical consequences:
+- Recognition: source word to translation
+- Production: translation to source word
+- Word forms, when forms are available
+- Example recall, when an example and its translation are available
+- Typed production using Anki's native answer comparison
 
-- Cards generated from the same source item are scheduled independently in Anki
-- Sibling burying behavior does not apply between those variants
-- Editing one exported note in Anki does not update the related variants
+Each vocabulary item is one Anki note. Its applicable study cards are siblings, so Anki can bury related cards and an edit to the note updates every variant. Stable note identities allow later exports to update previously imported notes.
 
-CSV is the better option if you want full control over the Note structure.
+CSV remains available as a portable, manually mapped fallback.
 
 ## Next Steps
 
-- Improve `.apkg` export so related cards are generated as sibling cards under one note
+- Add optional direct import through AnkiConnect
 - Add more translation directions
 - Improve Anki set management and export customization
 - Refine prompt output for cleaner examples and more consistent grammar metadata
