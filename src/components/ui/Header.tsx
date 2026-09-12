@@ -116,25 +116,36 @@ export function Header() {
   const { data: session } = useSession();
 
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!showMobileMenu) {
+    if (!showMobileMenu && !showAccountMenu) {
       return;
     }
 
     const onPointerDown = (event: PointerEvent) => {
       if (
+        showMobileMenu &&
         mobileMenuRef.current &&
         !mobileMenuRef.current.contains(event.target as Node)
       ) {
         setShowMobileMenu(false);
+      }
+      if (
+        showAccountMenu &&
+        accountMenuRef.current &&
+        !accountMenuRef.current.contains(event.target as Node)
+      ) {
+        setShowAccountMenu(false);
       }
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setShowMobileMenu(false);
+        setShowAccountMenu(false);
       }
     };
 
@@ -145,7 +156,7 @@ export function Header() {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [showMobileMenu]);
+  }, [showAccountMenu, showMobileMenu]);
 
   return (
     <header className={styles.container}>
@@ -157,12 +168,48 @@ export function Header() {
         <div className={styles.desktopActions}>
           {session && <DesktopLanguageControls />}
           {session ? (
-            <button
-              className={styles.secondaryAction}
-              onClick={() => signOut()}
-            >
-              Sign out
-            </button>
+            <div className={styles.accountMenu} ref={accountMenuRef}>
+              <button
+                className={styles.accountButton}
+                type="button"
+                onClick={() => setShowAccountMenu((open) => !open)}
+                aria-expanded={showAccountMenu}
+                aria-controls="header-account-menu"
+              >
+                {session.user.image ? (
+                  <img
+                    src={session.user.image}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span aria-hidden="true">
+                    {(session.user.name ||
+                      session.user.email ||
+                      "U")[0].toUpperCase()}
+                  </span>
+                )}
+                <span className={styles.accountName}>
+                  {session.user.name?.split(" ")[0] || "Account"}
+                </span>
+              </button>
+              <div
+                id="header-account-menu"
+                className={`${styles.accountPanel} ${showAccountMenu ? styles.accountPanelOpen : ""}`}
+              >
+                <Link href="/profile" onClick={() => setShowAccountMenu(false)}>
+                  Profile
+                </Link>
+                {session.user.isAdmin && (
+                  <Link href="/admin" onClick={() => setShowAccountMenu(false)}>
+                    Admin
+                  </Link>
+                )}
+                <button type="button" onClick={() => signOut()}>
+                  Sign out
+                </button>
+              </div>
+            </div>
           ) : (
             <button
               className={styles.primaryAction}
@@ -192,15 +239,25 @@ export function Header() {
           >
             {session && <MobileLanguageControls />}
             {session ? (
-              <button
-                className={styles.secondaryAction}
-                onClick={() => {
-                  setShowMobileMenu(false);
-                  signOut();
-                }}
-              >
-                Sign out
-              </button>
+              <>
+                <Link href="/profile" onClick={() => setShowMobileMenu(false)}>
+                  Profile
+                </Link>
+                {session.user.isAdmin && (
+                  <Link href="/admin" onClick={() => setShowMobileMenu(false)}>
+                    Admin
+                  </Link>
+                )}
+                <button
+                  className={styles.secondaryAction}
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    signOut();
+                  }}
+                >
+                  Sign out
+                </button>
+              </>
             ) : (
               <button
                 className={styles.primaryAction}

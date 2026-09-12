@@ -8,6 +8,8 @@ declare module "next-auth" {
       name?: string | null;
       email?: string | null;
       image?: string | null;
+      tier: "free" | "premium";
+      isAdmin: boolean;
     };
   }
 }

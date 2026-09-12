@@ -59,14 +59,14 @@ export async function getUserProfile(userId: string) {
       .then((rows) => rows[0] ?? null),
   ]);
 
-  const tier =
+  const tier: AccountTier =
     accountTier(user.tier) === "premium" || isAdminEmail(user.email)
       ? "premium"
       : "free";
 
   return {
     ...user,
-    tier: tier satisfies AccountTier,
+    tier,
     isAdmin: isAdminEmail(user.email),
     preferences: {
       defaultSourceLang: (preferences?.defaultSourceLang ??

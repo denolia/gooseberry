@@ -121,9 +121,71 @@
 
 .primaryAction:focus-visible,
 .secondaryAction:focus-visible,
+.accountButton:focus-visible,
 .menuButton:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+.accountMenu {
+  position: relative;
+}
+.accountButton {
+  min-height: 2.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.75rem 0.35rem 0.35rem;
+  border: 1px solid var(--border-color);
+  background: var(--surface-raised);
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+}
+.accountButton img,
+.accountButton > span:first-child {
+  width: 1.8rem;
+  height: 1.8rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-accent);
+  object-fit: cover;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.accountName {
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.accountPanel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  min-width: 10rem;
+  display: none;
+  padding: 0.35rem;
+  border: 1px solid var(--border-color);
+  background: var(--surface-raised);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 12%);
+}
+.accountPanelOpen {
+  display: grid;
+}
+.accountPanel a,
+.accountPanel button {
+  padding: 0.65rem 0.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.accountPanel a:hover,
+.accountPanel button:hover {
+  background: var(--button-secondary-hover);
 }
 
 .primaryAction,
@@ -234,6 +296,10 @@
     opacity 220ms ease,
     transform 300ms ease,
     visibility 300ms linear 0ms;
+}
+.mobilePanel > a {
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 @media (max-width: 640px) {

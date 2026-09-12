@@ -84,6 +84,24 @@ export async function getUserIdByProviderUserId(
   return row?.id ?? null;
 }
 
+export async function getUserSessionByProviderUserId(
+  provider: "google",
+  providerUserId: string,
+) {
+  const db = getDb();
+  const [row] = await db
+    .select({ id: appUser.id, tier: appUser.tier, email: appUser.email })
+    .from(appUser)
+    .where(
+      and(
+        eq(appUser.provider, provider),
+        eq(appUser.providerUserId, providerUserId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
 export async function translationExists(
   userId: string,
   inputText: string,

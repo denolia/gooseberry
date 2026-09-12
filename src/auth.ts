@@ -1,6 +1,10 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
-import { getUserIdByProviderUserId, upsertUser } from "@/db/translationRepo";
+import {
+  getUserSessionByProviderUserId,
+  upsertUser,
+} from "@/db/translationRepo";
+import { isAdminEmail } from "@/lib/admin/access";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [Google],
@@ -44,13 +48,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user && token.providerAccountId) {
         try {
           // Attach internal app_user.id to session
-          const userId = await getUserIdByProviderUserId(
+          const user = await getUserSessionByProviderUserId(
             "google",
             token.providerAccountId as string,
           );
-          if (userId) {
-            session.user.id = userId;
-            console.log("[Session] Attached userId to session:", userId);
+          if (user) {
+            session.user.id = user.id;
+            session.user.isAdmin = isAdminEmail(user.email);
+            session.user.tier =
+              user.tier === "premium" || session.user.isAdmin
+                ? "premium"
+                : "free";
+            console.log("[Session] Attached userId to session:", user.id);
           } else {
             console.error(
               "[Session] Failed to find user in DB for providerAccountId:",
