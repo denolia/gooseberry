@@ -15,7 +15,13 @@ export const GOOSEBERRY_FIELD_NAMES = [
   "Comments",
   "Source Language",
   "Target Language",
+  "Source Audio",
 ] as const;
+
+export interface AnkiMediaFile {
+  filename: string;
+  data: Uint8Array;
+}
 
 const CARD_CSS = `
 .card {
@@ -127,6 +133,7 @@ export function createGooseberryNotetype(): Notetype {
         questionFormat: `
 <div class="direction">{{Source Language}} → {{Target Language}}</div>
 <div class="prompt">{{Original}}</div>
+{{Source Audio}}
 `,
         answerFormat: `
 {{FrontSide}}
@@ -145,6 +152,7 @@ ${DETAILS}
 {{FrontSide}}
 <hr id="answer">
 <div class="answer">{{Original}}</div>
+{{Source Audio}}
 ${DETAILS}
 `,
       },
@@ -154,6 +162,7 @@ ${DETAILS}
 {{#Word Forms}}
 <div class="direction">Word forms</div>
 <div class="prompt">{{Original}}</div>
+{{Source Audio}}
 <div class="forms">{{Translation}}</div>
 {{/Word Forms}}
 `,
@@ -178,6 +187,7 @@ ${DETAILS}
 {{FrontSide}}
 <hr id="answer">
 <div class="answer">{{Original}}</div>
+{{Source Audio}}
 <div class="example example-source">{{Sample}}</div>
 {{#Comments}}<div class="comments">{{Comments}}</div>{{/Comments}}
 `,
@@ -193,6 +203,7 @@ ${DETAILS}
 {{FrontSide}}
 <hr id="answer">
 {{type:Original}}
+{{Source Audio}}
 ${DETAILS}
 `,
       },
@@ -205,6 +216,7 @@ export function buildAnkiPackage(
   notes: AnkiNote[],
   sourceLang: string,
   targetLang: string,
+  media: AnkiMediaFile[] = [],
 ): Package {
   const notetype = createGooseberryNotetype();
   const deck = new Deck({
@@ -230,6 +242,7 @@ export function buildAnkiPackage(
           escapeField(note.comments),
           escapeField(sourceLang),
           escapeField(targetLang),
+          note.sourceAudio ? `[sound:${note.sourceAudio}]` : "",
         ],
       }),
     );
@@ -237,6 +250,9 @@ export function buildAnkiPackage(
 
   const pkg = new Package();
   pkg.addDeck(deck);
+  for (const file of media) {
+    pkg.addMedia(file.filename, file.data);
+  }
   return pkg;
 }
 
@@ -245,6 +261,7 @@ export async function createApkgPackage(
   notes: AnkiNote[],
   sourceLang: string,
   targetLang: string,
+  media: AnkiMediaFile[] = [],
 ): Promise<Buffer> {
   const SQL = await initSqlJs();
   const bytes = await buildAnkiPackage(
@@ -252,6 +269,7 @@ export async function createApkgPackage(
     notes,
     sourceLang,
     targetLang,
+    media,
   ).toUint8Array(SQL);
 
   return Buffer.from(bytes);

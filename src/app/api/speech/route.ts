@@ -7,14 +7,10 @@ import {
   SourceLanguageCode,
   SourceLanguages,
 } from "@/components/ui/Languages";
-import OpenAI from "openai";
+import { generateSpeechMp3, MAX_SPEECH_CHARACTERS } from "@/lib/audio/speech";
 import { NextResponse } from "next/server";
 
 export const maxDuration = 30;
-
-const speechModel = process.env.OPENAI_TTS_MODEL ?? "gpt-4o-mini-tts";
-const speechVoice = process.env.OPENAI_TTS_VOICE ?? "marin";
-const MAX_SPEECH_CHARACTERS = 500;
 
 const languageNamesByCode = Object.fromEntries(
   Object.values(SourceLanguages).map((language) => [
@@ -43,9 +39,7 @@ export async function POST(request: Request) {
   }
 
   const input =
-    body && typeof body === "object"
-      ? (body as Record<string, unknown>)
-      : {};
+    body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const text = typeof input.text === "string" ? input.text.trim() : "";
   const sourceLanguage = normalizeSourceLanguage(input.sourceLanguage);
 
@@ -63,21 +57,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const client = new OpenAI({ maxRetries: 2 });
-    const speech = await client.audio.speech.create({
-      model: speechModel,
-      voice: speechVoice,
-      input: text,
-      instructions: `Speak naturally and clearly in ${sourceLanguage}. Pronounce only the provided text.`,
-      response_format: "mp3",
-    });
-    const audio = await speech.arrayBuffer();
+    const audio = await generateSpeechMp3(text, sourceLanguage, request.signal);
+    const responseBody = new ArrayBuffer(audio.length);
+    new Uint8Array(responseBody).set(audio);
 
-    return new Response(audio, {
+    return new Response(responseBody, {
       status: 200,
       headers: {
         "Content-Type": "audio/mpeg",
-        "Content-Length": audio.byteLength.toString(),
+        "Content-Length": audio.length.toString(),
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
       },

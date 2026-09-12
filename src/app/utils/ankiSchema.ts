@@ -10,6 +10,7 @@ export const AnkiNoteSchema = z.object({
   tags: z.string(),
   sourceId: z.string(), // translation_history.id
   guid: z.string(), // Stable GUID for updates
+  sourceAudio: z.string().optional(), // MP3 filename embedded in the APKG
 });
 
 export type AnkiNote = z.infer<typeof AnkiNoteSchema>;

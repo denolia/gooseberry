@@ -134,6 +134,203 @@
   background: var(--button-secondary-hover, #f5f5f5);
 }
 
+.dialogBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(15 23 42 / 62%);
+  backdrop-filter: blur(3px);
+}
+
+.exportDialog {
+  width: min(100%, 540px);
+  max-height: min(720px, calc(100dvh - 2rem));
+  overflow-y: auto;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  border: 1px solid var(--border-color);
+  background: var(--surface-raised);
+  color: var(--foreground);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 32%);
+}
+
+.dialogHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.dialogHeader h2,
+.exportProgress h2 {
+  margin: 0;
+  font-size: 1.45rem;
+}
+
+.dialogEyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.dialogClose {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.dialogDescription {
+  margin: 0.65rem 0 1.35rem;
+  color: var(--text-secondary);
+}
+
+.audioOption {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  background: var(--background);
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.audioOption:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--background));
+}
+
+.audioOption input {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0.15rem 0 0;
+  accent-color: var(--accent);
+}
+
+.audioOption strong,
+.audioOption small {
+  display: block;
+}
+
+.audioOption small {
+  margin-top: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.optionBadge {
+  padding: 0.25rem 0.4rem;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.optionHint {
+  min-height: 2.6em;
+  margin: 0.75rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 1.5rem;
+}
+
+.exportProgress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem 0;
+  text-align: center;
+}
+
+.exportProgress p {
+  max-width: 430px;
+  margin: 0.75rem 0 1.35rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.progressIcon {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin-bottom: 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border-color));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+  font-size: 1.35rem;
+  font-weight: 750;
+}
+
+.progressSuccess {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--border-color));
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
+}
+
+.progressError {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border-color));
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
+
+.progressTrack {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text-muted) 28%, transparent);
+}
+
+.progressTrack span {
+  position: absolute;
+  inset-block: 0;
+  width: 38%;
+  background: var(--accent);
+  animation: export-progress 1.25s ease-in-out infinite;
+}
+
+@keyframes export-progress {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(365%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressTrack span {
+    width: 65%;
+    animation: none;
+  }
+}
+
 .ankiDroidHandoff {
   display: flex;
   align-items: center;
@@ -399,6 +596,15 @@
 
   .editActions {
     flex-direction: column;
+  }
+
+  .audioOption {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .optionBadge {
+    grid-column: 2;
+    justify-self: start;
   }
 }
 

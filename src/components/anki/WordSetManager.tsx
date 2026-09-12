@@ -1,7 +1,7 @@
 "use client";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CardEditor } from "./CardEditor";
 import {
@@ -44,6 +44,8 @@ interface PreparedAnkiExport {
   cardCount: number;
 }
 
+type DeckExportStage = "idle" | "working" | "ready" | "error";
+
 export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -63,6 +65,12 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const [preparedAnkiExport, setPreparedAnkiExport] =
     useState<PreparedAnkiExport | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [showDeckExportDialog, setShowDeckExportDialog] = useState(false);
+  const [includeExportAudio, setIncludeExportAudio] = useState(false);
+  const [deckExportStage, setDeckExportStage] =
+    useState<DeckExportStage>("idle");
+  const [deckExportError, setDeckExportError] = useState<string | null>(null);
+  const exportAbortController = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (status === "authenticated" && session?.user?.id) {
@@ -87,6 +95,18 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showExportMenu]);
+
+  useEffect(() => {
+    if (!showDeckExportDialog) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && deckExportStage !== "working") {
+        setShowDeckExportDialog(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [deckExportStage, showDeckExportDialog]);
 
   const loadWordSet = async () => {
     try {
@@ -185,6 +205,72 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
     } finally {
       setExporting(false);
     }
+  };
+
+  const openDeckExportDialog = () => {
+    setShowExportMenu(false);
+    setDeckExportStage("idle");
+    setDeckExportError(null);
+    setShowDeckExportDialog(true);
+  };
+
+  const runDeckExport = async () => {
+    if (!wordSet || deckExportStage === "working") return;
+
+    const controller = new AbortController();
+    exportAbortController.current = controller;
+    setDeckExportStage("working");
+    setDeckExportError(null);
+    setExporting(true);
+
+    try {
+      const query = new URLSearchParams({ format: "apkg" });
+      if (includeExportAudio) query.set("audio", "1");
+      const response = await fetch(
+        `/api/word-sets/${wordSetId}/export?${query}`,
+        { method: "POST", signal: controller.signal },
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to export Anki deck");
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      const dateStr = new Date().toISOString().split("T")[0];
+      anchor.href = downloadUrl;
+      anchor.download = `${wordSet.name.replace(/[^a-zA-Z0-9]/g, "_")}_${dateStr}.apkg`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+
+      setDeckExportStage("ready");
+      void loadWordSet();
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setDeckExportStage("idle");
+      } else {
+        setDeckExportError(
+          err instanceof Error ? err.message : "Failed to export Anki deck",
+        );
+        setDeckExportStage("error");
+      }
+    } finally {
+      exportAbortController.current = null;
+      setExporting(false);
+    }
+  };
+
+  const closeDeckExportDialog = () => {
+    if (deckExportStage === "working") return;
+    setShowDeckExportDialog(false);
+  };
+
+  const cancelDeckExport = () => {
+    exportAbortController.current?.abort();
   };
 
   const prepareForAnkiDroid = async () => {
@@ -326,6 +412,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
+  const enabledItemCount = items.filter((item) => item.isEnabled).length;
   async function rename() {
     if (!name.trim()) return;
     setSaving(true);
@@ -418,7 +505,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
           <div className={styles.exportContainer}>
             <button
               onClick={() => setShowExportMenu(!showExportMenu)}
-              disabled={items.length === 0 || exporting}
+              disabled={enabledItemCount === 0 || exporting}
               className={styles.exportButton}
             >
               {exporting ? "Exporting..." : "Export ▼"}
@@ -432,10 +519,10 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                   Export to AnkiDroid
                 </button>
                 <button
-                  onClick={() => handleExport("apkg")}
+                  onClick={openDeckExportDialog}
                   className={styles.exportMenuItem}
                 >
-                  Export as .apkg
+                  Download Anki deck
                 </button>
                 <button
                   onClick={() => handleExport("csv")}
@@ -448,6 +535,178 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
           </div>
         </div>
       </div>
+
+      {showDeckExportDialog && (
+        <div
+          className={styles.dialogBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeDeckExportDialog();
+          }}
+        >
+          <section
+            className={styles.exportDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="deck-export-title"
+            aria-describedby="deck-export-description"
+          >
+            {deckExportStage === "idle" && (
+              <>
+                <div className={styles.dialogHeader}>
+                  <div>
+                    <p className={styles.dialogEyebrow}>Export settings</p>
+                    <h2 id="deck-export-title">Download Anki deck</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.dialogClose}
+                    onClick={closeDeckExportDialog}
+                    aria-label="Close export settings"
+                    autoFocus
+                  >
+                    ×
+                  </button>
+                </div>
+                <p
+                  id="deck-export-description"
+                  className={styles.dialogDescription}
+                >
+                  {enabledItemCount} {enabledItemCount === 1 ? "card" : "cards"}{" "}
+                  will be included.
+                </p>
+                <label className={styles.audioOption}>
+                  <input
+                    type="checkbox"
+                    checked={includeExportAudio}
+                    onChange={(event) =>
+                      setIncludeExportAudio(event.target.checked)
+                    }
+                  />
+                  <span>
+                    <strong>Include AI pronunciation</strong>
+                    <small>
+                      Generate a source-language MP3 for every included card.
+                      Audio is placed inside the deck and is not stored by
+                      Gooseberry.
+                    </small>
+                  </span>
+                  <span className={styles.optionBadge}>AI voice</span>
+                </label>
+                <p className={styles.optionHint}>
+                  {includeExportAudio
+                    ? "This takes longer because each pronunciation is generated before the download starts."
+                    : "Text-only export is quick and creates the smallest file."}
+                </p>
+                <div className={styles.dialogActions}>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={closeDeckExportDialog}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.addButton}
+                    onClick={runDeckExport}
+                    disabled={enabledItemCount === 0}
+                  >
+                    {includeExportAudio
+                      ? "Generate & download"
+                      : "Download deck"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {deckExportStage === "working" && (
+              <div className={styles.exportProgress} aria-live="polite">
+                <div className={styles.progressIcon} aria-hidden="true">
+                  {includeExportAudio ? "♫" : "↓"}
+                </div>
+                <h2 id="deck-export-title">
+                  {includeExportAudio
+                    ? "Creating pronunciations…"
+                    : "Building your deck…"}
+                </h2>
+                <p id="deck-export-description">
+                  {includeExportAudio
+                    ? `Generating AI audio for ${enabledItemCount} cards, then packaging it into Anki. Keep this window open.`
+                    : "Packaging your included cards. Your download will begin automatically."}
+                </p>
+                <div
+                  className={styles.progressTrack}
+                  role="progressbar"
+                  aria-label="Preparing Anki deck"
+                >
+                  <span />
+                </div>
+                <button
+                  type="button"
+                  className={styles.dismissButton}
+                  onClick={cancelDeckExport}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {deckExportStage === "ready" && (
+              <div className={styles.exportProgress} aria-live="polite">
+                <div
+                  className={`${styles.progressIcon} ${styles.progressSuccess}`}
+                  aria-hidden="true"
+                >
+                  ✓
+                </div>
+                <h2 id="deck-export-title">Your deck is ready</h2>
+                <p id="deck-export-description">
+                  The download has started. Open the file to import it into
+                  Anki.
+                </p>
+                <button
+                  type="button"
+                  className={styles.addButton}
+                  onClick={closeDeckExportDialog}
+                >
+                  Done
+                </button>
+              </div>
+            )}
+
+            {deckExportStage === "error" && (
+              <div className={styles.exportProgress} aria-live="assertive">
+                <div
+                  className={`${styles.progressIcon} ${styles.progressError}`}
+                  aria-hidden="true"
+                >
+                  !
+                </div>
+                <h2 id="deck-export-title">Couldn’t create the deck</h2>
+                <p id="deck-export-description">
+                  {deckExportError || "Please try again."}
+                </p>
+                <div className={styles.dialogActions}>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={closeDeckExportDialog}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.addButton}
+                    onClick={runDeckExport}
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
 
       {preparedAnkiExport && (
         <div

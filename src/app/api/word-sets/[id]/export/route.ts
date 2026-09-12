@@ -8,6 +8,42 @@ import {
 import { mapWordSetItemToAnkiNote } from "@/app/utils/ankiMapper";
 import { createApkgPackage } from "@/lib/anki/apkgExporter";
 import { createCsvContent } from "@/lib/anki/csvExporter";
+import { createHash } from "node:crypto";
+import { generateSpeechMp3 } from "@/lib/audio/speech";
+
+export const maxDuration = 300;
+
+const AUDIO_GENERATION_CONCURRENCY = 4;
+const MAX_DIRECT_EXPORT_BYTES = 4_300_000;
+
+async function mapWithConcurrency<T, R>(
+  values: T[],
+  concurrency: number,
+  mapper: (value: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < values.length) {
+      const index = nextIndex++;
+      results[index] = await mapper(values[index], index);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, values.length) }, worker),
+  );
+  return results;
+}
+
+function audioFilename(sourceLanguage: string, text: string): string {
+  const digest = createHash("sha256")
+    .update(`${sourceLanguage}\u0000${text.trim()}`)
+    .digest("hex")
+    .slice(0, 24);
+  return `gooseberry-${digest}.mp3`;
+}
 
 // POST /api/word-sets/[id]/export - Export word set as .apkg or .csv
 export async function POST(
@@ -25,6 +61,8 @@ export async function POST(
     // Get format from query parameter (default to apkg)
     const url = new URL(request.url);
     const format = url.searchParams.get("format") || "apkg";
+    const includeAudio =
+      format === "apkg" && url.searchParams.get("audio") === "1";
 
     if (format !== "apkg" && format !== "csv") {
       return NextResponse.json(
@@ -59,9 +97,42 @@ export async function POST(
       );
     }
 
-    const ankiNotes = enabledItems.map((item) =>
+    let ankiNotes = enabledItems.map((item) =>
       mapWordSetItemToAnkiNote(item, true),
     );
+    let media: Array<{ filename: string; data: Uint8Array }> = [];
+
+    if (includeAudio) {
+      const uniqueItemsByAudio = new Map(
+        enabledItems.map((item) => [item.original.trim(), item]),
+      );
+      const uniqueAudioItems = [...uniqueItemsByAudio.values()];
+      media = await mapWithConcurrency(
+        uniqueAudioItems,
+        AUDIO_GENERATION_CONCURRENCY,
+        async (item) => {
+          const filename = audioFilename(wordSet.sourceLang, item.original);
+          return {
+            filename,
+            data: await generateSpeechMp3(
+              item.original,
+              wordSet.sourceLang.toUpperCase(),
+              request.signal,
+            ),
+          };
+        },
+      );
+      const audioFilenameByText = new Map(
+        uniqueAudioItems.map((item, index) => [
+          item.original.trim(),
+          media[index].filename,
+        ]),
+      );
+      ankiNotes = ankiNotes.map((note) => ({
+        ...note,
+        sourceAudio: audioFilenameByText.get(note.original.trim()),
+      }));
+    }
 
     // Keep the Anki deck stable across exports so re-imports update it.
     const dateStr = new Date().toISOString().split("T")[0];
@@ -70,9 +141,6 @@ export async function POST(
 
     // Generate safe filename
     const safeFileName = wordSet.name.replace(/[^a-zA-Z0-9]/g, "_");
-
-    // Update last exported timestamp
-    await updateLastExportedAt(id);
 
     if (format === "csv") {
       // Create CSV file
@@ -83,6 +151,7 @@ export async function POST(
       );
 
       const fileName = `${safeFileName}_${dateStr}.csv`;
+      await updateLastExportedAt(id);
 
       return new NextResponse(csvContent, {
         status: 200,
@@ -98,9 +167,21 @@ export async function POST(
         ankiNotes,
         wordSet.sourceLang.toUpperCase(),
         wordSet.targetLang.toUpperCase(),
+        media,
       );
 
+      if (apkgBuffer.length > MAX_DIRECT_EXPORT_BYTES) {
+        return NextResponse.json(
+          {
+            error:
+              "This deck is too large to download with audio right now. Try exporting without AI pronunciation.",
+          },
+          { status: 413 },
+        );
+      }
+
       const fileName = `${safeFileName}_${dateStr}.apkg`;
+      await updateLastExportedAt(id);
 
       // Return file (convert Buffer to Uint8Array for NextResponse)
       return new NextResponse(new Uint8Array(apkgBuffer), {

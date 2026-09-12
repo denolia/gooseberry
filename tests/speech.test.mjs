@@ -28,19 +28,15 @@ function loadRoute({ session = { user: { id: "user-1" } } } = {}) {
         isSourceLanguage: (value) => ["German", "Finnish"].includes(value),
         isSourceLanguageCode: (value) => ["de", "fi"].includes(value),
       },
-      openai: {
-        default: class {
-          audio = {
-            speech: {
-              create: async (input) => {
-                calls.push(input);
-                return {
-                  arrayBuffer: async () =>
-                    Uint8Array.from([73, 68, 51]).buffer,
-                };
-              },
-            },
-          };
+      "@/lib/audio/speech": {
+        MAX_SPEECH_CHARACTERS: 500,
+        generateSpeechMp3: async (input, language) => {
+          calls.push({
+            input,
+            instructions: `Speak naturally and clearly in ${language}.`,
+            response_format: "mp3",
+          });
+          return Uint8Array.from([73, 68, 51]);
         },
       },
       "next/server": { NextResponse: { json: Response.json } },

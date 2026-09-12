@@ -115,3 +115,20 @@ test("serializes the structured deck as an APKG zip", async () => {
   assert.ok(output.length > 1_000);
   assert.equal(output.subarray(0, 2).toString("ascii"), "PK");
 });
+
+test("embeds source pronunciation media and references it from the note", async () => {
+  const filename = "gooseberry-pronunciation.mp3";
+  const data = await buildAnkiPackage(
+    "Gooseberry::de-ru::Test",
+    [{ ...completeNote, sourceAudio: filename }],
+    "DE",
+    "RU",
+    [{ filename, data: Uint8Array.from([73, 68, 51]) }],
+  ).toCollection();
+  const fields = data.notes[0].flds.split("\u001f");
+
+  assert.equal(fields.at(-1), `[sound:${filename}]`);
+  assert.equal(data.media.length, 1);
+  assert.equal(data.media[0].name, filename);
+  assert.deepEqual(data.media[0].data, Uint8Array.from([73, 68, 51]));
+});
