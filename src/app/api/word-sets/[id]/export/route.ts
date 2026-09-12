@@ -11,7 +11,7 @@ import { createCsvContent } from "@/lib/anki/csvExporter";
 import { createHash } from "node:crypto";
 import { generateSpeechMp3 } from "@/lib/audio/speech";
 
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 const AUDIO_GENERATION_CONCURRENCY = 4;
 const MAX_DIRECT_EXPORT_BYTES = 4_300_000;
