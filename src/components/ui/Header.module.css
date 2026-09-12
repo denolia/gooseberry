@@ -41,7 +41,7 @@
   align-items: flex-start;
   justify-content: flex-end;
   gap: 0.75rem;
-  overflow: hidden;
+  overflow: visible;
   white-space: nowrap;
   max-width: 40rem;
   opacity: 1;

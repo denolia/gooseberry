@@ -2,7 +2,12 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db/drizzle";
 import { appUser, premiumRequest, userPreference } from "@/db/schema";
 import { isAdminEmail } from "@/lib/admin/access";
-import type { SourceLanguage, TargetLanguage } from "@/components/ui/Languages";
+import {
+  isSourceLanguage,
+  isTargetLanguage,
+  type SourceLanguage,
+  type TargetLanguage,
+} from "@/components/ui/Languages";
 
 export type AccountTier = "free" | "premium";
 export type PremiumRequestStatus =
@@ -69,10 +74,12 @@ export async function getUserProfile(userId: string) {
     tier,
     isAdmin: isAdminEmail(user.email),
     preferences: {
-      defaultSourceLang: (preferences?.defaultSourceLang ??
-        "German") as SourceLanguage,
-      defaultTargetLang: (preferences?.defaultTargetLang ??
-        "English") as TargetLanguage,
+      defaultSourceLang: isSourceLanguage(preferences?.defaultSourceLang)
+        ? preferences.defaultSourceLang
+        : "German",
+      defaultTargetLang: isTargetLanguage(preferences?.defaultTargetLang)
+        ? preferences.defaultTargetLang
+        : "English",
     },
     pendingRequest,
   };
