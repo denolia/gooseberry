@@ -19,7 +19,9 @@ export default function LandingLayout() {
         aria-label="Loading Learn.words"
         aria-busy="true"
       >
-        <span className={landingStyles.logo}>LEARN.words</span>
+        <span className={`${landingStyles.logo} ${landingStyles.loadingLogo}`}>
+          LEARN.words
+        </span>
       </main>
     );
   }

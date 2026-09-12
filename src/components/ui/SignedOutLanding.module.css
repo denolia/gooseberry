@@ -51,8 +51,36 @@
   min-height: 100svh;
   display: grid;
   place-items: center;
-  background: #090b0e;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 50%, #182237 0, #0c1018 20%, #090b0e 55%),
+    #090b0e;
   color: #f0f1f3;
+}
+
+.loadingLogo {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  display: inline-block;
+  font-size: clamp(44px, 5vw, 64px);
+  opacity: 0;
+  will-change: opacity, transform, filter, text-shadow;
+  animation:
+    loadingLogoEnter 900ms cubic-bezier(0.16, 1, 0.3, 1) 120ms forwards,
+    loadingLogoGlow 2.6s ease-in-out 1.02s infinite;
+}
+
+.loadingLogo::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 20% -18%;
+  border-radius: 50%;
+  background: #408eff;
+  opacity: 0;
+  filter: blur(32px);
+  animation: loadingLogoAura 2.6s ease-in-out 1.02s infinite;
 }
 
 .header,
@@ -675,6 +703,45 @@
   }
 }
 
+@keyframes loadingLogoEnter {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes loadingLogoGlow {
+  0%,
+  100% {
+    text-shadow:
+      0 0 12px #a9c8ff1f,
+      0 0 30px #408eff12;
+  }
+  50% {
+    text-shadow:
+      0 0 18px #c1d7ff52,
+      0 0 46px #408eff36;
+  }
+}
+
+@keyframes loadingLogoAura {
+  0%,
+  100% {
+    opacity: 0.04;
+    transform: scale(0.88);
+  }
+  50% {
+    opacity: 0.13;
+    transform: scale(1.08);
+  }
+}
+
 /* Native scroll timelines progressively enhance the static, fully visible layout. */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
@@ -958,6 +1025,16 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .loadingLogo {
+    opacity: 1;
+    animation: none;
+    text-shadow: 0 0 18px #a9c8ff2b;
+  }
+
+  .loadingLogo::after {
+    animation: none;
+  }
+
   .landing *,
   .landing *::before,
   .landing *::after {
