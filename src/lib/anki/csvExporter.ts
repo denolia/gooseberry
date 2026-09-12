@@ -7,8 +7,8 @@ import { AnkiNote } from "@/app/utils/ankiSchema";
  */
 export function createCsvContent(
   notes: AnkiNote[],
-  sourceLang: string = "DE",
-  targetLang: string = "RU",
+  sourceLang: string,
+  targetLang: string,
 ): string {
   const rows: string[] = [];
 

@@ -31,9 +31,6 @@ The main screen is built around fast input, quick character insertion for langua
 
 ## Export Options
 
-### CSV Export
-
-CSV is the portable fallback. It preserves more than just the source word and translation, including examples, grammar details, and word forms, but requires manual field mapping to an existing Anki note type.
 
 ### `.apkg` Export Behavior
 
@@ -47,12 +44,13 @@ CSV is the portable fallback. It preserves more than just the source word and tr
 
 Each vocabulary item is one Anki note. Its applicable study cards are siblings, so Anki can bury related cards and an edit to the note updates every variant. Stable note identities allow later exports to update previously imported notes.
 
-CSV remains available as a portable, manually mapped fallback.
+### CSV Export
+
+CSV is the portable fallback. 
+It preserves more than just the source word and translation, including examples, grammar details, and word forms, but requires manual field mapping to an existing Anki note type.
 
 ## Next Steps
 
-- Add optional direct import through AnkiConnect
 - Add more translation directions
-- Improve Anki set management and export customization
-- Refine prompt output for cleaner examples and more consistent grammar metadata
 - Add a smoother onboarding flow for first-time users
+- Add optional direct import through AnkiConnect

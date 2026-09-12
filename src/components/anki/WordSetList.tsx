@@ -9,12 +9,11 @@ import styles from "./WordSetList.module.css";
 import {
   getLanguageCode,
   SourceLanguageCode,
-  SourceLanguages,
   SourceLanguageSelectOptions,
   TargetLanguageCode,
-  TargetLanguages,
   TargetLanguageSelectOptions,
 } from "@/components/ui/Languages";
+import { useLanguages } from "@/lib/languages/useLanguages";
 
 interface WordSet {
   id: string;
@@ -27,16 +26,17 @@ interface WordSet {
 
 export function WordSetList() {
   const { data: session, status } = useSession();
+  const { currentSourceLanguage, currentTargetLanguage } = useLanguages();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createSourceLang, setCreateSourceLang] = useState<SourceLanguageCode>(
-    getLanguageCode(SourceLanguages.German) as SourceLanguageCode,
+    getLanguageCode(currentSourceLanguage) as SourceLanguageCode,
   );
   const [createTargetLang, setCreateTargetLang] = useState<TargetLanguageCode>(
-    getLanguageCode(TargetLanguages.English) as TargetLanguageCode,
+    getLanguageCode(currentTargetLanguage) as TargetLanguageCode,
   );
   const wordSetsQueryKey = ["wordSets", session?.user?.id] as const;
 
@@ -151,7 +151,17 @@ export function WordSetList() {
         </div>
         <button
           className={styles.createButton}
-          onClick={() => setShowCreateForm(!showCreateForm)}
+          onClick={() => {
+            if (!showCreateForm) {
+              setCreateSourceLang(
+                getLanguageCode(currentSourceLanguage) as SourceLanguageCode,
+              );
+              setCreateTargetLang(
+                getLanguageCode(currentTargetLanguage) as TargetLanguageCode,
+              );
+            }
+            setShowCreateForm(!showCreateForm);
+          }}
         >
           {showCreateForm ? "Cancel" : "+ New set"}
         </button>

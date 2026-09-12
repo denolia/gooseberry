@@ -8,8 +8,8 @@ import {
   isSourceLanguage,
   isTargetLanguage,
   LanguageCodes,
-  SourceLanguages,
-  TargetLanguages,
+  SourceLanguage,
+  TargetLanguage,
 } from "@/components/ui/Languages";
 import {
   AnalysisCandidateSchema,
@@ -29,8 +29,14 @@ const analysisModel =
 const RequestSchema = z.object({
   text: z.string().min(1).max(20000),
   selectedTokenIds: z.array(z.number().int().nonnegative()).min(1).max(30),
-  sourceLanguage: z.unknown(),
-  targetLanguage: z.unknown(),
+  sourceLanguage: z.custom<SourceLanguage>(
+    isSourceLanguage,
+    "Invalid source language",
+  ),
+  targetLanguage: z.custom<TargetLanguage>(
+    isTargetLanguage,
+    "Invalid target language",
+  ),
 });
 
 const ModelResponseSchema = z.object({
@@ -114,12 +120,7 @@ export async function POST(request: Request) {
   let usageStatus: "succeeded" | "failed" = "failed";
   try {
     const input = RequestSchema.parse(await request.json());
-    const sourceLanguage = isSourceLanguage(input.sourceLanguage)
-      ? input.sourceLanguage
-      : SourceLanguages.German;
-    const targetLanguage = isTargetLanguage(input.targetLanguage)
-      ? input.targetLanguage
-      : TargetLanguages.English;
+    const { sourceLanguage, targetLanguage } = input;
     const tokens = tokenizeText(input.text, LanguageCodes[sourceLanguage]);
     const validWordIds = new Set(
       tokens.filter((token) => token.isWord).map((token) => token.id),

@@ -14,10 +14,7 @@ import {
   getLanguageCode,
   isSourceLanguage,
   isTargetLanguage,
-  SourceLanguage,
   SourceLanguages,
-  TargetLanguage,
-  TargetLanguages,
 } from "@/components/ui/Languages";
 
 export const maxDuration = 60; // This function can run for a maximum of 60 seconds
@@ -82,14 +79,6 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
-function getSourceLanguage(value: unknown): SourceLanguage {
-  return isSourceLanguage(value) ? value : SourceLanguages.German;
-}
-
-function getTargetLanguage(value: unknown): TargetLanguage {
-  return isTargetLanguage(value) ? value : TargetLanguages.English;
-}
-
 export async function POST(request: Request) {
   const totalStart = performance.now();
   const timings: Timings = {};
@@ -107,13 +96,27 @@ export async function POST(request: Request) {
     }
 
     phase = "request";
-    const { text, sourceLanguage, targetLanguage } = await timeAsync(
-      timings,
-      "request",
-      () => request.json(),
+    const requestBody = await timeAsync(timings, "request", () =>
+      request.json(),
     );
-    const currentSourceLanguage = getSourceLanguage(sourceLanguage);
-    const currentTargetLanguage = getTargetLanguage(targetLanguage);
+    const input =
+      requestBody && typeof requestBody === "object"
+        ? (requestBody as Record<string, unknown>)
+        : {};
+    const { text, sourceLanguage, targetLanguage } = input;
+    if (
+      typeof text !== "string" ||
+      !isSourceLanguage(sourceLanguage) ||
+      !isTargetLanguage(targetLanguage)
+    ) {
+      return jsonWithTimings(
+        { error: "Choose valid source and target languages." },
+        timings,
+        { status: 400 },
+      );
+    }
+    const currentSourceLanguage = sourceLanguage;
+    const currentTargetLanguage = targetLanguage;
     const responseSchema =
       currentSourceLanguage === SourceLanguages.Finnish
         ? FinnishTranslationResponseSchema

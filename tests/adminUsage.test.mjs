@@ -192,8 +192,8 @@ test("translation route records tokens for invalid output and persists usage bef
         },
       },
       "@/components/ui/Languages": {
-        isSourceLanguage: () => false,
-        isTargetLanguage: () => false,
+        isSourceLanguage: (value) => value === "German",
+        isTargetLanguage: (value) => value === "English",
         SourceLanguages: { German: "German", Finnish: "Finnish" },
         TargetLanguages: { English: "English" },
         getLanguageCode: () => "en",
@@ -216,7 +216,12 @@ test("translation route records tokens for invalid output and persists usage bef
     const response = await route.POST(
       new Request("http://localhost/api/translate", {
         method: "POST",
-        body: JSON.stringify({ text: "Guten Tag", userId: "spoofed-user" }),
+        body: JSON.stringify({
+          text: "Guten Tag",
+          sourceLanguage: "German",
+          targetLanguage: "English",
+          userId: "spoofed-user",
+        }),
       }),
     );
     const events = (await response.text()).trim().split("\n").map(JSON.parse);

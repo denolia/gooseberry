@@ -82,18 +82,14 @@ function getLanguageSpecificGuidance(sourceLanguage: SourceLanguage) {
 }
 
 export const getTranslationPrompt = (
-  sourceLanguage: SourceLanguage | undefined,
-  targetLanguage: TargetLanguage | undefined,
+  sourceLanguage: SourceLanguage,
+  targetLanguage: TargetLanguage,
 ) => {
-  const currentSourceLanguage = sourceLanguage ?? SourceLanguages.German;
-  const outputLanguage = targetLanguage ?? TargetLanguages.English;
-  const languageSpecificGuidance = getLanguageSpecificGuidance(
-    currentSourceLanguage,
-  );
+  const languageSpecificGuidance = getLanguageSpecificGuidance(sourceLanguage);
 
   return languageSpecificGuidance
-    ? `${getBasePrompt(currentSourceLanguage, outputLanguage)}
+    ? `${getBasePrompt(sourceLanguage, targetLanguage)}
 
 ${languageSpecificGuidance}`
-    : getBasePrompt(currentSourceLanguage, outputLanguage);
+    : getBasePrompt(sourceLanguage, targetLanguage);
 };

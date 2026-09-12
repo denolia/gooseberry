@@ -81,7 +81,7 @@ const BaseExampleUsageSchema = z.object({
 });
 
 export const BaseTranslationResponseSchema = z.object({
-  original: z.string(), // The original German sentence
+  original: z.string(), // The original source-language text
   type: z
     .enum(["noun", "verb", "adjective", "adverb", "sentence", "other"])
     .nullable(),
