@@ -1,8 +1,10 @@
 # Admin statistics and per-user AI quotas
 
-Implemented 8 September 2026. `/admin` is restricted to the two Google accounts `bubnova.j.i@gmail.com` and `bubnov.d.e@gmail.com`. Both the server page and repository enforce authorization; a normal or signed-out visitor receives a not-found response. The header link is only a convenience. Search is parameterized and results are paginated (25 accounts per page), including accounts without activity. Data is rendered on the server without a public statistics endpoint or shared cache.
+Implemented 8 September 2026. `/admin` is restricted to the Google accounts configured in the server-only `ADMIN_EMAILS` environment variable. Both the server page and repository enforce authorization; a normal or signed-out visitor receives a not-found response. The header link is only a convenience. Search is parameterized and results are paginated (25 accounts per page), including accounts without activity. Data is rendered on the server without a public statistics endpoint or shared cache.
 
 ## Deployment
+
+Set `ADMIN_EMAILS` to a comma-separated list of authorized email addresses, for example `admin-one@example.com,admin-two@example.com`. Whitespace and letter casing are normalized. If the variable is missing or empty, admin access fails closed. Keep this value in the deployment environment and `.env.local` for local development; environment files are ignored by Git.
 
 Apply `migrations/0002_admin_usage.sql` to the target PostgreSQL database **before deploying this application version**. It only adds `ai_usage` and its index. Do not rerun earlier migrations or use a destructive schema reset. The SQL file is provided for the existing SQL migration workflow; migration metadata is not tracked in this repository. This change does not apply the migration to a remote database automatically.
 

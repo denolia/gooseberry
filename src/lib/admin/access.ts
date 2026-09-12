@@ -1,7 +1,15 @@
-const ADMIN_EMAILS = new Set(["bubnova.j.i@gmail.com", "bubnov.d.e@gmail.com"]);
+function getAdminEmails(): Set<string> {
+  return new Set(
+    (process.env.ADMIN_EMAILS ?? "")
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
 
 export function isAdminEmail(email: string | null | undefined): boolean {
   return (
-    typeof email === "string" && ADMIN_EMAILS.has(email.trim().toLowerCase())
+    typeof email === "string" &&
+    getAdminEmails().has(email.trim().toLowerCase())
   );
 }

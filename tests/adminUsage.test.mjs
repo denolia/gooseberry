@@ -5,6 +5,8 @@ import ts from "typescript";
 import { isAdminEmail } from "../src/lib/admin/access.ts";
 import { countInputWords } from "../src/lib/admin/wordCount.ts";
 
+process.env.ADMIN_EMAILS = "admin-one@example.com, ADMIN-TWO@example.com";
+
 function loadModule(path, mocks) {
   const code = ts.transpileModule(
     readFileSync(new URL(path, import.meta.url), "utf8"),
@@ -56,15 +58,15 @@ test("admin access fails closed for signed-out, ordinary and lookalike accounts 
     null,
     { user: {} },
     { user: { id: "1", email: "normal@gmail.com" } },
-    { user: { id: "1", email: "bubnova.j.i@gmail.com.evil.org" } },
+    { user: { id: "1", email: "admin-one@example.com.evil.org" } },
   ]) {
     const instance = guard(session);
     await assert.rejects(instance.requireAdmin(), /NOT_FOUND/);
     assert.equal(instance.reads(), 0);
   }
 });
-test("both named admins are accepted, but a missing, non-Google or changed database account is denied", async () => {
-  for (const email of ["bubnova.j.i@gmail.com", "bubnov.d.e@gmail.com"]) {
+test("configured admins are accepted, but a missing, non-Google or changed database account is denied", async () => {
+  for (const email of ["admin-one@example.com", "admin-two@example.com"]) {
     const session = { user: { id: "1", email: email.toUpperCase() } };
     const user = { id: "1", email, provider: "google" };
     assert.equal(await guard(session, user).requireAdmin(), user);
@@ -76,6 +78,17 @@ test("both named admins are accepted, but a missing, non-Google or changed datab
       await assert.rejects(guard(session, denied).requireAdmin(), /NOT_FOUND/);
     }
   }
+});
+test("admin access fails closed when ADMIN_EMAILS is missing or empty", () => {
+  const configuredAdminEmails = process.env.ADMIN_EMAILS;
+
+  delete process.env.ADMIN_EMAILS;
+  assert.equal(isAdminEmail("admin-one@example.com"), false);
+
+  process.env.ADMIN_EMAILS = "  ,  ";
+  assert.equal(isAdminEmail("admin-one@example.com"), false);
+
+  process.env.ADMIN_EMAILS = configuredAdminEmails;
 });
 test("word counts handle phrases, punctuation and non-Latin input", () => {
   assert.equal(countInputWords("  Guten Tag!  "), 2);
