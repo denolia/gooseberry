@@ -2,6 +2,8 @@ import Link from "next/link";
 import { getAdminUsers } from "@/db/adminRepo";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import styles from "./page.module.css";
+import { getPendingPremiumRequests } from "@/db/premiumRepo";
+import { resolvePremiumRequestAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -9,7 +11,7 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 const number = (value: number) => value.toLocaleString("en-US");
-const date = (value: string | null) =>
+const date = (value: string | Date | null) =>
   value
     ? new Date(value).toLocaleDateString("en-GB", { timeZone: "UTC" })
     : "—";
@@ -24,12 +26,15 @@ export default async function AdminPage({
   const query =
     typeof params.q === "string" ? params.q.trim().slice(0, 200) : "";
   const requestedPage = Number(params.page);
-  const { users, total, page } = await getAdminUsers(
-    query,
-    Number.isSafeInteger(requestedPage) && requestedPage > 0
-      ? requestedPage
-      : 1,
-  );
+  const [{ users, total, page }, premiumRequests] = await Promise.all([
+    getAdminUsers(
+      query,
+      Number.isSafeInteger(requestedPage) && requestedPage > 0
+        ? requestedPage
+        : 1,
+    ),
+    getPendingPremiumRequests(),
+  ]);
   const pages = Math.max(1, Math.ceil(total / 25));
   const pageLink = (value: number) =>
     `/admin?${new URLSearchParams({ q: query, page: String(value) })}`;
@@ -43,6 +48,45 @@ export default async function AdminPage({
         </div>
         <Link href="/">Back to learning</Link>
       </header>
+      <section className={styles.requests} aria-labelledby="premium-requests">
+        <div className={styles.sectionHeading}>
+          <div>
+            <p className={styles.eyebrow}>ACCESS</p>
+            <h2 id="premium-requests">Premium requests</h2>
+          </div>
+          <strong>{number(premiumRequests.length)} pending</strong>
+        </div>
+        {premiumRequests.length ? (
+          <div className={styles.requestList}>
+            {premiumRequests.map((request) => (
+              <article key={request.id} className={styles.requestCard}>
+                <div>
+                  <strong>{request.name || "Unnamed user"}</strong>
+                  <span>{request.email || "No email"}</span>
+                  <small>Requested {date(request.createdAt)}</small>
+                  {request.message && <p>“{request.message}”</p>}
+                </div>
+                <form action={resolvePremiumRequestAction}>
+                  <input type="hidden" name="requestId" value={request.id} />
+                  <button name="decision" value="declined" type="submit">
+                    Decline
+                  </button>
+                  <button
+                    className={styles.approveButton}
+                    name="decision"
+                    value="approved"
+                    type="submit"
+                  >
+                    Approve Premium
+                  </button>
+                </form>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className={styles.noRequests}>No Premium requests are waiting.</p>
+        )}
+      </section>
       <form className={styles.search} action="/admin">
         <label htmlFor="user-search">Search users</label>
         <div>
@@ -88,6 +132,12 @@ export default async function AdminPage({
                 </td>
                 <td>
                   <span>Joined {date(user.created_at)}</span>
+                  <span>
+                    Plan:{" "}
+                    <strong>
+                      {user.tier === "premium" ? "Premium" : "Free"}
+                    </strong>
+                  </span>
                   <span>Last login {date(user.last_login_at)}</span>
                   <span>Last translation {date(user.last_translation)}</span>
                 </td>

@@ -24,6 +24,75 @@
   font-size: 0.75rem;
   letter-spacing: 0.12em;
 }
+.requests {
+  margin-bottom: 32px;
+  border: 1px solid var(--border-color);
+}
+.sectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--surface-raised);
+}
+.sectionHeading h2 {
+  margin-top: 5px;
+  font-size: 1.25rem;
+}
+.sectionHeading > strong {
+  color: var(--accent);
+}
+.requestList {
+  display: grid;
+}
+.requestCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px;
+  border-bottom: 1px solid var(--border-color);
+}
+.requestCard:last-child {
+  border-bottom: 0;
+}
+.requestCard span,
+.requestCard small {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-secondary);
+}
+.requestCard p {
+  max-width: 720px;
+  margin-top: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.requestCard form {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.requestCard button {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-raised);
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+.requestCard .approveButton {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+.noRequests {
+  padding: 18px;
+  color: var(--text-secondary);
+}
 .search {
   display: grid;
   gap: 8px;
@@ -119,5 +188,15 @@
   }
   .header {
     flex-direction: column;
+  }
+  .requestCard {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .requestCard form {
+    width: 100%;
+  }
+  .requestCard button {
+    flex: 1;
   }
 }

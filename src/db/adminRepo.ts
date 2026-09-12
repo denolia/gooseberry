@@ -6,6 +6,7 @@ export type AdminUserStats = {
   id: string;
   name: string | null;
   email: string | null;
+  tier: "free" | "premium";
   created_at: string;
   last_login_at: string | null;
   translations: number;
@@ -40,7 +41,7 @@ export async function getAdminUsers(query: string, page: number) {
   const total = Number(counts.rows[0]?.total ?? 0);
   const currentPage = Math.min(page, Math.max(1, Math.ceil(total / 25)));
   const result = await getDb().execute(sql`
-    SELECT u.id, u.name, u.email, u.created_at, u.last_login_at,
+    SELECT u.id, u.name, u.email, u.tier, u.created_at, u.last_login_at,
       t.translations, t.unique_entries, t.last_translation,
       s.sets, s.exported_sets, c.cards, c.enabled_cards,
       a.*
