@@ -4,6 +4,7 @@ import { TranslationResponse } from "@/app/utils/translationSchema";
 import { TranslationCard } from "@/components/anki/TranslationCard";
 import { useState } from "react";
 import { LanguageCodes, SourceLanguages } from "@/components/ui/Languages";
+import { SourceAudioButton } from "@/components/ui/SourceAudioButton";
 
 function hasValue(line: string | null | undefined | null): line is string {
   if (!line || line === "-") {
@@ -29,6 +30,10 @@ export function StructuredResponseDisplay({
   const isFinnishSource =
     sourceLang === SourceLanguages.Finnish ||
     sourceLang === LanguageCodes[SourceLanguages.Finnish];
+  const spokenOriginal =
+    hasValue(details.article) && response.type === "noun"
+      ? `${details.article} ${original}`
+      : original;
 
   return (
     <div className={styles.structuredResponse}>
@@ -44,6 +49,11 @@ export function StructuredResponseDisplay({
             `${details.article} `}
           {original}
         </h2>
+        <SourceAudioButton
+          key={`${spokenOriginal}:${sourceLang ?? ""}`}
+          text={spokenOriginal}
+          sourceLanguage={sourceLang}
+        />
         <h3>{translation}</h3>
         {!!details.alternative_translations?.length && (
           <div>{details.alternative_translations.join(", ")}</div>
