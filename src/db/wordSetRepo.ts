@@ -42,6 +42,17 @@ export async function getWordSet(id: string, userId: string) {
   return set ?? null;
 }
 
+export async function getWordSetById(id: string) {
+  const db = getDb();
+  const [set] = await db
+    .select()
+    .from(wordSet)
+    .where(eq(wordSet.id, id))
+    .limit(1);
+
+  return set ?? null;
+}
+
 export async function updateWordSet(
   id: string,
   userId: string,

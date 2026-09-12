@@ -38,7 +38,7 @@ interface WordSetManagerProps {
 }
 
 interface PreparedAnkiExport {
-  file: File;
+  url: string;
   cardCount: number;
 }
 
@@ -193,29 +193,20 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       setShowExportMenu(false);
       setPreparedAnkiExport(null);
 
-      const response = await fetch(
-        `/api/word-sets/${wordSetId}/export?format=apkg`,
-        { method: "POST" },
-      );
+      const response = await fetch(`/api/word-sets/${wordSetId}/export/link`, {
+        method: "POST",
+      });
 
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || "Failed to prepare deck");
       }
 
-      const blob = await response.blob();
-      const dateStr = new Date().toISOString().split("T")[0];
-      const safeName = wordSet.name.replace(/[^a-zA-Z0-9]/g, "_");
-      const file = new File([blob], `${safeName}_${dateStr}.apkg`, {
-        type: "application/apkg",
-      });
-      const cardCount = items.filter((item) => item.isEnabled).length;
-
-      setPreparedAnkiExport({ file, cardCount });
+      const data = await response.json();
+      setPreparedAnkiExport({ url: data.url, cardCount: data.cardCount });
       setStatusMessage(
         "Your deck is ready. Tap Open in AnkiDroid to continue.",
       );
-      loadWordSet();
     } catch (err) {
       setStatusMessage(
         err instanceof Error ? err.message : "Failed to prepare deck",
@@ -228,44 +219,12 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const downloadPreparedAnkiExport = () => {
     if (!preparedAnkiExport) return;
 
-    const url = window.URL.createObjectURL(preparedAnkiExport.file);
     const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = preparedAnkiExport.file.name;
+    anchor.href = preparedAnkiExport.url;
+    anchor.download = "";
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-    window.URL.revokeObjectURL(url);
-  };
-
-  const openInAnkiDroid = async () => {
-    if (!preparedAnkiExport) return;
-
-    const shareData: ShareData = {
-      files: [preparedAnkiExport.file],
-      title: wordSet?.name || "Gooseberry deck",
-    };
-
-    if (!navigator.share || !navigator.canShare?.(shareData)) {
-      downloadPreparedAnkiExport();
-      setStatusMessage(
-        "Sharing files is not supported here. The deck was downloaded instead; open it with AnkiDroid.",
-      );
-      return;
-    }
-
-    try {
-      await navigator.share(shareData);
-      setStatusMessage(
-        "Deck shared. Choose AnkiDroid and confirm the import there.",
-      );
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      downloadPreparedAnkiExport();
-      setStatusMessage(
-        "The Android share menu could not open. The deck was downloaded instead.",
-      );
-    }
   };
 
   const startEditing = (item: WordSetItem) => {
@@ -494,17 +453,18 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
             <p>
               {preparedAnkiExport.cardCount}{" "}
               {preparedAnkiExport.cardCount === 1 ? "card" : "cards"} prepared.
-              Android will ask which app should receive the deck.
+              The link works for five minutes. If Firefox downloads the deck,
+              enable Settings → Advanced → Open links in apps, or open the
+              downloaded file with AnkiDroid.
             </p>
           </div>
           <div className={styles.ankiDroidActions}>
-            <button
-              type="button"
+            <a
               className={styles.openInAnkiDroidButton}
-              onClick={openInAnkiDroid}
+              href={preparedAnkiExport.url}
             >
               Open in AnkiDroid
-            </button>
+            </a>
             <button
               type="button"
               className={styles.secondaryButton}
