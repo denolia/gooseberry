@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "update-migrations": "pnpm exec drizzle-kit push --config=drizzle.config.ts --strict"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
