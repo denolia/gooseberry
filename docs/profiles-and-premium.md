@@ -38,11 +38,12 @@ chosen for each export rather than stored as a preference. Free users retain
 CSV, text-only APKG, and individual pronunciation playback.
 
 The export endpoint checks the current database entitlement before generating
-audio, so changing a browser request cannot bypass the tier. Admin accounts are
-treated as Premium. An audio export supports up to 50 included cards and reuses
-MP3 data from `speech_audio_cache`; the cache prevents repeat exports of the
-same source text and language from repeatedly consuming speech-generation
-credits.
+audio, so changing a browser request cannot bypass the tier. Administration is
+a separate role and does not grant Premium access: an admin whose stored tier is
+Free sees Free and has the same feature restrictions as any other Free account.
+An audio export supports up to 50 included cards and reuses MP3 data from
+`speech_audio_cache`; the cache prevents repeat exports of the same source text
+and language from repeatedly consuming speech-generation credits.
 
 ## Manual verification
 

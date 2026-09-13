@@ -64,10 +64,7 @@ export async function getUserProfile(userId: string) {
       .then((rows) => rows[0] ?? null),
   ]);
 
-  const tier: AccountTier =
-    accountTier(user.tier) === "premium" || isAdminEmail(user.email)
-      ? "premium"
-      : "free";
+  const tier = accountTier(user.tier);
 
   return {
     ...user,
@@ -122,7 +119,7 @@ export async function createPremiumRequest(input: {
     .limit(1);
 
   if (!user) return { kind: "missing-user" as const };
-  if (accountTier(user.tier) === "premium" || isAdminEmail(user.email)) {
+  if (accountTier(user.tier) === "premium") {
     return { kind: "already-premium" as const };
   }
 

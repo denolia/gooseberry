@@ -55,10 +55,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           if (user) {
             session.user.id = user.id;
             session.user.isAdmin = isAdminEmail(user.email);
-            session.user.tier =
-              user.tier === "premium" || session.user.isAdmin
-                ? "premium"
-                : "free";
+            session.user.tier = user.tier === "premium" ? "premium" : "free";
             console.log("[Session] Attached userId to session:", user.id);
           } else {
             console.error(
