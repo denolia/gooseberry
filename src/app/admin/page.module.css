@@ -160,6 +160,49 @@
   cursor: pointer;
   margin-top: 10px;
 }
+.tierControl {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+.tierBadge {
+  display: inline-block;
+  padding: 4px 7px;
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tierFree {
+  background: var(--surface-accent);
+  color: var(--text-secondary);
+}
+.tierPremium {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+}
+.tierControl button {
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-raised);
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.tierControl .grantButton {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tierControl .revokeButton {
+  color: var(--danger);
+}
+.tierControl button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
 .caption {
   text-align: left;
   padding: 12px 16px;

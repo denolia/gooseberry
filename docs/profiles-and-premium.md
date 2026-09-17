@@ -10,6 +10,11 @@ failure therefore cannot lose the request: it remains visible in the protected
 `/admin` queue. Only one pending request is allowed per user. Admin approval
 atomically resolves the request and changes the account tier.
 
+The admin user table also provides explicit Grant Premium and Revoke Premium
+controls. A direct grant records the administrator and grant time and resolves
+any pending request for that user. Revocation clears the active grant metadata
+but preserves resolved request history for auditing.
+
 ## Deployment
 
 Apply `migrations/0003_profiles_and_premium.sql` to the target PostgreSQL

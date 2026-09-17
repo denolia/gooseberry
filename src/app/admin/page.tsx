@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/admin/requireAdmin";
 import styles from "./page.module.css";
 import { getPendingPremiumRequests } from "@/db/premiumRepo";
 import { resolvePremiumRequestAction } from "./actions";
+import { PremiumTierControl } from "@/components/admin/PremiumTierControl";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -116,6 +117,7 @@ export default async function AdminPage({
           <thead>
             <tr>
               <th scope="col">User</th>
+              <th scope="col">Plan</th>
               <th scope="col">Account activity</th>
               <th scope="col">Saved translations</th>
               <th scope="col">Anki</th>
@@ -131,13 +133,10 @@ export default async function AdminPage({
                   <small>{user.id}</small>
                 </td>
                 <td>
+                  <PremiumTierControl userId={user.id} tier={user.tier} />
+                </td>
+                <td>
                   <span>Joined {date(user.created_at)}</span>
-                  <span>
-                    Plan:{" "}
-                    <strong>
-                      {user.tier === "premium" ? "Premium" : "Free"}
-                    </strong>
-                  </span>
                   <span>Last login {date(user.last_login_at)}</span>
                   <span>Last translation {date(user.last_translation)}</span>
                 </td>
