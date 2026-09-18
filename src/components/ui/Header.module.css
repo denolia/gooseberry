@@ -297,12 +297,37 @@
     transform 300ms ease,
     visibility 300ms linear 0ms;
 }
+.mobileIdentity {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.25rem 0 0.35rem;
+}
+.mobileIdentity img,
+.mobileIdentity > span:first-child {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-accent);
+  object-fit: cover;
+  font-size: 0.8rem;
+}
+.mobileIdentityName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .mobilePanel > a {
   padding: 0.55rem 0;
-  border-bottom: 1px solid var(--border-color);
 }
 
-@media (max-width: 640px) {
+/* The language pair and account control need more room than the page body. */
+@media (max-width: 840px) {
   .container {
     grid-template-columns: 1fr auto 1fr;
     align-items: center;

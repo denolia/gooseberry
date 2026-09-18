@@ -237,7 +237,29 @@ export function Header() {
             id="header-mobile-menu"
             aria-hidden={!showMobileMenu}
           >
-            {session && <MobileLanguageControls />}
+            {session && (
+              <>
+                <div className={styles.mobileIdentity}>
+                  {session.user.image ? (
+                    <img
+                      src={session.user.image}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span aria-hidden="true">
+                      {(session.user.name ||
+                        session.user.email ||
+                        "U")[0].toUpperCase()}
+                    </span>
+                  )}
+                  <strong className={styles.mobileIdentityName}>
+                    {session.user.name || session.user.email || "Account"}
+                  </strong>
+                </div>
+                <MobileLanguageControls />
+              </>
+            )}
             {session ? (
               <>
                 <Link href="/profile" onClick={() => setShowMobileMenu(false)}>
