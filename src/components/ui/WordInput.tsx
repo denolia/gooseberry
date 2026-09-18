@@ -1,6 +1,6 @@
 "use client";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import {
   useCallback,
@@ -29,9 +29,7 @@ type TranslationEntry = TranslationResponse & {
   sourceLang?: string;
   targetLang?: string;
   historyId?: string;
-  localId?: string;
   createdAt?: string;
-  isCurrentSession?: boolean;
 };
 
 const HISTORY_LABEL_LIMIT = 100;
@@ -49,71 +47,6 @@ type HistoryApiItem = {
   targetLang: string;
   createdAt: string;
 };
-
-function createLocalHistoryId() {
-  return (
-    globalThis.crypto?.randomUUID?.() ??
-    `local-${Date.now()}-${Math.random().toString(36).slice(2)}`
-  );
-}
-
-function readLocalHistory(): TranslationEntry[] {
-  try {
-    const savedHistory = localStorage.getItem("translationHistory");
-    const parsed: unknown = savedHistory ? JSON.parse(savedHistory) : [];
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed.map((entry) => ({
-      ...(entry as TranslationEntry),
-      isCurrentSession: false,
-      localId:
-        typeof (entry as TranslationEntry).localId === "string"
-          ? (entry as TranslationEntry).localId
-          : createLocalHistoryId(),
-    }));
-  } catch {
-    return [];
-  }
-}
-
-function writeLocalHistory(history: TranslationEntry[]) {
-  try {
-    localStorage.setItem("translationHistory", JSON.stringify(history));
-  } catch {
-    /* Storage is optional. */
-  }
-}
-
-function historySignature(entry: TranslationEntry) {
-  return JSON.stringify([
-    entry.original,
-    entry.translation,
-    entry.sourceLang ?? "",
-    entry.targetLang ?? "",
-  ]);
-}
-
-function mergeHistory(
-  databaseHistory: TranslationEntry[],
-  localHistory: TranslationEntry[],
-) {
-  const databaseCounts = new Map<string, number>();
-  for (const entry of databaseHistory) {
-    const signature = historySignature(entry);
-    databaseCounts.set(signature, (databaseCounts.get(signature) ?? 0) + 1);
-  }
-
-  const localOnly = localHistory.filter((entry) => {
-    if (entry.isCurrentSession) return true;
-    const signature = historySignature(entry);
-    const remainingMatches = databaseCounts.get(signature) ?? 0;
-    if (remainingMatches === 0) return true;
-    databaseCounts.set(signature, remainingMatches - 1);
-    return false;
-  });
-
-  return [...localOnly, ...databaseHistory];
-}
 
 async function fetchHistoryPage({
   pageParam,
@@ -202,10 +135,7 @@ function HistoryList({
   const rowVirtualizer = useWindowVirtualizer<HTMLLIElement>({
     count: entries.length,
     estimateSize: () => 38,
-    getItemKey: (index) =>
-      entries[index]?.historyId ??
-      entries[index]?.localId ??
-      `history-${index}`,
+    getItemKey: (index) => entries[index]?.historyId ?? `history-${index}`,
     overscan: 10,
     scrollMargin,
   });
@@ -354,9 +284,9 @@ export function WordInput() {
     SPECIAL_CHARACTERS_BY_LANGUAGE[currentSourceLanguage] ?? [];
   const showSpecialCharacterControls = specialCharacters.length > 0;
 
+  const queryClient = useQueryClient();
   const [word, setWord] = useState("");
   const [translation, setTranslation] = useState<TranslationEntry>();
-  const [localHistory, setLocalHistory] = useState<TranslationEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [preview, setPreview] = useState<{
     original: string;
@@ -403,19 +333,9 @@ export function WordInput() {
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
 
-  useEffect(() => {
-    const savedHistory = readLocalHistory();
-    setLocalHistory(savedHistory);
-    writeLocalHistory(savedHistory);
-  }, []);
-
-  const databaseHistory = useMemo(
+  const history = useMemo(
     () => historyQuery.data?.pages.flatMap((page) => page.history) ?? [],
     [historyQuery.data],
-  );
-  const history = useMemo(
-    () => mergeHistory(databaseHistory, localHistory),
-    [databaseHistory, localHistory],
   );
 
   useEffect(() => {
@@ -499,7 +419,8 @@ export function WordInput() {
           receivedResult = true;
           setTranslation(entry);
           setPreview(undefined);
-          saveToHistory(entry);
+        } else if (event.type === "done") {
+          void queryClient.resetQueries({ queryKey: HISTORY_QUERY_KEY });
         } else if (event.type === "error") {
           throw new Error(
             typeof event.error === "string"
@@ -532,22 +453,6 @@ export function WordInput() {
     if (e.key === "Enter" && word.trim()) {
       await translate();
     }
-  };
-
-  // Save translation to localStorage and update state
-  const saveToHistory = (entry: TranslationEntry) => {
-    setLocalHistory((current) => {
-      const updatedHistory = [
-        {
-          ...entry,
-          localId: createLocalHistoryId(),
-          isCurrentSession: true,
-        },
-        ...current,
-      ].slice(0, 50);
-      writeLocalHistory(updatedHistory);
-      return updatedHistory;
-    });
   };
 
   function loadHistoryItem(entry: TranslationEntry) {
