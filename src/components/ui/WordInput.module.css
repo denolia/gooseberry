@@ -41,19 +41,60 @@
   margin: 0 0 1rem;
 }
 
-.history ul {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+.historyList {
+  position: relative;
+  width: 100%;
   list-style: none;
 }
 
-.history li {
+.historyRow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  min-height: 2.375rem;
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.1rem 0;
-  line-height: 1;
+  padding: 0.1rem 0 0.275rem;
+  line-height: 1.35;
+}
+
+.historyRow > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.historyStatus {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.historyError {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+
+.historyStatus button,
+.historyError button {
+  padding: var(--button-padding-compact);
+  color: var(--foreground);
+  background: var(--surface-accent);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+}
+
+.historyStatus button:hover,
+.historyError button:hover {
+  background: var(--button-secondary-hover);
 }
 
 .loadFromHistoryButton {
@@ -246,7 +287,7 @@
     padding-top: 0.875rem;
   }
 
-  .history li {
+  .historyRow {
     align-items: flex-start;
   }
 }

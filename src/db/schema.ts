@@ -103,14 +103,15 @@ export const translationHistory = pgTable(
     model: text("model"),
     promptVersion: text("prompt_version"),
 
-    createdAt: timestamp("created_at", { withTimezone: true })
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
   },
   (t) => ({
     byUserCreatedAt: index("translation_history_user_created_at_idx").on(
       t.userId,
-      t.createdAt,
+      t.createdAt.desc(),
+      t.id.desc(),
     ),
   }),
 );

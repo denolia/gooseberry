@@ -1,6 +1,11 @@
 import { getDb } from "@/db/drizzle";
 import { appUser, translationHistory } from "@/db/schema";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
+
+export type TranslationHistoryCursor = {
+  createdAt: string;
+  id: string;
+};
 
 export async function upsertUser(input: {
   provider: "google";
@@ -55,14 +60,45 @@ export async function insertTranslation(input: {
   });
 }
 
-export async function listLast50(userId: string) {
+export async function listTranslationHistoryPage(
+  userId: string,
+  options: {
+    limit: number;
+    cursor?: TranslationHistoryCursor;
+  },
+) {
   const db = getDb();
-  return db
+  const cursorFilter = options.cursor
+    ? or(
+        lt(translationHistory.createdAt, options.cursor.createdAt),
+        and(
+          eq(translationHistory.createdAt, options.cursor.createdAt),
+          lt(translationHistory.id, options.cursor.id),
+        ),
+      )
+    : undefined;
+  const rows = await db
     .select()
     .from(translationHistory)
-    .where(eq(translationHistory.userId, userId))
-    .orderBy(desc(translationHistory.createdAt))
-    .limit(50);
+    .where(
+      cursorFilter
+        ? and(eq(translationHistory.userId, userId), cursorFilter)
+        : eq(translationHistory.userId, userId),
+    )
+    .orderBy(desc(translationHistory.createdAt), desc(translationHistory.id))
+    .limit(options.limit + 1);
+
+  const hasMore = rows.length > options.limit;
+  const items = hasMore ? rows.slice(0, options.limit) : rows;
+  const lastItem = items.at(-1);
+
+  return {
+    items,
+    nextCursor:
+      hasMore && lastItem
+        ? { createdAt: lastItem.createdAt, id: lastItem.id }
+        : null,
+  };
 }
 
 export async function getUserIdByProviderUserId(
