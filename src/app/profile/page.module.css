@@ -1,7 +1,14 @@
 .page {
-  width: min(100% - 2rem, 1100px);
+  width: 100%;
+  max-width: calc(
+    var(--content-max-width) + var(--page-gutter) + var(--page-gutter)
+  );
   margin: 0 auto;
+  padding-inline: var(--page-gutter);
   padding-bottom: 3rem;
+}
+.content {
+  padding-inline: var(--panel-padding);
 }
 .heading {
   margin: 3rem 0 1.5rem;
@@ -20,9 +27,6 @@
   color: var(--text-secondary);
 }
 @media (max-width: 640px) {
-  .page {
-    width: min(100% - 1rem, 1100px);
-  }
   .heading {
     margin-top: 2rem;
   }

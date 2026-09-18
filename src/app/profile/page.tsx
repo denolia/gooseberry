@@ -17,12 +17,14 @@ export default async function ProfilePage() {
   return (
     <main className={styles.page}>
       <Header />
-      <header className={styles.heading}>
-        <p>LEARN.words / PROFILE</p>
-        <h1>Your profile</h1>
-        <span>Manage your account, plan, and learning defaults.</span>
-      </header>
-      <ProfileClient initialProfile={profile} />
+      <div className={styles.content}>
+        <header className={styles.heading}>
+          <p>LEARN.words / PROFILE</p>
+          <h1>Your profile</h1>
+          <span>Manage your account, plan, and learning defaults.</span>
+        </header>
+        <ProfileClient initialProfile={profile} />
+      </div>
     </main>
   );
 }

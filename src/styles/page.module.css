@@ -6,6 +6,8 @@
 
 .main {
   width: 100%;
+  max-width: var(--content-max-width);
+  margin-inline: auto;
   padding-bottom: 3rem;
 }
 

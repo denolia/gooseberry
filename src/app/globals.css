@@ -25,6 +25,7 @@
   --success: #2f7a44;
   --shadow-soft: none;
   --shadow-card: none;
+  --content-max-width: 1400px;
   --page-gutter: 1rem;
   --section-gap: 1.25rem;
   --panel-padding: 1.125rem;
@@ -68,6 +69,11 @@ html,
 body {
   max-width: 100vw;
   overflow-x: hidden;
+}
+
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 body {
