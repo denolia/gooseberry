@@ -37,9 +37,188 @@
   opacity: 0.6;
   cursor: default;
 }
-.resultRow > button {
-  flex-shrink: 0;
+.actionArea {
+  position: relative;
+  flex: 0 1 26rem;
+  min-width: 0;
+  max-width: 52%;
+}
+.splitButton {
+  display: flex;
+  min-width: 0;
+}
+.container .mainAction {
+  min-width: 0;
+  flex: 1;
+  text-align: left;
   white-space: nowrap;
+}
+.mainAction > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.container .pickerTrigger {
+  width: 2.5rem;
+  flex: 0 0 2.5rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-left: 1px solid rgb(255 255 255 / 28%);
+}
+.container .editAction {
+  color: var(--foreground);
+  background: var(--button-secondary-bg);
+  border: 1px solid var(--border-color);
+}
+.container .editAction:hover {
+  background: var(--button-secondary-hover);
+}
+.container .mainAction.editAction {
+  border-right: 0;
+}
+.container .pickerTrigger.editAction {
+  border-left-color: var(--border-color);
+}
+.chevron {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-0.12rem) rotate(45deg);
+}
+.setPicker {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.55rem);
+  right: 0;
+  width: min(21rem, calc(100vw - 2rem));
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  background: var(--surface-raised);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 18%);
+}
+.pickerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.1rem 0.15rem 0.65rem;
+  font-size: 0.85rem;
+}
+.languagePair {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.setSearch,
+.createSetForm input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0;
+  color: var(--foreground);
+  background: var(--input-background);
+  font: inherit;
+  font-size: 0.82rem;
+}
+.setList {
+  max-height: 14rem;
+  margin-top: 0.45rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.container .setOption {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1.1rem minmax(0, 1fr);
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.65rem 0.6rem;
+  color: var(--foreground);
+  background: transparent;
+  text-align: left;
+}
+.setOption > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.container .setOption:hover {
+  background: var(--item-hover);
+}
+.container .selectedSet {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.optionMark {
+  color: var(--accent);
+  font-weight: 700;
+}
+.noSets,
+.pickerMessage {
+  margin: 0;
+  padding: 0.9rem 0.6rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+.pickerMessage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.pickerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.45rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border-color);
+}
+.container .newSetAction,
+.container .backButton,
+.container .pickerMessage button {
+  padding: 0.45rem 0.35rem;
+  color: var(--accent);
+  background: transparent;
+  font-weight: 600;
+}
+.container .newSetAction:hover,
+.container .backButton:hover,
+.container .pickerMessage button:hover {
+  background: var(--item-hover);
+}
+.pickerFooter a {
+  padding: 0.45rem 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.createSetForm {
+  display: grid;
+  gap: 0.6rem;
+}
+.createSetForm label {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.container .backButton {
+  justify-self: start;
+  margin: -0.2rem 0 0.1rem;
+}
+.container .createAndSave {
+  width: 100%;
+  margin-top: 0.15rem;
+  color: white;
+  background: var(--accent);
+  font-weight: 600;
+}
+.container .createAndSave:hover {
+  background: var(--accent-strong);
 }
 .editor {
   margin-bottom: 1.25rem;
@@ -101,6 +280,20 @@
     max-width: none;
   }
   .resultRow {
+    flex-direction: column;
     gap: 0.6rem;
+  }
+  .meaning,
+  .actionArea {
+    width: 100%;
+    max-width: none;
+  }
+  .actionArea {
+    flex: none;
+  }
+  .setPicker {
+    left: 0;
+    right: auto;
+    width: 100%;
   }
 }

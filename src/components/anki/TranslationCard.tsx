@@ -1,5 +1,5 @@
 "use client";
-import { ReactNode, useId, useRef, useState } from "react";
+import { ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -31,12 +31,20 @@ export function TranslationCard({
   const { data: session } = useSession();
   const client = useQueryClient();
   const editorId = useId();
+  const pickerId = useId();
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState("");
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [setSearch, setSetSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const preparedCard = useRef(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const mainActionRef = useRef<HTMLButtonElement>(null);
+  const pickerTriggerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const newSetNameRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState<
     Record<string, { fingerprint: string; itemId: string }>
@@ -72,8 +80,70 @@ export function TranslationCard({
     compatible.find((s) => s.id === remembered)?.id ??
     compatible[0]?.id ??
     "";
+  const normalizedSearch = setSearch.trim().toLocaleLowerCase();
+  const pickerSets = [...compatible]
+    .sort((a, b) => {
+      if (a.id === setId) return -1;
+      if (b.id === setId) return 1;
+      return a.name.localeCompare(b.name);
+    })
+    .filter((set) => set.name.toLocaleLowerCase().includes(normalizedSearch));
   const fingerprint = JSON.stringify(fieldsFromDraft(draft));
   const isSaved = saved[setId]?.fingerprint === fingerprint;
+
+  function closePicker({ restoreFocus = false } = {}) {
+    setPickerOpen(false);
+    setSetSearch("");
+    setCreating(false);
+    setName("");
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => pickerTriggerRef.current?.focus());
+    }
+  }
+
+  function openPicker(startCreating = compatible.length === 0) {
+    if (!sourceLang || !targetLang) {
+      setEditing(true);
+      return;
+    }
+    setError("");
+    setCreating(startCreating);
+    setSetSearch("");
+    setPickerOpen(true);
+  }
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!busy && !pickerRef.current?.contains(event.target as Node)) {
+        closePicker();
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) {
+        closePicker({ restoreFocus: true });
+      }
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [busy, pickerOpen]);
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    window.requestAnimationFrame(() => {
+      if (creating || compatible.length === 0) {
+        newSetNameRef.current?.focus();
+      } else {
+        searchRef.current?.focus();
+      }
+    });
+  }, [compatible.length, creating, pickerOpen]);
 
   async function save() {
     if (busy) return;
@@ -130,6 +200,9 @@ export function TranslationCard({
       } catch {
         /* Saving works without storage. */
       }
+      setPickerOpen(false);
+      setSetSearch("");
+      window.requestAnimationFrame(() => mainActionRef.current?.focus());
       client.invalidateQueries({ queryKey: ["wordSets", session?.user?.id] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save card.");
@@ -150,12 +223,33 @@ export function TranslationCard({
     (!(creating || !setId) || !!name.trim());
 
   function primaryAction() {
-    if (hasSavedCard || !setId || !sourceLang || !targetLang || sets.error) {
+    if (pickerOpen) closePicker();
+    if (!sourceLang || !targetLang) {
+      setEditing(true);
+    } else if (sets.error) {
+      void sets.refetch();
+    } else if (!setId) {
+      openPicker(true);
+    } else if (hasSavedCard) {
       setEditing(true);
     } else {
       void save();
     }
   }
+
+  const primaryLabel = busy
+    ? "Saving…"
+    : sets.isPending
+      ? "Loading sets…"
+      : sets.error
+        ? "Retry loading sets"
+        : !sourceLang || !targetLang
+          ? "Edit card"
+          : !destinationName
+            ? "Choose a set to save"
+            : hasSavedCard
+              ? `Edit card in “${destinationName}”`
+              : `Save card to “${destinationName}”`;
 
   if (!session?.user?.id) return <>{children}</>;
   return (
@@ -234,22 +328,173 @@ export function TranslationCard({
       <div className={styles.resultRow}>
         <div className={styles.meaning}>{children}</div>
         {!editing && (
-          <button
-            className={hasSavedCard ? styles.editAction : styles.primary}
-            disabled={busy || sets.isPending}
-            title={
-              hasSavedCard
-                ? `Edit card in ${destinationName}`
-                : destinationName
-                  ? `Save to ${destinationName}`
-                  : "Choose or create an Anki set"
-            }
-            aria-expanded={editing}
-            aria-controls={editorId}
-            onClick={primaryAction}
-          >
-            {busy ? "Saving…" : hasSavedCard ? "Edit" : "Save card"}
-          </button>
+          <div className={styles.actionArea} ref={pickerRef}>
+            <div className={styles.splitButton}>
+              <button
+                ref={mainActionRef}
+                type="button"
+                className={`${styles.mainAction} ${hasSavedCard ? styles.editAction : styles.primary}`}
+                disabled={busy || sets.isPending}
+                title={primaryLabel}
+                aria-expanded={hasSavedCard ? editing : undefined}
+                aria-controls={hasSavedCard ? editorId : undefined}
+                onClick={primaryAction}
+              >
+                <span>{primaryLabel}</span>
+              </button>
+              {sourceLang && targetLang && (
+                <button
+                  ref={pickerTriggerRef}
+                  type="button"
+                  className={`${styles.pickerTrigger} ${hasSavedCard ? styles.editAction : styles.primary}`}
+                  disabled={busy || sets.isPending}
+                  aria-label={
+                    destinationName
+                      ? `Choose Anki set. Current set: ${destinationName}`
+                      : "Choose an Anki set"
+                  }
+                  aria-expanded={pickerOpen}
+                  aria-controls={pickerId}
+                  onClick={() => {
+                    if (pickerOpen) closePicker();
+                    else openPicker();
+                  }}
+                >
+                  <span className={styles.chevron} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+
+            {pickerOpen && (
+              <div
+                id={pickerId}
+                className={styles.setPicker}
+                role="dialog"
+                aria-label="Choose an Anki set"
+              >
+                <div className={styles.pickerHeader}>
+                  <strong>Save card to</strong>
+                  <span className={styles.languagePair}>
+                    {sourceLang?.toUpperCase()} → {targetLang?.toUpperCase()}
+                  </span>
+                </div>
+
+                {sets.error ? (
+                  <div className={styles.pickerMessage}>
+                    <span>Could not load your sets.</span>
+                    <button type="button" onClick={() => sets.refetch()}>
+                      Try again
+                    </button>
+                  </div>
+                ) : creating || compatible.length === 0 ? (
+                  <form
+                    className={styles.createSetForm}
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void save();
+                    }}
+                  >
+                    {compatible.length > 0 && (
+                      <button
+                        type="button"
+                        className={styles.backButton}
+                        disabled={busy}
+                        onClick={() => {
+                          setCreating(false);
+                          setName("");
+                        }}
+                      >
+                        ← Back to sets
+                      </button>
+                    )}
+                    <label htmlFor={`${pickerId}-new-set`}>New set name</label>
+                    <input
+                      ref={newSetNameRef}
+                      id={`${pickerId}-new-set`}
+                      maxLength={200}
+                      placeholder="For example, My words"
+                      value={name}
+                      disabled={busy}
+                      onChange={(event) => setName(event.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      className={styles.createAndSave}
+                      disabled={!canSave}
+                    >
+                      {busy ? "Creating and saving…" : "Create and save card"}
+                    </button>
+                  </form>
+                ) : (
+                  <>
+                    <label
+                      className={styles.srOnly}
+                      htmlFor={`${pickerId}-search`}
+                    >
+                      Find a set
+                    </label>
+                    <input
+                      ref={searchRef}
+                      id={`${pickerId}-search`}
+                      className={styles.setSearch}
+                      type="search"
+                      placeholder="Find a set…"
+                      value={setSearch}
+                      onChange={(event) => setSetSearch(event.target.value)}
+                    />
+                    <div
+                      className={styles.setList}
+                      role="group"
+                      aria-label="Compatible sets"
+                    >
+                      {pickerSets.length > 0 ? (
+                        pickerSets.map((set) => (
+                          <button
+                            key={set.id}
+                            type="button"
+                            className={`${styles.setOption} ${set.id === setId ? styles.selectedSet : ""}`}
+                            aria-pressed={set.id === setId}
+                            onClick={() => {
+                              setSelected(set.id);
+                              setError("");
+                              closePicker({ restoreFocus: true });
+                            }}
+                          >
+                            <span
+                              className={styles.optionMark}
+                              aria-hidden="true"
+                            >
+                              {set.id === setId ? "✓" : ""}
+                            </span>
+                            <span>{set.name}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className={styles.noSets}>
+                          No sets match “{setSearch}”.
+                        </p>
+                      )}
+                    </div>
+                    <div className={styles.pickerFooter}>
+                      <button
+                        type="button"
+                        className={styles.newSetAction}
+                        onClick={() => {
+                          setCreating(true);
+                          setName("");
+                        }}
+                      >
+                        + Create new set
+                      </button>
+                      <Link href="/anki" onClick={() => closePicker()}>
+                        Manage sets ↗
+                      </Link>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
       {error && (
