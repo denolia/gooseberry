@@ -494,7 +494,7 @@ export function WordInput() {
       </div>
 
       <div className={styles.history}>
-        <h3>Translation History (last 50)</h3>
+        <h3>History</h3>
         {history.length === 0 ? (
           <p>No history available.</p>
         ) : (

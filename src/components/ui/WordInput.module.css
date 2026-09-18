@@ -30,11 +30,15 @@
 .history {
   margin-top: var(--section-gap);
   padding-top: 0.875rem;
-  border-top: 1px solid var(--border-color);
+  /*border-top: 1px solid var(--border-color);*/
+}
+
+.translation:not(:empty) + .history {
+  margin-top: calc(var(--section-gap) * 3);
 }
 
 .history h3 {
-  margin-bottom: 0.9rem;
+  margin: 0 0 1rem;
 }
 
 .history ul {
