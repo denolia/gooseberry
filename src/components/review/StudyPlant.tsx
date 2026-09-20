@@ -75,20 +75,17 @@ export function StudyPlant({
         <g className={styles.ripePlant}>
           <g className={styles.ripeLeaves}>
             <path
-              className={styles.ripeLeaf}
-              d="M32 21 C24 18 23 12 25 8 C31 10 34 15 32 21Z"
+              className={styles.leaf}
+              d="M28 39 C18 41 14 36 13 32 C20 30 26 33 28 39Z"
             />
             <path
-              className={styles.ripeLeaf}
-              d="M27 29 C17 30 13 24 13 20 C21 19 26 23 27 29Z"
+              className={styles.leaf}
+              d="M35 31 C45 33 50 28 51 23 C43 21 37 25 35 31Z"
             />
             <path
-              className={styles.ripeLeaf}
-              d="M37 29 C47 30 51 24 51 20 C43 19 38 23 37 29Z"
+              className={styles.leaf}
+              d="M31 20 C23 17 22 12 23 9 C29 10 33 14 31 20Z"
             />
-            <path className={styles.leafVein} d="M32 20 L26 10" />
-            <path className={styles.leafVein} d="M25 27 L16 22" />
-            <path className={styles.leafVein} d="M39 27 L48 22" />
           </g>
           <g className={styles.woodyBranches}>
             <path d="M32 54 C34 45 31 33 32 19" />
@@ -187,7 +184,7 @@ export function StudyPlant({
                 d="M39.5 48.5 L40.5 52 L41.5 48.5Z"
               />
             </g>
-            <g>
+            <g transform="translate(0 -3)">
               <circle
                 className={styles.happyGooseberry}
                 cx="32"

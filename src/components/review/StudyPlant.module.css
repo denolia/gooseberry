@@ -80,21 +80,6 @@
   animation: ripe-sway 2.8s ease-in-out infinite;
 }
 
-.ripeLeaf {
-  fill: #68b934;
-  stroke: #24752e;
-  stroke-linejoin: round;
-  stroke-width: 1.15;
-}
-
-.leafVein {
-  fill: none;
-  stroke: #b3dc55;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 0.8;
-}
-
 .woodyBranches {
   fill: none;
   stroke: #8a542a;
