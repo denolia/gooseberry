@@ -13,22 +13,12 @@ export type ReviewControl = {
   shortcut: "1" | "2" | "3" | "4" | null;
 };
 
-export function isLearningState(state: FsrsCardStateValue): boolean {
-  return (
-    state === FsrsCardState.New ||
-    state === FsrsCardState.Learning ||
-    state === FsrsCardState.Relearning
-  );
-}
-
 export function isNewState(state: FsrsCardStateValue): boolean {
   return state === FsrsCardState.New;
 }
 
 export function reviewPrompt(state: FsrsCardStateValue): string {
-  return isLearningState(state)
-    ? "Try to remember this:"
-    : "Do you remember this?";
+  return isNewState(state) ? "Try to remember this:" : "Do you remember this?";
 }
 
 export function reviewControls(

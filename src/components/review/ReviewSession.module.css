@@ -189,17 +189,33 @@
   align-items: center;
   min-height: 4rem;
   padding: 0.65rem;
-  border: 1px solid var(--border-color);
-  background: var(--background);
-  color: var(--foreground);
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--rating-color, var(--foreground)) 55%,
+      var(--border-color)
+    );
+  background: color-mix(
+    in srgb,
+    var(--rating-color, var(--foreground)) 13%,
+    var(--background)
+  );
+  color: var(--rating-color, var(--foreground));
   cursor: pointer;
   font: inherit;
   text-align: left;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
 }
 
 .ratingButton:hover {
-  border-color: currentColor;
-  background: var(--item-hover);
+  border-color: var(--rating-color, currentColor);
+  background: color-mix(
+    in srgb,
+    var(--rating-color, var(--foreground)) 22%,
+    var(--background)
+  );
 }
 
 .ratingButton:disabled {
@@ -213,7 +229,8 @@
 }
 
 .ratingButton small {
-  color: var(--text-secondary);
+  color: inherit;
+  opacity: 0.75;
 }
 
 .ratingKey {
@@ -243,19 +260,19 @@
 }
 
 .rating1 {
-  color: var(--danger);
+  --rating-color: var(--danger);
 }
 
 .rating2 {
-  color: var(--warning);
+  --rating-color: var(--warning);
 }
 
 .rating3 {
-  color: var(--accent);
+  --rating-color: var(--accent);
 }
 
 .rating4 {
-  color: var(--success);
+  --rating-color: var(--success);
 }
 
 .centered,
@@ -366,6 +383,10 @@
 @media (prefers-reduced-motion: reduce) {
   .answerWrap {
     animation: none;
+  }
+
+  .ratingButton {
+    transition: none;
   }
 }
 
