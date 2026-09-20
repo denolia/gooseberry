@@ -47,18 +47,18 @@ export function StudyPlant({
         <g className={styles.growingPlant}>
           <path className={styles.stem} d="M32 54 C29 43 35 29 32 13" />
           <path className={styles.branch} d="M33 32 C38 28 42 25 48 24" />
+          <path className={styles.branch} d="M31 39 C30 39 29 39 28 39" />
           <path
             className={styles.leaf}
             d="M28 39 C18 41 14 36 13 32 C20 30 26 33 28 39Z"
           />
-          <path className={styles.branch} d="M31 39 C25 38 21 36 16 34" />
           <path
             className={styles.leaf}
             d="M35 31 C45 33 50 28 51 23 C43 21 37 25 35 31Z"
           />
           <path
             className={styles.leaf}
-            d="M31 23 C23 20 22 15 23 12 C29 13 33 17 31 23Z"
+            d="M31 28 C23 25 22 20 23 17 C29 18 33 22 31 28Z"
           />
           <g className={styles.flower} aria-hidden="true">
             <circle className={styles.flowerPetal} cx="32" cy="7" r="2.5" />
