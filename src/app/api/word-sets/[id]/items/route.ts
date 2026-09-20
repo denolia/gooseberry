@@ -9,6 +9,7 @@ import {
   updateWordSetItem,
 } from "@/db/wordSetRepo";
 import { getTranslationsByIds } from "@/db/translationRepo";
+import { getWordSetItemReviewStats } from "@/db/reviewStatsRepo";
 import { mapTranslationToWordSetItem } from "@/app/utils/ankiMapper";
 import { TranslationResponseSchema } from "@/app/utils/translationSchema";
 import { generateAnkiGuid } from "@/lib/anki/guidGenerator";
@@ -58,8 +59,26 @@ export async function GET(
       );
     }
 
-    const items = await getWordSetItems(id);
-    return NextResponse.json({ items });
+    const [items, reviewStats] = await Promise.all([
+      getWordSetItems(id),
+      getWordSetItemReviewStats({ userId: session.user.id, wordSetId: id }),
+    ]);
+    const statsByItemId = new Map(
+      reviewStats.map((stats) => [stats.wordSetItemId, stats]),
+    );
+    return NextResponse.json({
+      items: items.map((item) => ({
+        ...item,
+        review: statsByItemId.get(item.id) ?? {
+          wordSetItemId: item.id,
+          state: 0,
+          dueAt: null,
+          reps: 0,
+          lapses: 0,
+          lastReviewAt: null,
+        },
+      })),
+    });
   } catch (error) {
     console.error("Error fetching word set items:", error);
     return NextResponse.json(

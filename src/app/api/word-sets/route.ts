@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createWordSet, listWordSets } from "@/db/wordSetRepo";
+import { getWordSetReviewStats } from "@/db/reviewStatsRepo";
 import { z } from "zod";
 import {
   isSourceLanguageCode,
@@ -25,8 +26,24 @@ export async function GET() {
   }
 
   try {
-    const sets = await listWordSets(session.user.id);
-    return NextResponse.json({ wordSets: sets });
+    const [sets, reviewStats] = await Promise.all([
+      listWordSets(session.user.id),
+      getWordSetReviewStats({ userId: session.user.id, now: new Date() }),
+    ]);
+    const statsBySetId = new Map(
+      reviewStats.map((stats) => [stats.wordSetId, stats]),
+    );
+    return NextResponse.json({
+      wordSets: sets.map((set) => ({
+        ...set,
+        reviewStats: statsBySetId.get(set.id) ?? {
+          wordSetId: set.id,
+          itemCount: 0,
+          enabledItemCount: 0,
+          dueCount: 0,
+        },
+      })),
+    });
   } catch (error) {
     console.error("Error listing word sets:", error);
     return NextResponse.json(
