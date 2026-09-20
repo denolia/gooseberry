@@ -73,41 +73,40 @@ export function StudyPlant({
 
       {stage === "ripe" && (
         <g className={styles.ripePlant}>
-          <path className={styles.stem} d="M32 54 C29 43 35 29 32 12" />
-          <path className={styles.branch} d="M31 38 C27 35 23 32 19 29" />
-          <path className={styles.branch} d="M33 34 C38 31 43 28 47 27" />
-          <path className={styles.branch} d="M31 38 C33 38 35 37 36 35" />
+          <path className={styles.stem} d="M32 54 C29 43 35 29 32 13" />
+          <path className={styles.branch} d="M33 32 C36 30 39 27 41 25" />
+          <path className={styles.branch} d="M31 39 C29 37 26 34 24 32" />
           <path
             className={styles.leaf}
-            d="M28 41 C17 43 12 38 12 33 C20 30 26 34 28 41Z"
+            d="M28 39 C18 41 14 36 13 32 C20 30 26 33 28 39Z"
           />
           <path
             className={styles.leaf}
-            d="M36 32 C46 35 52 30 53 24 C44 22 38 26 36 32Z"
+            d="M35 31 C45 33 50 28 51 23 C43 21 37 25 35 31Z"
           />
           <path
             className={styles.leaf}
-            d="M31 23 C22 20 21 14 23 10 C30 12 33 17 31 23Z"
+            d="M31 28 C23 25 22 20 23 17 C29 18 33 22 31 28Z"
           />
           <g aria-hidden="true">
-            <path className={styles.redThorn} d="M31 46 L26 43 L31 42Z" />
-            <path className={styles.goldThorn} d="M33 31 L29 26 L33 28Z" />
-            <path className={styles.redThorn} d="M25 34 L21 29 L27 32Z" />
-            <path className={styles.goldThorn} d="M41 30 L44 25 L44 29Z" />
+            <path className={styles.redThorn} d="M31 47 L26 44 L31 43Z" />
+            <path className={styles.goldThorn} d="M33 27 L37 23 L34 29Z" />
+            <path className={styles.redThorn} d="M28 36 L25 31 L30 34Z" />
+            <path className={styles.goldThorn} d="M36 30 L39 25 L39 29Z" />
           </g>
           <g className={styles.berries}>
-            <circle className={styles.berry} cx="19" cy="33" r="5" />
-            <circle className={styles.berry} cx="47" cy="31.5" r="4.5" />
-            <circle className={styles.happyBerry} cx="36" cy="42" r="7" />
+            <circle className={styles.berry} cx="24" cy="36" r="4.5" />
+            <circle className={styles.berry} cx="41" cy="29" r="4" />
+            <circle className={styles.happyBerry} cx="32" cy="11" r="7" />
             <circle
               className={styles.berryHighlight}
-              cx="33.5"
-              cy="39"
+              cx="29.5"
+              cy="8"
               r="1.5"
             />
-            <circle className={styles.face} cx="33.5" cy="42" r="0.8" />
-            <circle className={styles.face} cx="38.5" cy="42" r="0.8" />
-            <path className={styles.smile} d="M33.5 45 C35 47 37.5 47 39 45" />
+            <circle className={styles.face} cx="29.5" cy="11" r="0.8" />
+            <circle className={styles.face} cx="34.5" cy="11" r="0.8" />
+            <path className={styles.smile} d="M29.5 14 C31 16 33.5 16 35 14" />
           </g>
         </g>
       )}

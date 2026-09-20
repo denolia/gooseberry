@@ -81,7 +81,7 @@
 }
 
 .berries {
-  transform-origin: 36px 42px;
+  transform-origin: 32px 11px;
   animation: berry-happy 1.7s steps(3, end) infinite;
 }
 
