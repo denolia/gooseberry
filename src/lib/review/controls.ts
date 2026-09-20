@@ -21,6 +21,10 @@ export function isLearningState(state: FsrsCardStateValue): boolean {
   );
 }
 
+export function isNewState(state: FsrsCardStateValue): boolean {
+  return state === FsrsCardState.New;
+}
+
 export function reviewPrompt(state: FsrsCardStateValue): string {
   return isLearningState(state)
     ? "Try to remember this:"
@@ -31,7 +35,7 @@ export function reviewControls(
   state: FsrsCardStateValue,
   mode: ReviewModeValue,
 ): ReviewControl[] {
-  if (isLearningState(state)) {
+  if (isNewState(state)) {
     return [{ label: "Ok", rating: ReviewRating.Good, shortcut: null }];
   }
 

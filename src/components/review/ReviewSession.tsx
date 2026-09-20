@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  isLearningState,
+  isNewState,
   reviewControls,
   reviewPrompt,
 } from "@/lib/review/controls";
@@ -331,7 +331,7 @@ export function ReviewSession({
     );
   }
 
-  const learning = isLearningState(card.state.state);
+  const newCard = isNewState(card.state.state);
   const controls = reviewControls(card.state.state, reviewMode);
 
   return (
@@ -393,11 +393,11 @@ export function ReviewSession({
               )}
 
               <div className={styles.ratingArea}>
-                {!learning && <p>Do you remember it?</p>}
+                {!newCard && <p>Do you remember it?</p>}
                 <div
                   className={`${styles.ratings} ${
-                    learning
-                      ? styles.learningRatings
+                    newCard
+                      ? styles.newCardRatings
                       : reviewMode === "full"
                         ? styles.fullRatings
                         : styles.simpleRatings
@@ -414,7 +414,7 @@ export function ReviewSession({
                         key={control.rating}
                         className={`${styles.ratingButton} ${
                           styles[`rating${control.rating}`]
-                        } ${learning ? styles.okButton : ""}`}
+                        } ${newCard ? styles.okButton : ""}`}
                         onClick={() => submitRating(control.rating)}
                       >
                         {control.shortcut && (

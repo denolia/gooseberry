@@ -27,19 +27,34 @@ new Function("require", "exports", code)((name) => {
   }
   throw new Error(`Unexpected dependency ${name}`);
 }, controls);
-const { isLearningState, reviewControls, reviewPrompt } = controls;
+const { isLearningState, isNewState, reviewControls, reviewPrompt } = controls;
 
-test("new and learning cards only ask the user to continue", () => {
-  for (const state of [
-    FsrsCardState.New,
-    FsrsCardState.Learning,
-    FsrsCardState.Relearning,
-  ]) {
+test("only new cards ask the user to continue without grading", () => {
+  assert.equal(isNewState(FsrsCardState.New), true);
+  assert.equal(reviewPrompt(FsrsCardState.New), "Try to remember this:");
+  assert.deepEqual(reviewControls(FsrsCardState.New, ReviewMode.Full), [
+    { label: "Ok", rating: ReviewRating.Good, shortcut: null },
+  ]);
+});
+
+test("learning cards retain the learning prompt but use grading controls", () => {
+  for (const state of [FsrsCardState.Learning, FsrsCardState.Relearning]) {
     assert.equal(isLearningState(state), true);
+    assert.equal(isNewState(state), false);
     assert.equal(reviewPrompt(state), "Try to remember this:");
-    assert.deepEqual(reviewControls(state, ReviewMode.Full), [
-      { label: "Ok", rating: ReviewRating.Good, shortcut: null },
+    assert.deepEqual(reviewControls(state, ReviewMode.Simple), [
+      { label: "No", rating: ReviewRating.Again, shortcut: "1" },
+      { label: "Yes", rating: ReviewRating.Good, shortcut: "2" },
     ]);
+    assert.deepEqual(
+      reviewControls(state, ReviewMode.Full).map(({ rating }) => rating),
+      [
+        ReviewRating.Hard,
+        ReviewRating.Good,
+        ReviewRating.Easy,
+        ReviewRating.Again,
+      ],
+    );
   }
 });
 
