@@ -8,6 +8,11 @@ import {
   type SourceLanguage,
   type TargetLanguage,
 } from "@/components/ui/Languages";
+import {
+  isReviewMode,
+  ReviewMode,
+  type ReviewModeValue,
+} from "@/lib/review/model";
 
 export type AccountTier = "free" | "premium";
 export type PremiumRequestStatus =
@@ -77,6 +82,9 @@ export async function getUserProfile(userId: string) {
       defaultTargetLang: isTargetLanguage(preferences?.defaultTargetLang)
         ? preferences.defaultTargetLang
         : "English",
+      reviewMode: isReviewMode(preferences?.reviewMode)
+        ? preferences.reviewMode
+        : ReviewMode.Simple,
     },
     pendingRequest,
   };
@@ -86,6 +94,7 @@ export async function updateUserPreferences(input: {
   userId: string;
   defaultSourceLang: SourceLanguage;
   defaultTargetLang: TargetLanguage;
+  reviewMode: ReviewModeValue;
 }) {
   const [preferences] = await getDb()
     .insert(userPreference)
@@ -93,6 +102,7 @@ export async function updateUserPreferences(input: {
       userId: input.userId,
       defaultSourceLang: input.defaultSourceLang,
       defaultTargetLang: input.defaultTargetLang,
+      reviewMode: input.reviewMode,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
@@ -100,6 +110,7 @@ export async function updateUserPreferences(input: {
       set: {
         defaultSourceLang: input.defaultSourceLang,
         defaultTargetLang: input.defaultTargetLang,
+        reviewMode: input.reviewMode,
         updatedAt: new Date(),
       },
     })

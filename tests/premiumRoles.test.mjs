@@ -73,6 +73,10 @@ test("an admin profile displays its actual free tier", async () => {
       isSourceLanguage: (value) => value === "German",
       isTargetLanguage: (value) => value === "English",
     },
+    "@/lib/review/model": {
+      isReviewMode: (value) => value === "simple" || value === "full",
+      ReviewMode: { Simple: "simple", Full: "full" },
+    },
     "@/db/drizzle": {
       getDb: () => ({
         select: () => ({
@@ -97,4 +101,5 @@ test("an admin profile displays its actual free tier", async () => {
   const profile = await getUserProfile("admin-user");
   assert.equal(profile.tier, "free");
   assert.equal(profile.isAdmin, true);
+  assert.equal(profile.preferences.reviewMode, "simple");
 });

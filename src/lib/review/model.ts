@@ -4,6 +4,19 @@ import { z } from "zod";
 // item. More template keys can be added without changing review-history IDs.
 export const NATIVE_STUDY_CARD_TEMPLATE = "recognition" as const;
 
+export const ReviewMode = {
+  Simple: "simple",
+  Full: "full",
+} as const;
+
+export const ReviewModeSchema = z.enum([ReviewMode.Simple, ReviewMode.Full]);
+
+export type ReviewModeValue = z.infer<typeof ReviewModeSchema>;
+
+export function isReviewMode(value: unknown): value is ReviewModeValue {
+  return ReviewModeSchema.safeParse(value).success;
+}
+
 export const ReviewRating = {
   Again: 1,
   Hard: 2,

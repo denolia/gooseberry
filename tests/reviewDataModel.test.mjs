@@ -4,10 +4,29 @@ import test from "node:test";
 import ts from "typescript";
 import {
   FsrsCardState,
+  isReviewMode,
   NATIVE_STUDY_CARD_TEMPLATE,
+  ReviewMode,
   ReviewRating,
   ReviewRatingSchema,
 } from "../src/lib/review/model.ts";
+
+test("review mode defaults can distinguish simple and full controls", () => {
+  assert.deepEqual(ReviewMode, { Simple: "simple", Full: "full" });
+  assert.equal(isReviewMode("simple"), true);
+  assert.equal(isReviewMode("full"), true);
+  assert.equal(isReviewMode("other"), false);
+});
+
+test("the review-mode migration defaults existing users to simple controls", () => {
+  const migration = readFileSync(
+    new URL("../migrations/0006_review_mode_preference.sql", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(migration, /"review_mode" text DEFAULT 'simple' NOT NULL/);
+  assert.match(migration, /CHECK \("review_mode" IN \('simple', 'full'\)\)/);
+});
 
 test("review ratings and persisted states match the FSRS numeric contract", () => {
   assert.deepEqual(ReviewRating, { Again: 1, Hard: 2, Good: 3, Easy: 4 });

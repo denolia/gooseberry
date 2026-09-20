@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getUserProfile, updateUserPreferences } from "@/db/profileRepo";
 import { isSourceLanguage, isTargetLanguage } from "@/components/ui/Languages";
+import { isReviewMode } from "@/lib/review/model";
 
 export async function GET() {
   const session = await auth();
@@ -26,10 +27,11 @@ export async function PATCH(request: Request) {
     body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   if (
     !isSourceLanguage(input.defaultSourceLang) ||
-    !isTargetLanguage(input.defaultTargetLang)
+    !isTargetLanguage(input.defaultTargetLang) ||
+    !isReviewMode(input.reviewMode)
   ) {
     return NextResponse.json(
-      { error: "Choose valid source and translation languages." },
+      { error: "Choose valid language and review preferences." },
       { status: 400 },
     );
   }
@@ -38,6 +40,7 @@ export async function PATCH(request: Request) {
     userId: session.user.id,
     defaultSourceLang: input.defaultSourceLang,
     defaultTargetLang: input.defaultTargetLang,
+    reviewMode: input.reviewMode,
   });
   return NextResponse.json({ preferences });
 }

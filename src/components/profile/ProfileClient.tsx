@@ -9,6 +9,7 @@ import {
   TargetLanguageOptions,
 } from "@/components/ui/Languages";
 import { LanguageStore } from "@/lib/languages/languageStore";
+import { ReviewMode, type ReviewModeValue } from "@/lib/review/model";
 import styles from "./ProfileClient.module.css";
 
 type Profile = {
@@ -21,6 +22,7 @@ type Profile = {
   preferences: {
     defaultSourceLang: SourceLanguage;
     defaultTargetLang: TargetLanguage;
+    reviewMode: ReviewModeValue;
   };
   pendingRequest: {
     id: string;
@@ -35,6 +37,9 @@ export function ProfileClient({ initialProfile }: { initialProfile: Profile }) {
   );
   const [targetLang, setTargetLang] = useState(
     initialProfile.preferences.defaultTargetLang,
+  );
+  const [reviewMode, setReviewMode] = useState(
+    initialProfile.preferences.reviewMode,
   );
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -58,6 +63,7 @@ export function ProfileClient({ initialProfile }: { initialProfile: Profile }) {
         body: JSON.stringify({
           defaultSourceLang: sourceLang,
           defaultTargetLang: targetLang,
+          reviewMode,
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -183,10 +189,10 @@ export function ProfileClient({ initialProfile }: { initialProfile: Profile }) {
 
       <section className={styles.card} aria-labelledby="preferences-heading">
         <p className={styles.eyebrow}>Preferences</p>
-        <h2 id="preferences-heading">Language defaults</h2>
+        <h2 id="preferences-heading">Learning preferences</h2>
         <p className={styles.intro}>
-          These languages will be selected when you open Learn.words on a new
-          device.
+          Choose your language defaults and how much detail you want while
+          reviewing.
         </p>
         <form className={styles.preferences} onSubmit={savePreferences}>
           <label>
@@ -215,6 +221,35 @@ export function ProfileClient({ initialProfile }: { initialProfile: Profile }) {
               ))}
             </select>
           </label>
+          <fieldset className={styles.reviewMode}>
+            <legend>Review buttons</legend>
+            <label>
+              <input
+                type="radio"
+                name="review-mode"
+                value={ReviewMode.Simple}
+                checked={reviewMode === ReviewMode.Simple}
+                onChange={() => setReviewMode(ReviewMode.Simple)}
+              />
+              <span>
+                <strong>Simple</strong>
+                <small>Answer with Yes or No.</small>
+              </span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="review-mode"
+                value={ReviewMode.Full}
+                checked={reviewMode === ReviewMode.Full}
+                onChange={() => setReviewMode(ReviewMode.Full)}
+              />
+              <span>
+                <strong>Full</strong>
+                <small>Use Again, Hard, Good, and Easy.</small>
+              </span>
+            </label>
+          </fieldset>
           <div className={styles.formFooter}>
             <span className={styles.saved} role="status">
               {saved ? "Settings saved" : ""}

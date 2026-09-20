@@ -46,16 +46,26 @@ export const appUser = pgTable(
   }),
 );
 
-export const userPreference = pgTable("user_preference", {
-  userId: uuid("user_id")
-    .primaryKey()
-    .references(() => appUser.id, { onDelete: "cascade" }),
-  defaultSourceLang: text("default_source_lang").default("German").notNull(),
-  defaultTargetLang: text("default_target_lang").default("English").notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export const userPreference = pgTable(
+  "user_preference",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    defaultSourceLang: text("default_source_lang").default("German").notNull(),
+    defaultTargetLang: text("default_target_lang").default("English").notNull(),
+    reviewMode: text("review_mode").default("simple").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    check(
+      "user_preference_review_mode_check",
+      sql`${t.reviewMode} IN ('simple', 'full')`,
+    ),
+  ],
+);
 
 export const premiumRequest = pgTable(
   "premium_request",
