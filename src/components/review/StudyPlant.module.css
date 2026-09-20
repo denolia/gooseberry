@@ -80,35 +80,91 @@
   animation: ripe-sway 2.8s ease-in-out infinite;
 }
 
-.berries {
-  transform-origin: 32px 11px;
-  animation: berry-happy 1.7s steps(3, end) infinite;
+.ripeLeaf {
+  fill: #68b934;
+  stroke: #24752e;
+  stroke-linejoin: round;
+  stroke-width: 1.15;
 }
 
-.berry,
-.happyBerry {
-  fill: #e94f62;
-  stroke: #a92d42;
-  stroke-width: 1.25;
+.leafVein {
+  fill: none;
+  stroke: #b3dc55;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 0.8;
 }
 
-.happyBerry {
-  fill: #f35d6d;
+.woodyBranches {
+  fill: none;
+  stroke: #8a542a;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.25;
 }
 
-.berryHighlight {
-  fill: rgb(255 244 237 / 82%);
+.fruitStems {
+  fill: none;
+  stroke: #8dca3e;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.1;
+}
+
+.gooseberry,
+.happyGooseberry {
+  fill: #e9324e;
+  stroke: #961f35;
+  stroke-width: 1.1;
+}
+
+.happyGooseberry {
+  fill: #ef3e58;
+  stroke-width: 1.35;
+}
+
+.berryStripe {
+  fill: none;
+  stroke: #ff8291;
+  stroke-linecap: round;
+  stroke-width: 0.75;
+  opacity: 0.9;
+}
+
+.berryGloss,
+.eyeGlint {
+  fill: #fff5ef;
+}
+
+.berrySparkles {
+  animation: berry-sparkle 1.7s steps(3, end) infinite;
+}
+
+.berryBlush {
+  fill: #ff8794;
+  opacity: 0.9;
 }
 
 .face {
-  fill: #591526;
+  fill: #183c22;
+}
+
+.eyeGlint {
+  opacity: 0.95;
 }
 
 .smile {
   fill: none;
-  stroke: #591526;
+  stroke: #183c22;
   stroke-linecap: round;
-  stroke-width: 1.1;
+  stroke-width: 1.25;
+}
+
+.berryCalyx {
+  fill: #bd7b38;
+  stroke: #73421e;
+  stroke-linejoin: round;
+  stroke-width: 0.65;
 }
 
 .redThorn,
@@ -174,10 +230,10 @@
   }
 }
 
-@keyframes berry-happy {
+@keyframes berry-sparkle {
   0%,
   100% {
-    opacity: 0.9;
+    opacity: 0.65;
   }
   50% {
     opacity: 1;
@@ -190,7 +246,7 @@
   .growingPlant,
   .flower,
   .ripePlant,
-  .berries {
+  .berrySparkles {
     animation: none;
   }
 }
