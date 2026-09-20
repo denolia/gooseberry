@@ -100,33 +100,21 @@ export async function POST(
       return NextResponse.json({ error: "Word set is empty" }, { status: 400 });
     }
 
-    // Filter enabled items and convert to Anki notes
-    const enabledItems = items.filter((item) => item.isEnabled);
-
-    if (enabledItems.length === 0) {
-      return NextResponse.json(
-        { error: "No enabled items in word set" },
-        { status: 400 },
-      );
-    }
-
-    if (includeAudio && enabledItems.length > MAX_AUDIO_EXPORT_ITEMS) {
+    if (includeAudio && items.length > MAX_AUDIO_EXPORT_ITEMS) {
       return NextResponse.json(
         {
-          error: `Audio exports currently support up to ${MAX_AUDIO_EXPORT_ITEMS} included cards. Exclude some cards or export without pronunciation.`,
+          error: `Audio exports currently support up to ${MAX_AUDIO_EXPORT_ITEMS} cards. Remove some cards from this set or export without pronunciation.`,
         },
         { status: 400 },
       );
     }
 
-    let ankiNotes = enabledItems.map((item) =>
-      mapWordSetItemToAnkiNote(item, true),
-    );
+    let ankiNotes = items.map((item) => mapWordSetItemToAnkiNote(item, true));
     let media: Array<{ filename: string; data: Uint8Array }> = [];
 
     if (includeAudio) {
       const uniqueItemsByAudio = new Map(
-        enabledItems.map((item) => [item.original.trim(), item]),
+        items.map((item) => [item.original.trim(), item]),
       );
       const uniqueAudioItems = [...uniqueItemsByAudio.values()];
       media = await mapWithConcurrency(

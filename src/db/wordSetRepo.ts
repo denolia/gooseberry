@@ -179,7 +179,6 @@ export async function updateWordSetItem(
     sampleTranslation?: string;
     comments?: string;
     tags?: string;
-    isEnabled?: boolean;
     position?: number;
   },
 ) {

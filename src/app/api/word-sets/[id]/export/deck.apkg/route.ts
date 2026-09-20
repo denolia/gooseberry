@@ -38,17 +38,11 @@ export async function GET(
     }
 
     const items = await getWordSetItems(id);
-    const enabledItems = items.filter((item) => item.isEnabled);
-    if (enabledItems.length === 0) {
-      return NextResponse.json(
-        { error: "No enabled items in word set" },
-        { status: 400 },
-      );
+    if (items.length === 0) {
+      return NextResponse.json({ error: "Word set is empty" }, { status: 400 });
     }
 
-    const ankiNotes = enabledItems.map((item) =>
-      mapWordSetItemToAnkiNote(item, true),
-    );
+    const ankiNotes = items.map((item) => mapWordSetItemToAnkiNote(item, true));
     const deckSegment = wordSet.name.trim().replaceAll("::", " - ");
     const deckName = `Gooseberry::${wordSet.sourceLang}-${wordSet.targetLang}::${deckSegment}`;
     const apkgBuffer = await createApkgPackage(

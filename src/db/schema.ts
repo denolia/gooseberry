@@ -175,7 +175,6 @@ export const wordSetItem = pgTable(
     // Optional reference to source translation (for traceability)
     sourceTranslationId: uuid("source_translation_id"),
 
-    isEnabled: boolean("is_enabled").default(true).notNull(),
     position: integer("position").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()

@@ -19,7 +19,6 @@ export type WordSetItemReviewStats = {
 export type WordSetReviewStats = {
   wordSetId: string;
   itemCount: number;
-  enabledItemCount: number;
   dueCount: number;
 };
 
@@ -74,10 +73,8 @@ export async function getWordSetReviewStats(input: {
     .select({
       wordSetId: wordSet.id,
       itemCount: sql<number>`count(DISTINCT ${wordSetItem.id})`,
-      enabledItemCount: sql<number>`count(DISTINCT ${wordSetItem.id}) FILTER (WHERE ${wordSetItem.isEnabled} = true)`,
       dueCount: sql<number>`count(DISTINCT ${wordSetItem.id}) FILTER (
-        WHERE ${wordSetItem.isEnabled} = true
-          AND (${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.dueAt} <= ${input.now})
+        WHERE ${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.dueAt} <= ${input.now}
       )`,
     })
     .from(wordSet)
@@ -102,7 +99,6 @@ export async function getWordSetReviewStats(input: {
   return rows.map((row) => ({
     wordSetId: row.wordSetId,
     itemCount: Number(row.itemCount),
-    enabledItemCount: Number(row.enabledItemCount),
     dueCount: Number(row.dueCount),
   }));
 }

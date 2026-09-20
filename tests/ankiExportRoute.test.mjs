@@ -32,8 +32,8 @@ function loadRoute({ premium = true, cachedAudio = null } = {}) {
           targetLang: "ru",
         }),
         getWordSetItems: async () => [
-          { id: "item-1", original: "Hallo", isEnabled: true },
-          { id: "item-2", original: "Hallo", isEnabled: true },
+          { id: "item-1", original: "Hallo" },
+          { id: "item-2", original: "Hallo" },
         ],
         updateLastExportedAt: async () => {},
       },

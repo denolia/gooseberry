@@ -35,7 +35,6 @@ interface WordSetItem {
   sampleTranslation: string;
   comments: string;
   tags: string;
-  isEnabled: boolean;
   position: number;
   review: {
     state: FsrsCardStateValue;
@@ -54,7 +53,6 @@ type DeckExportStage = "idle" | "working" | "ready" | "error";
 type ExportFormat = "apkg" | "csv";
 
 function nextReviewLabel(item: WordSetItem): string {
-  if (!item.isEnabled) return "Paused";
   if (isReadyForReview(item.review.state, item.review.dueAt, new Date())) {
     return "Ready now";
   }
@@ -300,25 +298,6 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
     }
   };
 
-  const toggleEnabled = async (item: WordSetItem) => {
-    try {
-      const response = await fetch(`/api/word-sets/${wordSetId}/items`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          itemId: item.id,
-          isEnabled: !item.isEnabled,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to toggle item");
-
-      loadItems();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to toggle item");
-    }
-  };
-
   if (status === "loading" || (status === "authenticated" && loading)) {
     return <div className={styles.loading}>Loading...</div>;
   }
@@ -337,7 +316,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
-  const enabledItemCount = items.filter((item) => item.isEnabled).length;
+  const itemCount = items.length;
   const hasPremium = session?.user?.tier === "premium";
   async function rename() {
     if (!name.trim()) return;
@@ -416,15 +395,13 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
           <p className={styles.meta}>
             {wordSet.sourceLang.toUpperCase()} →{" "}
             {wordSet.targetLang.toUpperCase()} • {items.length}{" "}
-            {items.length === 1 ? "card" : "cards"} ·{" "}
-            {items.filter((item) => item.isEnabled).length} active for study and
-            export
+            {items.length === 1 ? "card" : "cards"}
           </p>
         </div>
         <div className={styles.actions}>
           <button
             onClick={() => router.push(`/anki/${wordSetId}/review`)}
-            disabled={enabledItemCount === 0}
+            disabled={itemCount === 0}
             className={styles.studyButton}
           >
             Study now
@@ -437,7 +414,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
           </button>
           <button
             onClick={openDeckExportDialog}
-            disabled={enabledItemCount === 0 || exporting}
+            disabled={itemCount === 0 || exporting}
             className={styles.exportButton}
           >
             {exporting ? "Exporting…" : "Export"}
@@ -480,8 +457,8 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                   id="deck-export-description"
                   className={styles.dialogDescription}
                 >
-                  {enabledItemCount} {enabledItemCount === 1 ? "card" : "cards"}{" "}
-                  will be included.
+                  {itemCount} {itemCount === 1 ? "card" : "cards"} will be
+                  exported.
                 </p>
 
                 <fieldset className={styles.formatOptions}>
@@ -566,7 +543,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                     type="button"
                     className={styles.addButton}
                     onClick={runDeckExport}
-                    disabled={enabledItemCount === 0}
+                    disabled={itemCount === 0}
                   >
                     {exportFormat === "csv"
                       ? "Download CSV"
@@ -592,7 +569,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                 </h2>
                 <p id="deck-export-description">
                   {exportFormat === "apkg" && includeExportAudio
-                    ? `Generating AI audio for ${enabledItemCount} cards, then packaging it into Anki. Keep this window open.`
+                    ? `Generating AI audio for ${itemCount} cards, then packaging it into Anki. Keep this window open.`
                     : `Preparing your ${exportFormat.toUpperCase()} file. Your download will begin automatically.`}
                 </p>
                 <div
@@ -709,7 +686,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
           {filteredItems.map((item) => (
             <div
               key={item.id}
-              className={`${styles.item} ${editingItem === item.id ? styles.editing : ""} ${!item.isEnabled ? styles.disabled : ""}`}
+              className={`${styles.item} ${editingItem === item.id ? styles.editing : ""}`}
             >
               {editingItem === item.id && editValues ? (
                 <form
@@ -786,7 +763,6 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                       </span>
                       <span
                         className={
-                          item.isEnabled &&
                           isReadyForReview(
                             item.review.state,
                             item.review.dueAt,
@@ -802,14 +778,6 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                     </div>
                   </div>
                   <div className={styles.itemActions}>
-                    <button
-                      aria-pressed={item.isEnabled}
-                      aria-label={`Include ${item.original} in study and export`}
-                      onClick={() => toggleEnabled(item)}
-                      className={styles.toggleButton}
-                    >
-                      {item.isEnabled ? "Included" : "Excluded"}
-                    </button>
                     <button
                       onClick={() => startEditing(item)}
                       className={styles.editButton}

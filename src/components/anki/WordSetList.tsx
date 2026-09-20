@@ -26,7 +26,6 @@ interface WordSet {
   lastExportedAt: string | null;
   reviewStats?: {
     itemCount: number;
-    enabledItemCount: number;
     dueCount: number;
   };
 }
@@ -253,7 +252,6 @@ export function WordSetList() {
             .map((set) => {
               const reviewStats = set.reviewStats ?? {
                 itemCount: 0,
-                enabledItemCount: 0,
                 dueCount: 0,
               };
               return (

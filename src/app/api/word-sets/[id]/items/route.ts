@@ -29,7 +29,6 @@ const UpdateItemSchema = z.object({
   sampleTranslation: z.string().optional(),
   comments: z.string().optional(),
   tags: z.string().optional(),
-  isEnabled: z.boolean().optional(),
   position: z.number().int().optional(),
 });
 

@@ -27,12 +27,9 @@ export async function POST(
     }
 
     const items = await getWordSetItems(id);
-    const cardCount = items.filter((item) => item.isEnabled).length;
+    const cardCount = items.length;
     if (cardCount === 0) {
-      return NextResponse.json(
-        { error: "No enabled items in word set" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Word set is empty" }, { status: 400 });
     }
 
     const expires =

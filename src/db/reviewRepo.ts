@@ -85,7 +85,6 @@ export async function getDueReviewCards(input: {
   const conditions = [
     eq(wordSet.userId, input.userId),
     eq(wordSet.id, input.wordSetId),
-    eq(wordSetItem.isEnabled, true),
     eq(studyCard.templateKey, NATIVE_STUDY_CARD_TEMPLATE),
     or(isNull(fsrsCardState.studyCardId), lte(fsrsCardState.dueAt, input.now)),
   ];
@@ -291,7 +290,6 @@ async function getOwnedReviewCard(
         eq(wordSet.userId, userId),
         eq(wordSet.id, wordSetId),
         eq(studyCard.id, studyCardId),
-        eq(wordSetItem.isEnabled, true),
         eq(studyCard.templateKey, NATIVE_STUDY_CARD_TEMPLATE),
       ),
     )

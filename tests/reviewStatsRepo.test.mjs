@@ -101,7 +101,6 @@ test("set-level review counts are normalized to numbers", async () => {
     {
       wordSetId: "set-1",
       itemCount: "18",
-      enabledItemCount: "17",
       dueCount: "6",
     },
   ]);
@@ -114,7 +113,6 @@ test("set-level review counts are normalized to numbers", async () => {
   assert.deepEqual(stats, {
     wordSetId: "set-1",
     itemCount: 18,
-    enabledItemCount: 17,
     dueCount: 6,
   });
 });
