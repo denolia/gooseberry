@@ -88,12 +88,20 @@
   stroke-width: 2.25;
 }
 
-.fruitStems {
-  fill: none;
-  stroke: #8dca3e;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2.1;
+.ripeLeaves .leaf {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: ripe-leaf-rustle 2.4s ease-in-out infinite alternate;
+}
+
+.ripeLeaves .leaf:nth-child(2) {
+  animation-delay: -0.8s;
+  animation-duration: 2.8s;
+}
+
+.ripeLeaves .leaf:nth-child(3) {
+  animation-delay: -1.5s;
+  animation-duration: 2.2s;
 }
 
 .gooseberry,
@@ -199,6 +207,15 @@
   }
 }
 
+@keyframes ripe-leaf-rustle {
+  from {
+    transform: rotate(-2deg) scale(0.98);
+  }
+  to {
+    transform: rotate(2deg) scale(1.02);
+  }
+}
+
 @keyframes berry-sparkle {
   0%,
   100% {
@@ -215,6 +232,7 @@
   .growingPlant,
   .flower,
   .ripePlant,
+  .ripeLeaves .leaf,
   .berrySparkles {
     animation: none;
   }

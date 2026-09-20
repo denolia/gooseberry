@@ -89,17 +89,6 @@ export function StudyPlant({
           </g>
           <g className={styles.woodyBranches}>
             <path d="M32 54 C34 45 31 33 32 19" />
-            <path d="M32 29 C25 26 21 22 16 20" />
-            <path d="M32 29 C39 26 43 22 48 20" />
-            <path d="M32 38 C28 38 25 39 23 41" />
-            <path d="M32 38 C36 38 39 39 41 41" />
-          </g>
-          <g className={styles.fruitStems}>
-            <path d="M32 20 C34 18 34 16 33 14" />
-            <path d="M16 26 C18 23 18 21 17 19" />
-            <path d="M48 26 C46 23 46 21 47 19" />
-            <path d="M24 38 C25 37 26 35 26 34" />
-            <path d="M40 38 C39 37 38 35 38 34" />
           </g>
           <g className={styles.berryCluster}>
             <g>
