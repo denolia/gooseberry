@@ -27,6 +27,12 @@
   text-transform: uppercase;
 }
 
+.promptLabel {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
 .languagePair {
   margin-top: 0.25rem;
   color: var(--text-secondary);
@@ -137,7 +143,7 @@
   background: var(--accent-strong);
 }
 
-.revealButton span {
+.shortcutHint {
   padding: 0.15rem 0.4rem;
   border: 1px solid rgb(255 255 255 / 45%);
   font-size: 0.65rem;
@@ -157,14 +163,29 @@
 
 .ratings {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
+.simpleRatings {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fullRatings {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.fullRatings .rating1 {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.learningRatings {
+  grid-template-columns: 1fr;
+}
+
 .ratingButton {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.15rem 0.45rem;
+  display: flex;
+  gap: 0.65rem;
   align-items: center;
   min-height: 4rem;
   padding: 0.65rem;
@@ -186,19 +207,39 @@
   opacity: 0.55;
 }
 
+.ratingCopy {
+  display: grid;
+  gap: 0.15rem;
+}
+
 .ratingButton small {
-  grid-column: 2;
   color: var(--text-secondary);
 }
 
 .ratingKey {
   display: grid;
-  grid-row: 1 / 3;
+  flex: 0 0 auto;
   place-items: center;
   width: 1.55rem;
   height: 1.55rem;
   border: 1px solid currentColor;
   font-size: 0.7rem;
+}
+
+.ratingButton.okButton {
+  justify-content: center;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+  text-align: center;
+}
+
+.ratingButton.okButton:hover {
+  background: var(--accent-strong);
+}
+
+.ratingButton.okButton small {
+  color: rgb(255 255 255 / 75%);
 }
 
 .rating1 {
@@ -304,7 +345,8 @@
     padding: 1.5rem 1rem;
   }
 
-  .ratings {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .ratingKey,
+  .shortcutHint {
+    display: none;
   }
 }

@@ -4,7 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  isLearningState,
+  reviewControls,
+  reviewPrompt,
+} from "@/lib/review/controls";
 import { formatReviewInterval } from "@/lib/review/formatInterval";
+import type { FsrsCardStateValue, ReviewModeValue } from "@/lib/review/model";
 import styles from "./ReviewSession.module.css";
 
 type Rating = 1 | 2 | 3 | 4;
@@ -29,17 +35,17 @@ type ReviewCard = {
   sampleTranslation: string;
   comments: string;
   tags: string;
+  state: { state: FsrsCardStateValue };
   ratings: RatingPreview[];
 };
 
-const ratingLabels: Record<Rating, string> = {
-  1: "Again",
-  2: "Hard",
-  3: "Good",
-  4: "Easy",
-};
-
-export function ReviewSession({ wordSetId }: { wordSetId: string }) {
+export function ReviewSession({
+  wordSetId,
+  reviewMode,
+}: {
+  wordSetId: string;
+  reviewMode: ReviewModeValue;
+}) {
   const { status } = useSession();
   const router = useRouter();
   const [card, setCard] = useState<ReviewCard | null>(null);
@@ -125,15 +131,19 @@ export function ReviewSession({ wordSetId }: { wordSetId: string }) {
         setRevealed(true);
         return;
       }
-      if (revealed && ["1", "2", "3", "4"].includes(event.key)) {
+      if (revealed && card) {
+        const control = reviewControls(card.state.state, reviewMode).find(
+          ({ shortcut }) => shortcut === event.key,
+        );
+        if (!control) return;
         event.preventDefault();
-        void submitRating(Number(event.key) as Rating);
+        void submitRating(control.rating);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [revealed, submitRating]);
+  }, [card, revealed, reviewMode, submitRating]);
 
   if (status === "loading" || loading) {
     return (
@@ -177,6 +187,9 @@ export function ReviewSession({ wordSetId }: { wordSetId: string }) {
     );
   }
 
+  const learning = isLearningState(card.state.state);
+  const controls = reviewControls(card.state.state, reviewMode);
+
   return (
     <div className={styles.session}>
       <header className={styles.sessionHeader}>
@@ -194,7 +207,7 @@ export function ReviewSession({ wordSetId }: { wordSetId: string }) {
 
       <main className={styles.card} aria-live="polite">
         <div className={styles.promptSide}>
-          <p className={styles.sideLabel}>Prompt</p>
+          <p className={styles.promptLabel}>{reviewPrompt(card.state.state)}</p>
           <h2>{card.original}</h2>
         </div>
 
@@ -205,7 +218,7 @@ export function ReviewSession({ wordSetId }: { wordSetId: string }) {
             autoFocus
           >
             Show answer
-            <span>Space</span>
+            <span className={styles.shortcutHint}>Space</span>
           </button>
         ) : (
           <div className={styles.answerWrap}>
@@ -233,20 +246,45 @@ export function ReviewSession({ wordSetId }: { wordSetId: string }) {
             )}
 
             <div className={styles.ratingArea}>
-              <p>How well did you remember?</p>
-              <div className={styles.ratings}>
-                {card.ratings.map((preview) => (
-                  <button
-                    key={preview.rating}
-                    className={`${styles.ratingButton} ${styles[`rating${preview.rating}`]}`}
-                    disabled={submitting}
-                    onClick={() => void submitRating(preview.rating)}
-                  >
-                    <span className={styles.ratingKey}>{preview.rating}</span>
-                    <strong>{ratingLabels[preview.rating]}</strong>
-                    <small>{formatReviewInterval(preview.intervalMs)}</small>
-                  </button>
-                ))}
+              {!learning && <p>Do you remember it?</p>}
+              <div
+                className={`${styles.ratings} ${
+                  learning
+                    ? styles.learningRatings
+                    : reviewMode === "full"
+                      ? styles.fullRatings
+                      : styles.simpleRatings
+                }`}
+              >
+                {controls.map((control) => {
+                  const preview = card.ratings.find(
+                    ({ rating }) => rating === control.rating,
+                  );
+                  if (!preview) return null;
+
+                  return (
+                    <button
+                      key={control.rating}
+                      className={`${styles.ratingButton} ${
+                        styles[`rating${control.rating}`]
+                      } ${learning ? styles.okButton : ""}`}
+                      disabled={submitting}
+                      onClick={() => void submitRating(control.rating)}
+                    >
+                      {control.shortcut && (
+                        <span className={styles.ratingKey}>
+                          {control.shortcut}
+                        </span>
+                      )}
+                      <span className={styles.ratingCopy}>
+                        <strong>{control.label}</strong>
+                        <small>
+                          {formatReviewInterval(preview.intervalMs)}
+                        </small>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

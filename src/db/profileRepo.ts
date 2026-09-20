@@ -90,6 +90,20 @@ export async function getUserProfile(userId: string) {
   };
 }
 
+export async function getUserReviewMode(
+  userId: string,
+): Promise<ReviewModeValue> {
+  const [preferences] = await getDb()
+    .select({ reviewMode: userPreference.reviewMode })
+    .from(userPreference)
+    .where(eq(userPreference.userId, userId))
+    .limit(1);
+
+  return isReviewMode(preferences?.reviewMode)
+    ? preferences.reviewMode
+    : ReviewMode.Simple;
+}
+
 export async function updateUserPreferences(input: {
   userId: string;
   defaultSourceLang: SourceLanguage;
