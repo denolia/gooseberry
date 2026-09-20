@@ -46,12 +46,12 @@ export function StudyPlant({
       {stage === "growing" && (
         <g className={styles.growingPlant}>
           <path className={styles.stem} d="M32 54 C29 43 35 29 32 13" />
-          <path className={styles.branch} d="M31 39 C26 35 22 32 17 30" />
           <path className={styles.branch} d="M33 32 C38 28 42 25 48 24" />
           <path
             className={styles.leaf}
             d="M28 39 C18 41 14 36 13 32 C20 30 26 33 28 39Z"
           />
+          <path className={styles.branch} d="M31 39 C25 38 21 36 16 34" />
           <path
             className={styles.leaf}
             d="M35 31 C45 33 50 28 51 23 C43 21 37 25 35 31Z"
