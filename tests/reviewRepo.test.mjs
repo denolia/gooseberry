@@ -19,7 +19,7 @@ const nextState = {
 };
 
 function loadRepo({ conflictOnce = false } = {}) {
-  const calls = { batches: [], selects: 0 };
+  const calls = { batches: [], executes: [], selects: 0 };
   const row = {
     id: "11111111-1111-4111-8111-111111111111",
     wordSetId: "set-1",
@@ -66,6 +66,7 @@ function loadRepo({ conflictOnce = false } = {}) {
       };
     },
     execute(statement) {
+      calls.executes.push(statement);
       return { kind: "state", statement };
     },
     async batch(queries) {
@@ -135,6 +136,23 @@ function loadRepo({ conflictOnce = false } = {}) {
 
   return { repo: exports, calls };
 }
+
+test("reconciles missing native card identities before selecting a due card", async () => {
+  const { repo, calls } = loadRepo();
+  const result = await repo.getNextDueReviewCard({
+    userId: "user-1",
+    wordSetId: "set-1",
+    now: reviewedAt,
+  });
+
+  assert.equal(result.id, "11111111-1111-4111-8111-111111111111");
+  assert.equal(calls.executes.length, 1);
+  assert.match(
+    calls.executes[0].strings.join(" "),
+    /INSERT INTO study_card .* ON CONFLICT/s,
+  );
+  assert.equal(calls.selects, 1);
+});
 
 test("records the review event and state projection in one atomic batch", async () => {
   const { repo, calls } = loadRepo();

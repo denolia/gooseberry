@@ -32,7 +32,10 @@ test("the review migration backfills stable native card identities", () => {
   assert.match(migration, /CREATE TABLE "study_card"/);
   assert.match(migration, /CREATE TABLE "review_event"/);
   assert.match(migration, /CREATE TABLE "fsrs_card_state"/);
-  assert.match(migration, /SELECT "id", 'recognition' FROM "word_set_item"/);
+  assert.match(
+    migration,
+    /SELECT "id", 'recognition', "created_at" FROM "word_set_item"/,
+  );
 });
 
 test("adding content creates its native study card in the same transaction", async () => {

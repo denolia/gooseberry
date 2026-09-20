@@ -68,6 +68,8 @@ export async function getNextDueReviewCard(input: {
   wordSetId: string;
   now: Date;
 }): Promise<DueReviewCard | null> {
+  await ensureNativeStudyCards(input.userId, input.wordSetId);
+
   const db = getDb();
   const [row] = await baseCardQuery(input.userId)
     .where(
@@ -90,6 +92,21 @@ export async function getNextDueReviewCard(input: {
     .limit(1);
 
   return row ? toDueReviewCard(row) : null;
+}
+
+// Keep review startup resilient when an environment received the Drizzle DDL
+// through `drizzle-kit push` without running the migration's data backfill.
+// This is idempotent and creates identity only; it never invents review state.
+async function ensureNativeStudyCards(userId: string, wordSetId: string) {
+  await getDb().execute(sql`
+    INSERT INTO study_card (word_set_item_id, template_key, created_at)
+    SELECT item.id, ${NATIVE_STUDY_CARD_TEMPLATE}, item.created_at
+    FROM word_set_item AS item
+    INNER JOIN word_set AS set ON set.id = item.word_set_id
+    WHERE set.id = ${wordSetId}
+      AND set.user_id = ${userId}
+    ON CONFLICT (word_set_item_id, template_key) DO NOTHING
+  `);
 }
 
 export async function recordReview(input: {

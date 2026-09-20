@@ -15,8 +15,8 @@ CREATE UNIQUE INDEX "study_card_item_template_idx" ON "study_card" USING btree (
 --> statement-breakpoint
 CREATE UNIQUE INDEX "study_card_external_identity_idx" ON "study_card" USING btree ("word_set_item_id", "external_source", "external_id") WHERE "external_source" IS NOT NULL AND "external_id" IS NOT NULL;
 --> statement-breakpoint
-INSERT INTO "study_card" ("word_set_item_id", "template_key")
-SELECT "id", 'recognition' FROM "word_set_item"
+INSERT INTO "study_card" ("word_set_item_id", "template_key", "created_at")
+SELECT "id", 'recognition', "created_at" FROM "word_set_item"
 ON CONFLICT ("word_set_item_id", "template_key") DO NOTHING;
 --> statement-breakpoint
 CREATE TABLE "review_event" (
