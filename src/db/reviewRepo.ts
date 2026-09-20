@@ -6,7 +6,7 @@ import {
   wordSet,
   wordSetItem,
 } from "@/db/schema";
-import { and, asc, eq, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, lte, notInArray, or, sql } from "drizzle-orm";
 import {
   applyReview,
   createInitialFsrsState,
@@ -68,30 +68,41 @@ export async function getNextDueReviewCard(input: {
   wordSetId: string;
   now: Date;
 }): Promise<DueReviewCard | null> {
+  const [card] = await getDueReviewCards({ ...input, limit: 1 });
+  return card ?? null;
+}
+
+export async function getDueReviewCards(input: {
+  userId: string;
+  wordSetId: string;
+  now: Date;
+  limit: number;
+  excludedStudyCardIds?: string[];
+}): Promise<DueReviewCard[]> {
   await ensureNativeStudyCards(input.userId, input.wordSetId);
 
   const db = getDb();
-  const [row] = await baseCardQuery(input.userId)
-    .where(
-      and(
-        eq(wordSet.userId, input.userId),
-        eq(wordSet.id, input.wordSetId),
-        eq(wordSetItem.isEnabled, true),
-        eq(studyCard.templateKey, NATIVE_STUDY_CARD_TEMPLATE),
-        or(
-          isNull(fsrsCardState.studyCardId),
-          lte(fsrsCardState.dueAt, input.now),
-        ),
-      ),
-    )
+  const conditions = [
+    eq(wordSet.userId, input.userId),
+    eq(wordSet.id, input.wordSetId),
+    eq(wordSetItem.isEnabled, true),
+    eq(studyCard.templateKey, NATIVE_STUDY_CARD_TEMPLATE),
+    or(isNull(fsrsCardState.studyCardId), lte(fsrsCardState.dueAt, input.now)),
+  ];
+  if (input.excludedStudyCardIds?.length) {
+    conditions.push(notInArray(studyCard.id, input.excludedStudyCardIds));
+  }
+
+  const rows = await baseCardQuery(input.userId)
+    .where(and(...conditions))
     .orderBy(
       sql`${fsrsCardState.dueAt} ASC NULLS FIRST`,
       asc(wordSetItem.position),
       asc(studyCard.id),
     )
-    .limit(1);
+    .limit(Math.max(1, Math.min(input.limit, 50)));
 
-  return row ? toDueReviewCard(row) : null;
+  return rows.map(toDueReviewCard);
 }
 
 // Keep review startup resilient when an environment received the Drizzle DDL
@@ -113,11 +124,13 @@ export async function recordReview(input: {
   userId: string;
   wordSetId: string;
   studyCardId: string;
+  reviewEventId: string;
   rating: ReviewRatingValue;
   reviewedAt: Date;
   durationMs?: number;
 }): Promise<FsrsStateProjection> {
-  const reviewEventId = crypto.randomUUID();
+  const recordedState = await getRecordedReviewState(input);
+  if (recordedState) return recordedState;
 
   for (let attempt = 0; attempt < MAX_REVIEW_WRITE_ATTEMPTS; attempt += 1) {
     const row = await getOwnedReviewCard(
@@ -151,7 +164,6 @@ export async function recordReview(input: {
     try {
       await persistReview({
         ...input,
-        reviewEventId,
         expectedRevision: row.projection?.revision ?? null,
         nextState,
       });
@@ -164,6 +176,64 @@ export async function recordReview(input: {
   throw new ReviewWriteConflictError(
     "The card changed while the review was being recorded",
   );
+}
+
+async function getRecordedReviewState(input: {
+  userId: string;
+  studyCardId: string;
+  reviewEventId: string;
+  rating: ReviewRatingValue;
+  reviewedAt: Date;
+}): Promise<FsrsStateProjection | null> {
+  const [row] = await getDb()
+    .select({
+      studyCardId: reviewEvent.studyCardId,
+      rating: reviewEvent.rating,
+      reviewedAt: reviewEvent.reviewedAt,
+      projection: {
+        dueAt: fsrsCardState.dueAt,
+        stability: fsrsCardState.stability,
+        difficulty: fsrsCardState.difficulty,
+        elapsedDays: fsrsCardState.elapsedDays,
+        scheduledDays: fsrsCardState.scheduledDays,
+        learningSteps: fsrsCardState.learningSteps,
+        reps: fsrsCardState.reps,
+        lapses: fsrsCardState.lapses,
+        state: fsrsCardState.state,
+        lastReviewAt: fsrsCardState.lastReviewAt,
+        schedulerVersion: fsrsCardState.schedulerVersion,
+        revision: fsrsCardState.revision,
+      },
+    })
+    .from(reviewEvent)
+    .leftJoin(
+      fsrsCardState,
+      and(
+        eq(fsrsCardState.userId, input.userId),
+        eq(fsrsCardState.studyCardId, reviewEvent.studyCardId),
+      ),
+    )
+    .where(
+      and(
+        eq(reviewEvent.id, input.reviewEventId),
+        eq(reviewEvent.userId, input.userId),
+      ),
+    )
+    .limit(1);
+
+  if (!row) return null;
+  if (
+    row.studyCardId !== input.studyCardId ||
+    row.rating !== input.rating ||
+    row.reviewedAt.getTime() !== input.reviewedAt.getTime() ||
+    !row.projection
+  ) {
+    throw new ReviewWriteConflictError(
+      "The review ID was already used for a different review",
+    );
+  }
+
+  return projectionFromRow(row.projection);
 }
 
 function baseCardQuery(userId: string) {

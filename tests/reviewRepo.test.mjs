@@ -18,7 +18,7 @@ const nextState = {
   schedulerVersion: "test-scheduler",
 };
 
-function loadRepo({ conflictOnce = false } = {}) {
+function loadRepo({ conflictOnce = false, existingReview = false } = {}) {
   const calls = { batches: [], executes: [], selects: 0 };
   const row = {
     id: "11111111-1111-4111-8111-111111111111",
@@ -37,7 +37,7 @@ function loadRepo({ conflictOnce = false } = {}) {
     introducedAt: new Date("2026-01-01T11:00:00.000Z"),
     projection: null,
   };
-  const query = {
+  const query = (rows) => ({
     from() {
       return this;
     },
@@ -53,12 +53,30 @@ function loadRepo({ conflictOnce = false } = {}) {
     orderBy() {
       return this;
     },
-    limit: async () => [row],
-  };
+    limit: async () => rows,
+  });
   const db = {
-    select() {
+    select(fields) {
       calls.selects += 1;
-      return query;
+      const isRecordedReviewLookup =
+        fields &&
+        Object.hasOwn(fields, "studyCardId") &&
+        Object.hasOwn(fields, "reviewedAt") &&
+        !Object.hasOwn(fields, "id");
+      return query(
+        isRecordedReviewLookup
+          ? existingReview
+            ? [
+                {
+                  studyCardId: row.id,
+                  rating: 3,
+                  reviewedAt,
+                  projection: { ...nextState, revision: 1 },
+                },
+              ]
+            : []
+          : [row],
+      );
     },
     insert() {
       return {
@@ -110,6 +128,7 @@ function loadRepo({ conflictOnce = false } = {}) {
         eq: expression("eq"),
         isNull: expression("isNull"),
         lte: expression("lte"),
+        notInArray: expression("notInArray"),
         or: expression("or"),
         sql: Object.assign((strings, ...values) => ({ strings, values }), {
           raw: (value) => value,
@@ -160,6 +179,7 @@ test("records the review event and state projection in one atomic batch", async 
     userId: "user-1",
     wordSetId: "set-1",
     studyCardId: "11111111-1111-4111-8111-111111111111",
+    reviewEventId: "22222222-2222-4222-8222-222222222222",
     rating: 3,
     reviewedAt,
     durationMs: 1200,
@@ -178,11 +198,28 @@ test("reloads and retries after an optimistic revision conflict", async () => {
     userId: "user-1",
     wordSetId: "set-1",
     studyCardId: "11111111-1111-4111-8111-111111111111",
+    reviewEventId: "22222222-2222-4222-8222-222222222222",
     rating: 3,
     reviewedAt,
   });
 
   assert.equal(calls.batches.length, 2);
-  assert.equal(calls.selects, 2);
+  assert.equal(calls.selects, 3);
   assert.equal(calls.batches[0][0].values.id, calls.batches[1][0].values.id);
+});
+
+test("returns an already-recorded review without writing it twice", async () => {
+  const { repo, calls } = loadRepo({ existingReview: true });
+  const result = await repo.recordReview({
+    userId: "user-1",
+    wordSetId: "set-1",
+    studyCardId: "11111111-1111-4111-8111-111111111111",
+    reviewEventId: "22222222-2222-4222-8222-222222222222",
+    rating: 3,
+    reviewedAt,
+  });
+
+  assert.equal(result.dueAt, nextState.dueAt);
+  assert.equal(calls.selects, 1);
+  assert.equal(calls.batches.length, 0);
 });

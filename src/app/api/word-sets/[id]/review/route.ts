@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import {
-  getNextDueReviewCard,
+  getDueReviewCards,
   recordReview,
   ReviewCardNotDueError,
   ReviewCardNotFoundError,
@@ -12,8 +12,10 @@ import { previewRatings } from "@/lib/review/fsrs";
 import { ReviewRatingSchema } from "@/lib/review/model";
 
 const SubmitReviewSchema = z.object({
+  reviewId: z.string().uuid().optional(),
   studyCardId: z.string().uuid(),
   rating: ReviewRatingSchema,
+  reviewedAt: z.string().datetime().optional(),
   durationMs: z
     .number()
     .int()
@@ -21,6 +23,12 @@ const SubmitReviewSchema = z.object({
     .max(24 * 60 * 60 * 1000)
     .optional(),
 });
+
+const ReviewQueueQuerySchema = z
+  .array(z.string().uuid())
+  .max(100, "Too many excluded cards");
+
+const REVIEW_QUEUE_SIZE = 20;
 
 export async function GET(
   request: Request,
@@ -34,21 +42,34 @@ export async function GET(
   try {
     const { id } = await params;
     const now = new Date();
-    const card = await getNextDueReviewCard({
+    const url = new URL(request.url);
+    const excludedStudyCardIds = ReviewQueueQuerySchema.parse(
+      url.searchParams.getAll("exclude"),
+    );
+    const cards = await getDueReviewCards({
       userId: session.user.id,
       wordSetId: id,
       now,
+      limit: REVIEW_QUEUE_SIZE,
+      excludedStudyCardIds,
     });
+    const responseCards = cards.map((card) => ({
+      ...card,
+      ratings: previewRatings(card.state, now),
+    }));
 
     return NextResponse.json({
-      card: card
-        ? {
-            ...card,
-            ratings: previewRatings(card.state, now),
-          }
-        : null,
+      cards: responseCards,
+      // Keep the original field during the client rollout.
+      card: responseCards[0] ?? null,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Invalid review queue request", details: error.message },
+        { status: 400 },
+      );
+    }
     console.error("Error loading review card:", error);
     return NextResponse.json(
       { error: "Failed to load review card" },
@@ -73,9 +94,10 @@ export async function POST(
       userId: session.user.id,
       wordSetId: id,
       studyCardId: input.studyCardId,
+      reviewEventId: input.reviewId ?? crypto.randomUUID(),
       rating: input.rating,
       durationMs: input.durationMs,
-      reviewedAt: new Date(),
+      reviewedAt: input.reviewedAt ? new Date(input.reviewedAt) : new Date(),
     });
 
     return NextResponse.json({ success: true, state });

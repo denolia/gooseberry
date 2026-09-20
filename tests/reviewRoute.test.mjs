@@ -30,6 +30,10 @@ function loadRoute({ session = { user: { id: "user-1" } }, card = null } = {}) {
       "@/auth": { auth: async () => session },
       "@/db/reviewRepo": {
         ...errors,
+        getDueReviewCards: async (input) => {
+          calls.get.push(input);
+          return card ? [card] : [];
+        },
         getNextDueReviewCard: async (input) => {
           calls.get.push(input);
           return card;
@@ -75,6 +79,7 @@ test("review GET returns a due card with rating previews", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(body.card.original, "Hallo");
+  assert.equal(body.cards.length, 1);
   assert.deepEqual(body.card.ratings, [{ rating: 3, intervalMs: 600_000 }]);
   assert.equal(calls.get[0].userId, "user-1");
   assert.equal(calls.get[0].wordSetId, "set-1");
@@ -87,8 +92,10 @@ test("review POST validates and records a four-button rating", async () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        reviewId: "22222222-2222-4222-8222-222222222222",
         studyCardId: "11111111-1111-4111-8111-111111111111",
         rating: 3,
+        reviewedAt: "2026-01-01T12:00:00.000Z",
         durationMs: 1200,
       }),
     }),
@@ -98,6 +105,14 @@ test("review POST validates and records a four-button rating", async () => {
   assert.equal(response.status, 200);
   assert.equal(calls.record.length, 1);
   assert.equal(calls.record[0].rating, 3);
+  assert.equal(
+    calls.record[0].reviewEventId,
+    "22222222-2222-4222-8222-222222222222",
+  );
+  assert.equal(
+    calls.record[0].reviewedAt.toISOString(),
+    "2026-01-01T12:00:00.000Z",
+  );
   assert.equal(calls.record[0].durationMs, 1200);
 });
 
