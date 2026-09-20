@@ -74,8 +74,9 @@ export function StudyPlant({
       {stage === "ripe" && (
         <g className={styles.ripePlant}>
           <path className={styles.stem} d="M32 54 C29 43 35 29 32 12" />
-          <path className={styles.branch} d="M31 38 C25 34 20 31 15 29" />
-          <path className={styles.branch} d="M33 34 C39 30 44 27 50 27" />
+          <path className={styles.branch} d="M31 38 C27 35 23 32 19 29" />
+          <path className={styles.branch} d="M33 34 C38 31 43 28 47 27" />
+          <path className={styles.branch} d="M31 38 C33 38 35 37 36 35" />
           <path
             className={styles.leaf}
             d="M28 41 C17 43 12 38 12 33 C20 30 26 34 28 41Z"
@@ -88,14 +89,25 @@ export function StudyPlant({
             className={styles.leaf}
             d="M31 23 C22 20 21 14 23 10 C30 12 33 17 31 23Z"
           />
+          <g aria-hidden="true">
+            <path className={styles.redThorn} d="M31 46 L26 43 L31 42Z" />
+            <path className={styles.goldThorn} d="M33 31 L29 26 L33 28Z" />
+            <path className={styles.redThorn} d="M25 34 L21 29 L27 32Z" />
+            <path className={styles.goldThorn} d="M41 30 L44 25 L44 29Z" />
+          </g>
           <g className={styles.berries}>
-            <circle className={styles.berry} cx="20" cy="34" r="5" />
-            <circle className={styles.berry} cx="47" cy="33" r="4" />
-            <circle className={styles.happyBerry} cx="36" cy="41" r="7" />
-            <circle className={styles.berryHighlight} cx="34" cy="38" r="1.5" />
-            <circle className={styles.face} cx="33.5" cy="41" r="0.8" />
-            <circle className={styles.face} cx="38.5" cy="41" r="0.8" />
-            <path className={styles.smile} d="M33.5 44 C35 46 37.5 46 39 44" />
+            <circle className={styles.berry} cx="19" cy="33" r="5" />
+            <circle className={styles.berry} cx="47" cy="31.5" r="4.5" />
+            <circle className={styles.happyBerry} cx="36" cy="42" r="7" />
+            <circle
+              className={styles.berryHighlight}
+              cx="33.5"
+              cy="39"
+              r="1.5"
+            />
+            <circle className={styles.face} cx="33.5" cy="42" r="0.8" />
+            <circle className={styles.face} cx="38.5" cy="42" r="0.8" />
+            <path className={styles.smile} d="M33.5 45 C35 47 37.5 47 39 45" />
           </g>
         </g>
       )}

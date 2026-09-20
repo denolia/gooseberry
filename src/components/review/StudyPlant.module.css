@@ -81,34 +81,50 @@
 }
 
 .berries {
-  transform-origin: 36px 40px;
+  transform-origin: 36px 42px;
   animation: berry-happy 1.7s steps(3, end) infinite;
 }
 
 .berry,
 .happyBerry {
-  fill: color-mix(in srgb, var(--success) 72%, var(--warning));
-  stroke: var(--success);
+  fill: #e94f62;
+  stroke: #a92d42;
   stroke-width: 1.25;
 }
 
 .happyBerry {
-  fill: color-mix(in srgb, var(--success) 58%, var(--warning));
+  fill: #f35d6d;
 }
 
 .berryHighlight {
-  fill: rgb(255 255 255 / 68%);
+  fill: rgb(255 244 237 / 82%);
 }
 
 .face {
-  fill: var(--background);
+  fill: #591526;
 }
 
 .smile {
   fill: none;
-  stroke: var(--background);
+  stroke: #591526;
   stroke-linecap: round;
   stroke-width: 1.1;
+}
+
+.redThorn,
+.goldThorn {
+  stroke-linejoin: round;
+  stroke-width: 0.7;
+}
+
+.redThorn {
+  fill: #e94f62;
+  stroke: #a92d42;
+}
+
+.goldThorn {
+  fill: #f0c65a;
+  stroke: #a87818;
 }
 
 @keyframes seed-grow {
@@ -161,10 +177,10 @@
 @keyframes berry-happy {
   0%,
   100% {
-    transform: translateY(0);
+    opacity: 0.9;
   }
   50% {
-    transform: translateY(-1.5px);
+    opacity: 1;
   }
 }
 
