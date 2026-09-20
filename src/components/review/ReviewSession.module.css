@@ -306,6 +306,45 @@
   text-align: center;
 }
 
+.syncToast {
+  position: fixed;
+  z-index: 20;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  width: min(390px, calc(100vw - 2rem));
+  padding: 1rem;
+  border: 1px solid var(--danger);
+  background: var(--surface-raised);
+  box-shadow: 0 12px 36px rgb(0 0 0 / 24%);
+}
+
+.syncToast p {
+  line-height: 1.45;
+}
+
+.syncToast div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.syncToast button {
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--border-color);
+  background: var(--background);
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+}
+
+.syncToast button:first-child {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+
 .session :focus-visible,
 .centered :focus-visible,
 .complete :focus-visible {
@@ -348,5 +387,10 @@
   .ratingKey,
   .shortcutHint {
     display: none;
+  }
+
+  .syncToast {
+    right: 1rem;
+    bottom: 1rem;
   }
 }
