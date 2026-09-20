@@ -10,6 +10,12 @@ import {
   fieldsFromDraft,
 } from "@/app/utils/cardDraft";
 import { TranslationSelector } from "./TranslationSelector";
+import {
+  isReadyForReview,
+  reviewCountLabel,
+  reviewStateLabel,
+} from "@/lib/review/stats";
+import type { FsrsCardStateValue } from "@/lib/review/model";
 import styles from "./WordSetManager.module.css";
 
 interface WordSet {
@@ -31,6 +37,13 @@ interface WordSetItem {
   tags: string;
   isEnabled: boolean;
   position: number;
+  review: {
+    state: FsrsCardStateValue;
+    dueAt: string | null;
+    reps: number;
+    lapses: number;
+    lastReviewAt: string | null;
+  };
 }
 
 interface WordSetManagerProps {
@@ -39,6 +52,18 @@ interface WordSetManagerProps {
 
 type DeckExportStage = "idle" | "working" | "ready" | "error";
 type ExportFormat = "apkg" | "csv";
+
+function nextReviewLabel(item: WordSetItem): string {
+  if (!item.isEnabled) return "Paused";
+  if (isReadyForReview(item.review.state, item.review.dueAt, new Date())) {
+    return "Ready now";
+  }
+  if (!item.review.dueAt) return "Not scheduled";
+  return `Next ${new Date(item.review.dueAt).toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  })}`;
+}
 
 export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const { data: session, status } = useSession();
@@ -752,6 +777,29 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                         ))}
                       </div>
                     )}
+                    <div className={styles.reviewStats}>
+                      <span
+                        className={styles.reviewState}
+                        data-state={item.review.state}
+                      >
+                        {reviewStateLabel(item.review.state)}
+                      </span>
+                      <span
+                        className={
+                          item.isEnabled &&
+                          isReadyForReview(
+                            item.review.state,
+                            item.review.dueAt,
+                            new Date(),
+                          )
+                            ? styles.readyNow
+                            : undefined
+                        }
+                      >
+                        {nextReviewLabel(item)}
+                      </span>
+                      <span>{reviewCountLabel(item.review.reps)}</span>
+                    </div>
                   </div>
                   <div className={styles.itemActions}>
                     <button
