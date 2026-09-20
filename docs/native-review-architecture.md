@@ -60,11 +60,11 @@ React should receive display-ready cards and rating previews. This keeps the
 scheduler out of components, route handlers, and database triggers.
 
 Gooseberry currently uses Drizzle's Neon HTTP driver, which does not support
-interactive callback transactions. The review repository should therefore
-read a projection, calculate the result, then use one SQL statement to append
-the event and conditionally update the projection by its `revision`; it should
-retry if another answer won that compare-and-swap. A rebuild operation should
-discard a projection and replay its history, which is also the path an Anki
+interactive callback transactions. The review repository therefore reads a
+projection, calculates the result, then uses one atomic Neon batch to append
+the event and conditionally insert or update the projection by its `revision`.
+It retries if another answer won that compare-and-swap. A rebuild operation
+discards a projection and replays its history, which is also the path an Anki
 importer can use.
 
 ## Migration and rollout
@@ -75,11 +75,20 @@ creation writes the item and its card identity in one atomic Neon batch. It
 does not create FSRS state or change current routes/UI, so it is safe to deploy
 before the scheduler.
 
-## First independently shippable slice
+## Implemented slices
 
-The first slice is this inert data foundation: schema, backfill, transactional
-card creation, shared rating/state constants, and tests. The next slice can
-add `ts-fsrs`, due-card queries, and an atomic answer operation without another
-identity migration. The browser reviewer follows that; APKG importing remains
-later and can populate the external identity/metadata fields before replaying
-history into the same projection.
+The native reviewer now consists of four independently committed slices:
+
+1. The inert data foundation: schema, backfill, atomic card creation, shared
+   rating/state constants, and tests.
+2. A deterministic, versioned `ts-fsrs` adapter that can schedule or replay
+   canonical review history.
+3. Due-card queries and an authenticated, atomic answer API with optimistic
+   projection concurrency control.
+4. A browser review session at `/anki/[id]/review`, linked from each set. It
+   supports reveal, four FSRS ratings, preview intervals, keyboard controls,
+   completion/error states, and review-duration recording.
+
+APKG importing remains later. It can populate the external identity and
+metadata fields, import canonical events, then replay history into the same
+projection.
