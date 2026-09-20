@@ -57,6 +57,23 @@
   animation: plant-sway 3.2s ease-in-out infinite;
 }
 
+.flower {
+  transform-origin: 46px 25px;
+  animation: flower-bloom 3.2s steps(2, end) infinite alternate;
+}
+
+.flowerPetal {
+  fill: #fffdf7;
+  stroke: color-mix(in srgb, var(--border-color) 70%, white);
+  stroke-width: 0.6;
+}
+
+.flowerCenter {
+  fill: var(--warning);
+  stroke: color-mix(in srgb, var(--warning) 75%, black);
+  stroke-width: 0.6;
+}
+
 .ripePlant {
   transform-origin: 32px 54px;
   animation: ripe-sway 2.8s ease-in-out infinite;
@@ -121,6 +138,15 @@
   }
 }
 
+@keyframes flower-bloom {
+  from {
+    transform: scale(0.92);
+  }
+  to {
+    transform: scale(1.03);
+  }
+}
+
 @keyframes ripe-sway {
   0%,
   100% {
@@ -145,6 +171,7 @@
   .seedShoot,
   .sproutPlant,
   .growingPlant,
+  .flower,
   .ripePlant,
   .berries {
     animation: none;

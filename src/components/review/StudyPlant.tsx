@@ -60,6 +60,14 @@ export function StudyPlant({
             className={styles.leaf}
             d="M31 23 C23 20 22 15 23 12 C29 13 33 17 31 23Z"
           />
+          <g className={styles.flower} aria-hidden="true">
+            <circle className={styles.flowerPetal} cx="46" cy="21" r="2.5" />
+            <circle className={styles.flowerPetal} cx="50" cy="24" r="2.5" />
+            <circle className={styles.flowerPetal} cx="48" cy="29" r="2.5" />
+            <circle className={styles.flowerPetal} cx="43" cy="28" r="2.5" />
+            <circle className={styles.flowerPetal} cx="42" cy="23" r="2.5" />
+            <circle className={styles.flowerCenter} cx="46" cy="25" r="2.25" />
+          </g>
         </g>
       )}
 
