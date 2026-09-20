@@ -58,7 +58,7 @@
 }
 
 .flower {
-  transform-origin: 46px 25px;
+  transform-origin: 32px 11px;
   animation: flower-bloom 3.2s steps(2, end) infinite alternate;
 }
 
