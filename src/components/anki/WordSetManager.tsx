@@ -392,10 +392,18 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
             {wordSet.sourceLang.toUpperCase()} →{" "}
             {wordSet.targetLang.toUpperCase()} • {items.length}{" "}
             {items.length === 1 ? "card" : "cards"} ·{" "}
-            {items.filter((item) => item.isEnabled).length} included in export
+            {items.filter((item) => item.isEnabled).length} active for study and
+            export
           </p>
         </div>
         <div className={styles.actions}>
+          <button
+            onClick={() => router.push(`/anki/${wordSetId}/review`)}
+            disabled={enabledItemCount === 0}
+            className={styles.studyButton}
+          >
+            Study now
+          </button>
           <button
             onClick={() => setShowSelector(true)}
             className={styles.addButton}
@@ -748,7 +756,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                   <div className={styles.itemActions}>
                     <button
                       aria-pressed={item.isEnabled}
-                      aria-label={`Include ${item.original} in export`}
+                      aria-label={`Include ${item.original} in study and export`}
                       onClick={() => toggleEnabled(item)}
                       className={styles.toggleButton}
                     >

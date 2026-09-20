@@ -64,7 +64,8 @@
   color: var(--warning);
 }
 
-.addButton {
+.addButton,
+.studyButton {
   padding: var(--button-padding);
   background: var(--accent);
   color: white;
@@ -75,8 +76,14 @@
   font-weight: 600;
 }
 
-.addButton:hover {
+.addButton:hover,
+.studyButton:hover {
   background: var(--accent-strong);
+}
+
+.studyButton:disabled {
+  background: var(--text-muted);
+  cursor: not-allowed;
 }
 
 .exportButton {
@@ -742,6 +749,7 @@
   padding: 0.6rem 0.7rem;
 }
 .addButton,
+.studyButton,
 .exportButton,
 .saveButton,
 .cancelButton {
