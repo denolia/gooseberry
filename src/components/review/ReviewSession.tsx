@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   isNewState,
@@ -60,6 +61,7 @@ export function ReviewSession({
 }) {
   const { status } = useSession();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [cards, setCards] = useState<ReviewCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -177,6 +179,7 @@ export function ReviewSession({
           }
         });
         pendingReviewsRef.current.delete(submission.reviewId);
+        void queryClient.invalidateQueries({ queryKey: ["wordSets"] });
       } catch {
         pendingReviewsRef.current.delete(submission.reviewId);
         updateFailedReviews((current) =>
@@ -190,7 +193,7 @@ export function ReviewSession({
         }
       }
     },
-    [loadCards, updateFailedReviews, wordSetId],
+    [loadCards, queryClient, updateFailedReviews, wordSetId],
   );
 
   useEffect(() => {

@@ -1,0 +1,152 @@
+.plant {
+  width: 4rem;
+  height: 4rem;
+  overflow: visible;
+}
+
+.ground {
+  fill: none;
+  stroke: var(--border-color);
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.seedBody {
+  fill: color-mix(in srgb, var(--warning) 65%, var(--background));
+  stroke: var(--warning);
+  stroke-width: 1.5;
+}
+
+.seedShoot,
+.stem,
+.branch {
+  fill: none;
+  stroke: var(--success);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.seedShoot,
+.stem {
+  stroke-width: 2.5;
+}
+
+.branch {
+  stroke-width: 2;
+}
+
+.leaf {
+  fill: color-mix(in srgb, var(--success) 65%, var(--background));
+  stroke: var(--success);
+  stroke-linejoin: round;
+  stroke-width: 1.25;
+}
+
+.seedShoot {
+  transform-origin: 32px 50px;
+  animation: seed-grow 1.8s steps(2, end) infinite alternate;
+}
+
+.sproutPlant {
+  transform-origin: 32px 54px;
+  animation: sprout-grow 1.5s steps(3, end) infinite alternate;
+}
+
+.growingPlant {
+  transform-origin: 32px 54px;
+  animation: plant-sway 3.2s ease-in-out infinite;
+}
+
+.ripePlant {
+  transform-origin: 32px 54px;
+  animation: ripe-sway 2.8s ease-in-out infinite;
+}
+
+.berries {
+  transform-origin: 36px 40px;
+  animation: berry-happy 1.7s steps(3, end) infinite;
+}
+
+.berry,
+.happyBerry {
+  fill: color-mix(in srgb, var(--success) 72%, var(--warning));
+  stroke: var(--success);
+  stroke-width: 1.25;
+}
+
+.happyBerry {
+  fill: color-mix(in srgb, var(--success) 58%, var(--warning));
+}
+
+.berryHighlight {
+  fill: rgb(255 255 255 / 68%);
+}
+
+.face {
+  fill: var(--background);
+}
+
+.smile {
+  fill: none;
+  stroke: var(--background);
+  stroke-linecap: round;
+  stroke-width: 1.1;
+}
+
+@keyframes seed-grow {
+  from {
+    transform: scaleY(0.45);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes sprout-grow {
+  from {
+    transform: scale(0.88, 0.78);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes plant-sway {
+  0%,
+  100% {
+    transform: rotate(-1.5deg) scaleY(0.98);
+  }
+  50% {
+    transform: rotate(1.5deg) scaleY(1.02);
+  }
+}
+
+@keyframes ripe-sway {
+  0%,
+  100% {
+    transform: rotate(-1deg);
+  }
+  50% {
+    transform: rotate(1deg);
+  }
+}
+
+@keyframes berry-happy {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1.5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seedShoot,
+  .sproutPlant,
+  .growingPlant,
+  .ripePlant,
+  .berries {
+    animation: none;
+  }
+}

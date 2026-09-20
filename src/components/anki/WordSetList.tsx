@@ -14,6 +14,8 @@ import {
   TargetLanguageSelectOptions,
 } from "@/components/ui/Languages";
 import { useLanguages } from "@/lib/languages/useLanguages";
+import { StudyPlant } from "@/components/review/StudyPlant";
+import { plantReadinessStage } from "@/lib/review/stats";
 
 interface WordSet {
   id: string;
@@ -22,6 +24,11 @@ interface WordSet {
   targetLang: string;
   createdAt: string;
   lastExportedAt: string | null;
+  reviewStats?: {
+    itemCount: number;
+    enabledItemCount: number;
+    dueCount: number;
+  };
 }
 
 export function WordSetList() {
@@ -144,9 +151,9 @@ export function WordSetList() {
     <div className={styles.container}>
       <div className={styles.header}>
         <div>
-          <h2>Your Anki sets</h2>
+          <h2>Your study sets</h2>
           <p className={styles.setMeta}>
-            Save words as you translate. Refine and export them here.
+            Save words as you translate. Study, refine, or export them here.
           </p>
         </div>
         <button
@@ -243,33 +250,69 @@ export function WordSetList() {
             .filter((set) =>
               set.name.toLowerCase().includes(search.toLowerCase()),
             )
-            .map((set) => (
-              <div key={set.id} className={styles.card}>
-                <Link className={styles.cardContent} href={`/anki/${set.id}`}>
-                  <h3 className={styles.setName}>{set.name}</h3>
-                  <div className={styles.setMeta}>
-                    {set.sourceLang.toUpperCase()} →{" "}
-                    {set.targetLang.toUpperCase()}
-                    {set.lastExportedAt && (
-                      <span className={styles.exported}>
-                        • Last exported:{" "}
-                        {new Date(set.lastExportedAt).toLocaleDateString()}
-                      </span>
-                    )}
+            .map((set) => {
+              const reviewStats = set.reviewStats ?? {
+                itemCount: 0,
+                enabledItemCount: 0,
+                dueCount: 0,
+              };
+              return (
+                <div key={set.id} className={styles.card}>
+                  <Link className={styles.cardContent} href={`/anki/${set.id}`}>
+                    <StudyPlant
+                      stage={plantReadinessStage(reviewStats.dueCount)}
+                      dueCount={reviewStats.dueCount}
+                    />
+                    <div className={styles.setCopy}>
+                      <h3 className={styles.setName}>{set.name}</h3>
+                      <div className={styles.setMeta}>
+                        {set.sourceLang.toUpperCase()} →{" "}
+                        {set.targetLang.toUpperCase()} · {reviewStats.itemCount}{" "}
+                        {reviewStats.itemCount === 1 ? "word" : "words"}
+                        {set.lastExportedAt && (
+                          <span className={styles.exported}>
+                            · Exported{" "}
+                            {new Date(set.lastExportedAt).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                      <p
+                        className={`${styles.readiness} ${reviewStats.dueCount > 0 ? styles.hasReviews : ""}`}
+                      >
+                        {reviewStats.dueCount === 0
+                          ? "All caught up"
+                          : `${reviewStats.dueCount} ${reviewStats.dueCount === 1 ? "word" : "words"} ready`}
+                      </p>
+                    </div>
+                  </Link>
+                  <div className={styles.cardActions}>
+                    <Link
+                      className={`${styles.studyButton} ${reviewStats.dueCount === 0 ? styles.studyButtonDisabled : ""}`}
+                      href={`/anki/${set.id}/review`}
+                      aria-disabled={reviewStats.dueCount === 0}
+                      onClick={(event) => {
+                        if (reviewStats.dueCount === 0) event.preventDefault();
+                      }}
+                    >
+                      Study
+                    </Link>
+                    <details className={styles.moreMenu}>
+                      <summary aria-label={`More actions for ${set.name}`}>
+                        ⋯
+                      </summary>
+                      <div className={styles.moreMenuContent}>
+                        <button
+                          disabled={deleteMutation.isPending}
+                          onClick={() => void handleDelete(set.id, set.name)}
+                        >
+                          Delete set
+                        </button>
+                      </div>
+                    </details>
                   </div>
-                </Link>
-                <button
-                  aria-label={`Delete ${set.name}`}
-                  className={styles.deleteButton}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(set.id, set.name);
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            ))}
+                </div>
+              );
+            })}
         </div>
       )}
     </div>

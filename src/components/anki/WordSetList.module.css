@@ -262,3 +262,139 @@
     gap: 0.5rem;
   }
 }
+
+.cardContent {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: inherit;
+  text-decoration: none;
+}
+
+.setCopy {
+  min-width: 0;
+}
+
+.readiness {
+  margin: 0.15rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.hasReviews {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+.studyButton {
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.studyButton:hover {
+  background: var(--accent-strong);
+  transform: translateY(-1px);
+}
+
+.studyButtonDisabled {
+  border-color: var(--border-color);
+  background: var(--button-secondary-bg);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.studyButtonDisabled:hover {
+  background: var(--button-secondary-bg);
+  transform: none;
+}
+
+.moreMenu {
+  position: relative;
+}
+
+.moreMenu summary {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  cursor: pointer;
+  list-style: none;
+  place-items: center;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.moreMenu summary::-webkit-details-marker {
+  display: none;
+}
+
+.moreMenu summary:hover,
+.moreMenu[open] summary {
+  border-color: var(--border-color);
+  background: var(--button-secondary-hover);
+  color: var(--foreground);
+}
+
+.moreMenuContent {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  width: max-content;
+  min-width: 8rem;
+  padding: 0.3rem;
+  border: 1px solid var(--border-color);
+  background: var(--surface-raised);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 22%);
+}
+
+.moreMenuContent button {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: var(--danger);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.moreMenuContent button:hover {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.moreMenuContent button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+@media (max-width: 640px) {
+  .cardContent {
+    gap: 0.45rem;
+  }
+
+  .studyButton {
+    padding-inline: 0.65rem;
+  }
+}
