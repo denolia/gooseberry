@@ -59,6 +59,7 @@
 
 .flower {
   transform-origin: 32px 11px;
+  transform: scale(1.5);
   animation: flower-bloom 3.2s steps(2, end) infinite alternate;
 }
 
@@ -140,10 +141,10 @@
 
 @keyframes flower-bloom {
   from {
-    transform: scale(0.92);
+    transform: scale(1.38);
   }
   to {
-    transform: scale(1.03);
+    transform: scale(1.55);
   }
 }
 
