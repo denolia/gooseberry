@@ -87,7 +87,10 @@ The native reviewer now consists of four independently committed slices:
    projection concurrency control.
 4. A browser review session at `/anki/[id]/review`, linked from each set. It
    supports reveal, four FSRS ratings, preview intervals, keyboard controls,
-   completion/error states, and review-duration recording.
+   completion/error states, and review-duration recording. Review submissions
+   advance optimistically from a prefetched queue; the request lifecycle and
+   current durability limits are documented in
+   [Optimistic review updates](optimistic-review-updates.md).
 
 APKG importing remains later. It can populate the external identity and
 metadata fields, import canonical events, then replay history into the same
