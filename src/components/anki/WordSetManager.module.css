@@ -46,6 +46,20 @@
   align-items: center;
 }
 
+.editButton {
+  padding: 0.35rem 0.45rem;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.editButton:hover {
+  background: var(--button-secondary-hover);
+}
+
 .statusMessage {
   margin-bottom: 1.5rem;
   padding: var(--panel-padding-tight);
@@ -417,11 +431,6 @@
   border-color: var(--item-selected-border);
 }
 
-.item.disabled {
-  opacity: 0.5;
-  background: var(--item-disabled-bg, #f9f9f9);
-}
-
 .itemContent {
   flex: 1;
   display: flex;
@@ -461,13 +470,13 @@
 }
 
 .reviewStats {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem 0.75rem;
-  margin-top: 0.35rem;
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  gap: 0.3rem;
   color: var(--text-secondary);
   font-size: 0.72rem;
+  text-align: right;
 }
 
 .reviewState {
@@ -503,6 +512,11 @@
   font-weight: 700;
 }
 
+.reviewTiming,
+.reviewCount {
+  white-space: nowrap;
+}
+
 .tag {
   background: var(--tag-background, #e3f2fd);
   color: var(--selected-count-text, #1976d2);
@@ -511,51 +525,77 @@
   font-size: 0.8rem;
 }
 
-.itemActions {
+.itemAside {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-left: auto;
 }
 
-.toggleButton,
-.editButton,
-.deleteButton {
-  padding: var(--button-padding);
-  border-radius: 0;
+.moreMenu {
+  position: relative;
+}
+
+.moreMenu summary {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
   cursor: pointer;
-  font-size: 0.9rem;
-  white-space: nowrap;
-  font-weight: 600;
+  list-style: none;
+  place-items: center;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-size: 1.3rem;
+  line-height: 1;
 }
 
-.toggleButton {
-  background: transparent;
-  color: var(--warning);
+.moreMenu summary::-webkit-details-marker {
+  display: none;
+}
+
+.moreMenu summary:hover,
+.moreMenu[open] summary {
+  border-color: var(--border-color);
+  background: var(--button-secondary-hover);
+  color: var(--foreground);
+}
+
+.moreMenuContent {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  width: max-content;
+  min-width: 9rem;
+  padding: 0.3rem;
   border: 1px solid var(--border-color);
+  background: var(--surface-raised);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 22%);
 }
 
-.toggleButton:hover {
+.moreMenuContent button {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.moreMenuContent button:hover {
   background: var(--button-secondary-hover);
 }
 
-.editButton {
-  background: transparent;
-  color: var(--accent);
-  border: 1px solid var(--border-color);
-}
-
-.editButton:hover {
-  background: var(--button-secondary-hover);
-}
-
-.deleteButton {
-  background: transparent;
+.moreMenuContent .menuDanger {
   color: var(--danger);
-  border: 1px solid var(--border-color);
 }
 
-.deleteButton:hover {
-  background: var(--button-secondary-hover);
+.moreMenuContent .menuDanger:hover {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
 .editForm {
@@ -668,16 +708,9 @@
     flex-direction: column;
   }
 
-  .itemActions {
+  .itemAside {
     width: 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-
-  .toggleButton,
-  .editButton,
-  .deleteButton {
-    flex: 1 1 9rem;
+    justify-content: space-between;
   }
 
   .editActions {
@@ -752,29 +785,6 @@
 .itemDetail {
   font-size: 0.8rem;
 }
-.itemActions {
-  flex-direction: row;
-  gap: 0.25rem;
-  flex-wrap: wrap;
-}
-.toggleButton,
-.editButton,
-.deleteButton {
-  border: 0;
-  padding: 0.4rem 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  border-radius: 0;
-}
-.toggleButton {
-  color: var(--text-secondary);
-}
-.item.disabled {
-  opacity: 1;
-}
-.disabled .itemContent {
-  color: var(--text-secondary);
-}
 .tag {
   font-size: 0.7rem;
   padding: 0.15rem 0.4rem;
@@ -822,13 +832,17 @@
     align-items: stretch;
     gap: 0.6rem;
   }
-  .itemActions {
-    width: auto;
+  .itemAside {
+    align-items: center;
   }
-  .toggleButton,
-  .editButton,
-  .deleteButton {
-    flex: 0 1 auto;
+  .reviewStats {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-items: start;
+    gap: 0.35rem 0.75rem;
+    text-align: left;
   }
   .editActions {
     flex-direction: row;

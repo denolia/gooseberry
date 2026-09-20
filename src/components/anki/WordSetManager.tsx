@@ -754,6 +754,8 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                         ))}
                       </div>
                     )}
+                  </div>
+                  <div className={styles.itemAside}>
                     <div className={styles.reviewStats}>
                       <span
                         className={styles.reviewState}
@@ -762,34 +764,42 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                         {reviewStateLabel(item.review.state)}
                       </span>
                       <span
-                        className={
+                        className={`${styles.reviewTiming} ${
                           isReadyForReview(
                             item.review.state,
                             item.review.dueAt,
                             new Date(),
                           )
                             ? styles.readyNow
-                            : undefined
-                        }
+                            : ""
+                        }`}
                       >
                         {nextReviewLabel(item)}
                       </span>
-                      <span>{reviewCountLabel(item.review.reps)}</span>
+                      <span className={styles.reviewCount}>
+                        {reviewCountLabel(item.review.reps)}
+                      </span>
                     </div>
-                  </div>
-                  <div className={styles.itemActions}>
-                    <button
-                      onClick={() => startEditing(item)}
-                      className={styles.editButton}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => deleteItem(item.id)}
-                      className={styles.deleteButton}
-                    >
-                      Remove
-                    </button>
+                    <details className={styles.moreMenu}>
+                      <summary aria-label={`More actions for ${item.original}`}>
+                        ⋯
+                      </summary>
+                      <div className={styles.moreMenuContent}>
+                        <button
+                          type="button"
+                          onClick={() => startEditing(item)}
+                        >
+                          Edit card
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.menuDanger}
+                          onClick={() => void deleteItem(item.id)}
+                        >
+                          Remove from set
+                        </button>
+                      </div>
+                    </details>
                   </div>
                 </>
               )}
