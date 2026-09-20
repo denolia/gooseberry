@@ -1,6 +1,7 @@
 import { getDb } from "@/db/drizzle";
-import { wordSet, wordSetItem } from "@/db/schema";
+import { studyCard, wordSet, wordSetItem } from "@/db/schema";
 import { and, eq, desc, inArray } from "drizzle-orm";
+import { NATIVE_STUDY_CARD_TEMPLATE } from "@/lib/review/model";
 
 export async function createWordSet(input: {
   userId: string;
@@ -97,24 +98,32 @@ export async function addItemsToWordSet(
   if (items.length === 0) return;
 
   const db = getDb();
-  return db
-    .insert(wordSetItem)
-    .values(
-      items.map((item) => ({
-        wordSetId,
-        ankiNoteGuid: item.ankiNoteGuid,
-        original: item.original,
-        translation: item.translation,
-        wordForms: item.wordForms ?? "",
-        sample: item.sample ?? "",
-        sampleTranslation: item.sampleTranslation ?? "",
-        comments: item.comments ?? "",
-        tags: item.tags ?? "",
-        sourceTranslationId: item.sourceTranslationId ?? null,
-        position: item.position,
+  const itemRows = items.map((item) => ({
+    id: crypto.randomUUID(),
+    wordSetId,
+    ankiNoteGuid: item.ankiNoteGuid,
+    original: item.original,
+    translation: item.translation,
+    wordForms: item.wordForms ?? "",
+    sample: item.sample ?? "",
+    sampleTranslation: item.sampleTranslation ?? "",
+    comments: item.comments ?? "",
+    tags: item.tags ?? "",
+    sourceTranslationId: item.sourceTranslationId ?? null,
+    position: item.position,
+  }));
+
+  const [inserted] = await db.batch([
+    db.insert(wordSetItem).values(itemRows).returning({ id: wordSetItem.id }),
+    db.insert(studyCard).values(
+      itemRows.map(({ id }) => ({
+        wordSetItemId: id,
+        templateKey: NATIVE_STUDY_CARD_TEMPLATE,
       })),
-    )
-    .returning({ id: wordSetItem.id });
+    ),
+  ]);
+
+  return inserted;
 }
 
 export async function getExistingSourceTranslationIds(
