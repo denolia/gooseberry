@@ -64,9 +64,9 @@
 }
 
 .flowerPetal {
-  fill: #fffdf7;
-  stroke: color-mix(in srgb, var(--border-color) 70%, white);
-  stroke-width: 0.6;
+  fill: #ffd9e6;
+  stroke: #c94f7c;
+  stroke-width: 0.85;
 }
 
 .flowerCenter {

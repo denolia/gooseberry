@@ -260,7 +260,10 @@ export function WordSetList() {
                 <div key={set.id} className={styles.card}>
                   <Link className={styles.cardContent} href={`/anki/${set.id}`}>
                     <StudyPlant
-                      stage={plantReadinessStage(reviewStats.dueCount)}
+                      stage={plantReadinessStage(
+                        reviewStats.dueCount,
+                        reviewStats.itemCount,
+                      )}
                       dueCount={reviewStats.dueCount}
                     />
                     <div className={styles.setCopy}>

@@ -29,8 +29,12 @@ export function isReadyForReview(
   return new Date(dueAt).getTime() <= now.getTime();
 }
 
-export function plantReadinessStage(dueCount: number): PlantReadinessStage {
+export function plantReadinessStage(
+  dueCount: number,
+  totalCount?: number,
+): PlantReadinessStage {
   if (dueCount <= 0) return "seed";
+  if (totalCount && dueCount >= totalCount) return "ripe";
   if (dueCount <= 5) return "sprout";
   if (dueCount < 15) return "growing";
   return "ripe";

@@ -56,6 +56,13 @@ test("readiness counts map to the four plant stages", () => {
   assert.equal(stats.plantReadinessStage(15), "ripe");
 });
 
+test("a set is ripe when all of its words are ready", () => {
+  assert.equal(stats.plantReadinessStage(0, 0), "seed");
+  assert.equal(stats.plantReadinessStage(2, 2), "ripe");
+  assert.equal(stats.plantReadinessStage(5, 6), "sprout");
+  assert.equal(stats.plantReadinessStage(8, 8), "ripe");
+});
+
 test("review counts call untouched cards fresh", () => {
   assert.equal(stats.reviewCountLabel(0), "Fresh");
   assert.equal(stats.reviewCountLabel(1), "1 review");
