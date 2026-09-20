@@ -393,7 +393,6 @@ export function ReviewSession({
               )}
 
               <div className={styles.ratingArea}>
-                {!newCard && <p>Do you remember it?</p>}
                 <div
                   className={`${styles.ratings} ${
                     newCard
