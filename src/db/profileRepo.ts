@@ -3,12 +3,6 @@ import { getDb } from "@/db/drizzle";
 import { appUser, premiumRequest, userPreference } from "@/db/schema";
 import { isAdminEmail } from "@/lib/admin/access";
 import {
-  isSourceLanguage,
-  isTargetLanguage,
-  type SourceLanguage,
-  type TargetLanguage,
-} from "@/components/ui/Languages";
-import {
   isReviewMode,
   ReviewMode,
   type ReviewModeValue,
@@ -76,12 +70,6 @@ export async function getUserProfile(userId: string) {
     tier,
     isAdmin: isAdminEmail(user.email),
     preferences: {
-      defaultSourceLang: isSourceLanguage(preferences?.defaultSourceLang)
-        ? preferences.defaultSourceLang
-        : "German",
-      defaultTargetLang: isTargetLanguage(preferences?.defaultTargetLang)
-        ? preferences.defaultTargetLang
-        : "English",
       reviewMode: isReviewMode(preferences?.reviewMode)
         ? preferences.reviewMode
         : ReviewMode.Simple,
@@ -106,24 +94,18 @@ export async function getUserReviewMode(
 
 export async function updateUserPreferences(input: {
   userId: string;
-  defaultSourceLang: SourceLanguage;
-  defaultTargetLang: TargetLanguage;
   reviewMode: ReviewModeValue;
 }) {
   const [preferences] = await getDb()
     .insert(userPreference)
     .values({
       userId: input.userId,
-      defaultSourceLang: input.defaultSourceLang,
-      defaultTargetLang: input.defaultTargetLang,
       reviewMode: input.reviewMode,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
       target: userPreference.userId,
       set: {
-        defaultSourceLang: input.defaultSourceLang,
-        defaultTargetLang: input.defaultTargetLang,
         reviewMode: input.reviewMode,
         updatedAt: new Date(),
       },

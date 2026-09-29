@@ -2,13 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import {
-  SourceLanguage,
-  SourceLanguageOptions,
-  TargetLanguage,
-  TargetLanguageOptions,
-} from "@/components/ui/Languages";
-import { LanguageStore } from "@/lib/languages/languageStore";
 import { ReviewMode, type ReviewModeValue } from "@/lib/review/model";
 import styles from "./ProfileClient.module.css";
 
@@ -20,8 +13,6 @@ type Profile = {
   createdAt: string | Date;
   premiumGrantedAt: string | Date | null;
   preferences: {
-    defaultSourceLang: SourceLanguage;
-    defaultTargetLang: TargetLanguage;
     reviewMode: ReviewModeValue;
   };
   pendingRequest: {
@@ -32,12 +23,6 @@ type Profile = {
 };
 
 export function ProfileClient({ initialProfile }: { initialProfile: Profile }) {
-  const [sourceLang, setSourceLang] = useState(
-    initialProfile.preferences.defaultSourceLang,
-  );
-  const [targetLang, setTargetLang] = useState(
-    initialProfile.preferences.defaultTargetLang,
-  );
   const [reviewMode, setReviewMode] = useState(
     initialProfile.preferences.reviewMode,
   );
@@ -61,16 +46,12 @@ export function ProfileClient({ initialProfile }: { initialProfile: Profile }) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          defaultSourceLang: sourceLang,
-          defaultTargetLang: targetLang,
           reviewMode,
         }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok)
         throw new Error(body.error || "Could not save settings.");
-      LanguageStore.setCurrentSourceLanguage(sourceLang);
-      LanguageStore.setCurrentTargetLanguage(targetLang);
       setSaved(true);
     } catch (error) {
       setPreferenceError(
@@ -191,36 +172,9 @@ export function ProfileClient({ initialProfile }: { initialProfile: Profile }) {
         <p className={styles.eyebrow}>Preferences</p>
         <h2 id="preferences-heading">Learning preferences</h2>
         <p className={styles.intro}>
-          Choose your language defaults and how much detail you want while
-          reviewing.
+          Choose how you answer while reviewing.
         </p>
         <form className={styles.preferences} onSubmit={savePreferences}>
-          <label>
-            Source language
-            <select
-              value={sourceLang}
-              onChange={(event) =>
-                setSourceLang(event.target.value as SourceLanguage)
-              }
-            >
-              {SourceLanguageOptions.map((language) => (
-                <option key={language}>{language}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Translation language
-            <select
-              value={targetLang}
-              onChange={(event) =>
-                setTargetLang(event.target.value as TargetLanguage)
-              }
-            >
-              {TargetLanguageOptions.map((language) => (
-                <option key={language}>{language}</option>
-              ))}
-            </select>
-          </label>
           <fieldset className={styles.reviewMode}>
             <legend>Review buttons</legend>
             <label>

@@ -23,7 +23,7 @@ const DEFAULT_VALUE: LanguageStoreState = {
   currentSourceLanguage: SourceLanguages.German,
   currentTargetLanguage: TargetLanguages.English,
 };
-let data: LanguageStoreState = DEFAULT_VALUE;
+let data: LanguageStoreState = { ...DEFAULT_VALUE };
 
 function updateStore(nextState: Partial<LanguageStoreState>) {
   data = {
@@ -107,28 +107,6 @@ export const LanguageStore = {
       window.removeEventListener("storage", handler);
       listeners = listeners.filter((l) => l !== listener);
     };
-  },
-  applyServerDefaults(
-    sourceLanguage: SourceLanguage,
-    targetLanguage: TargetLanguage,
-  ) {
-    try {
-      if (
-        !isSourceLanguage(sourceLanguage) ||
-        !isTargetLanguage(targetLanguage)
-      ) {
-        return;
-      }
-      updateStore({
-        currentSourceLanguage: sourceLanguage,
-        currentTargetLanguage: targetLanguage,
-      });
-      localStorage.setItem(SOURCE_LANGUAGE_STORAGE_KEY, sourceLanguage);
-      localStorage.setItem(TARGET_LANGUAGE_STORAGE_KEY, targetLanguage);
-      emitChange();
-    } catch (e) {
-      console.error("Failed to apply language defaults", e);
-    }
   },
   setCurrentSourceLanguage(nextLanguage: SourceLanguage) {
     try {
