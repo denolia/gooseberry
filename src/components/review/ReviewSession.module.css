@@ -248,6 +248,11 @@
   background: var(--accent-strong);
 }
 
+.okButton .ratingKey {
+  width: auto;
+  padding: 0 0.4rem;
+}
+
 .ratingButton.okButton small {
   color: rgb(255 255 255 / 75%);
 }

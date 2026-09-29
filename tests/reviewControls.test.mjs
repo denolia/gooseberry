@@ -32,9 +32,11 @@ const { isNewState, reviewControls, reviewPrompt } = controls;
 test("only new cards ask the user to continue without grading", () => {
   assert.equal(isNewState(FsrsCardState.New), true);
   assert.equal(reviewPrompt(FsrsCardState.New), "Try to remember this:");
-  assert.deepEqual(reviewControls(FsrsCardState.New, ReviewMode.Full), [
-    { label: "Ok", rating: ReviewRating.Good, shortcut: null },
-  ]);
+  for (const mode of [ReviewMode.Simple, ReviewMode.Full]) {
+    assert.deepEqual(reviewControls(FsrsCardState.New, mode), [
+      { label: "Ok", rating: ReviewRating.Good, shortcut: " " },
+    ]);
+  }
 });
 
 test("learning cards use the recall prompt and grading controls", () => {

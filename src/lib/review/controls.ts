@@ -10,7 +10,7 @@ import {
 export type ReviewControl = {
   label: string;
   rating: ReviewRatingValue;
-  shortcut: "1" | "2" | "3" | "4" | null;
+  shortcut: "1" | "2" | "3" | "4" | " " | null;
 };
 
 export function isNewState(state: FsrsCardStateValue): boolean {
@@ -26,7 +26,7 @@ export function reviewControls(
   mode: ReviewModeValue,
 ): ReviewControl[] {
   if (isNewState(state)) {
-    return [{ label: "Ok", rating: ReviewRating.Good, shortcut: null }];
+    return [{ label: "Ok", rating: ReviewRating.Good, shortcut: " " }];
   }
 
   if (mode === ReviewMode.Full) {

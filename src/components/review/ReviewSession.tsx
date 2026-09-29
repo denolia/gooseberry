@@ -254,6 +254,10 @@ export function ReviewSession({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.repeat && event.key === " ") {
+        event.preventDefault();
+        return;
+      }
       if (!revealed && (event.key === " " || event.key === "Enter")) {
         event.preventDefault();
         revealAnswer();
@@ -421,7 +425,7 @@ export function ReviewSession({
                       >
                         {control.shortcut && (
                           <span className={styles.ratingKey}>
-                            {control.shortcut}
+                            {control.shortcut === " " ? "Space" : control.shortcut}
                           </span>
                         )}
                         <span className={styles.ratingCopy}>
