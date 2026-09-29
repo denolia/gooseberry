@@ -339,18 +339,6 @@ export function WordInput() {
   );
 
   useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-      // Move cursor to the end of the text:
-      // defer cursor placement to the next event loop cycle.
-      // This helps prevent React from interfering with cursor placement.
-      setTimeout(() => {
-        inputRef.current?.setSelectionRange(word.length, word.length);
-      }, 0);
-    }
-  }, [translation]);
-
-  useEffect(() => {
     setShowSpecialChars(false);
   }, [currentSourceLanguage]);
 
@@ -360,14 +348,16 @@ export function WordInput() {
 
   const clearInput = () => {
     setWord("");
-    requestAnimationFrame(() => inputRef.current?.focus());
+    requestAnimationFrame(() =>
+      inputRef.current?.focus({ preventScroll: true }),
+    );
   };
 
   const insertSpecialChar = (char: string) => {
     setWord((prevWord) => prevWord + char);
     // Focus the input field after inserting the character
     if (inputRef.current) {
-      inputRef.current.focus();
+      inputRef.current.focus({ preventScroll: true });
     }
   };
 
