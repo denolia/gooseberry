@@ -33,18 +33,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // Store Google's provider ID in the token on first sign in
       if (account?.provider === "google" && account.providerAccountId) {
         token.providerAccountId = account.providerAccountId;
-        console.log(
-          "[JWT] Stored providerAccountId in token:",
-          account.providerAccountId,
-        );
       }
       return token;
     },
     async session({ session, token }) {
-      console.log(
-        "[Session] Token providerAccountId:",
-        token.providerAccountId,
-      );
       if (session.user && token.providerAccountId) {
         try {
           // Attach internal app_user.id to session
@@ -56,7 +48,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             session.user.id = user.id;
             session.user.isAdmin = isAdminEmail(user.email);
             session.user.tier = user.tier === "premium" ? "premium" : "free";
-            console.log("[Session] Attached userId to session:", user.id);
           } else {
             console.error(
               "[Session] Failed to find user in DB for providerAccountId:",

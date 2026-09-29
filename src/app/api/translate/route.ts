@@ -22,83 +22,28 @@ const timeoutMs = 60000; // timeout for the request in milliseconds
 const translationModel = process.env.OPENAI_TRANSLATION_MODEL ?? "gpt-5-mini";
 const maxCompletionTokens = 1800;
 
-type TimingName =
-  | "auth"
-  | "request"
-  | "openai"
-  | "openaiJson"
-  | "validation"
-  | "db"
-  | "total";
-
-type Timings = Partial<Record<TimingName, number>>;
-
-function durationMs(start: number) {
-  return Math.round((performance.now() - start) * 100) / 100;
-}
-
-async function timeAsync<T>(
-  timings: Timings,
-  name: TimingName,
-  callback: () => Promise<T>,
-) {
-  const start = performance.now();
-  try {
-    return await callback();
-  } finally {
-    timings[name] = durationMs(start);
-  }
-}
-
-function timeSync<T>(timings: Timings, name: TimingName, callback: () => T) {
-  const start = performance.now();
-  try {
-    return callback();
-  } finally {
-    timings[name] = durationMs(start);
-  }
-}
-
-function getServerTimingHeader(timings: Timings) {
-  return Object.entries(timings)
-    .map(([name, duration]) => `${name};dur=${duration}`)
-    .join(", ");
-}
-
-function jsonWithTimings(body: unknown, timings: Timings, init?: ResponseInit) {
-  const headers = new Headers(init?.headers);
-  headers.set("Server-Timing", getServerTimingHeader(timings));
-
-  return NextResponse.json(body, {
-    ...init,
-    headers,
-  });
-}
-
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
 export async function POST(request: Request) {
-  const totalStart = performance.now();
-  const timings: Timings = {};
   let phase = "auth";
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
   try {
     // Check if the user is authenticated
-    const session = await timeAsync(timings, "auth", () => auth());
+    const session = await auth();
     if (!session?.user?.id) {
-      timings.total = durationMs(totalStart);
-      return jsonWithTimings({ error: "Unauthorized" }, timings, {
-        status: 401,
-      });
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        {
+          status: 401,
+        },
+      );
     }
 
     phase = "request";
-    const requestBody = await timeAsync(timings, "request", () =>
-      request.json(),
-    );
+    const requestBody = await request.json();
     const input =
       requestBody && typeof requestBody === "object"
         ? (requestBody as Record<string, unknown>)
@@ -109,9 +54,8 @@ export async function POST(request: Request) {
       !isSourceLanguage(sourceLanguage) ||
       !isTargetLanguage(targetLanguage)
     ) {
-      return jsonWithTimings(
+      return NextResponse.json(
         { error: "Choose valid source and target languages." },
-        timings,
         { status: 400 },
       );
     }
@@ -121,12 +65,14 @@ export async function POST(request: Request) {
       currentSourceLanguage === SourceLanguages.Finnish
         ? FinnishTranslationResponseSchema
         : BaseTranslationResponseSchema;
-    const inputLength = typeof text === "string" ? text.length : 0;
 
     if (typeof text !== "string" || !text.trim()) {
-      return jsonWithTimings({ error: "Enter text to translate." }, timings, {
-        status: 400,
-      });
+      return NextResponse.json(
+        { error: "Enter text to translate." },
+        {
+          status: 400,
+        },
+      );
     }
 
     const usageId = await startUsage({
@@ -159,7 +105,6 @@ export async function POST(request: Request) {
         let usageFinalized = false;
         try {
           phase = "openai";
-          const openaiStart = performance.now();
           const client = new OpenAI({ maxRetries: 0 });
           const stream = client.chat.completions.stream(
             {
@@ -211,57 +156,37 @@ export async function POST(request: Request) {
           });
           const data = await stream.finalChatCompletion();
           completion = data;
-          timings.openai = durationMs(openaiStart);
           clearTimeout(timeoutId);
           phase = "validation";
-          const validatedData = timeSync(timings, "validation", () =>
-            responseSchema.parse(
-              JSON.parse(data.choices[0]?.message.content ?? ""),
-            ),
+          const validatedData = responseSchema.parse(
+            JSON.parse(data.choices[0]?.message.content ?? ""),
           );
           usageStatus = "succeeded";
           // Display the validated card before waiting for persistence.
           send({ type: "result", response: validatedData });
           try {
             phase = "db";
-            await timeAsync(timings, "db", () =>
-              insertTranslation({
-                userId: session.user.id,
-                sourceLang: currentSourceLanguage,
-                targetLang: getLanguageCode(currentTargetLanguage),
-                inputText: text,
-                responseJson: validatedData,
-                model: translationModel,
-                promptVersion: "v2",
-              }),
-            );
+            await insertTranslation({
+              userId: session.user.id,
+              sourceLang: currentSourceLanguage,
+              targetLang: getLanguageCode(currentTargetLanguage),
+              inputText: text,
+              responseJson: validatedData,
+              model: translationModel,
+              promptVersion: "v2",
+            });
           } catch (error) {
             console.error("Failed to save translation to DB:", {
               error: getErrorMessage(error),
-              timings,
             });
           }
-          timings.total = durationMs(totalStart);
-          console.info("Translation request completed", {
-            model: translationModel,
-            inputLength,
-            timings,
-            finishReason: data.choices[0]?.finish_reason,
-            usage: {
-              completionTokens: data.usage?.completion_tokens,
-              promptTokens: data.usage?.prompt_tokens,
-              reasoningTokens:
-                data.usage?.completion_tokens_details?.reasoning_tokens,
-            },
-          });
           await finishUsage(usageId, usageStatus, completion);
           usageFinalized = true;
-          send({ type: "done", timings });
+          send({ type: "done" });
         } catch (error) {
           console.error("Translation stream failed", {
             phase,
             error: getErrorMessage(error),
-            timings,
           });
           send({
             type: "error",
@@ -290,14 +215,15 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    timings.total = durationMs(totalStart);
     console.error("Translation error:", {
       error: getErrorMessage(error),
       phase,
-      timings,
     });
-    return jsonWithTimings({ error: "Translation failed" }, timings, {
-      status: 500,
-    });
+    return NextResponse.json(
+      { error: "Translation failed" },
+      {
+        status: 500,
+      },
+    );
   }
 }
