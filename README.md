@@ -57,7 +57,7 @@ It preserves more than just the source word and translation, including examples,
 
 ## Development
 
-Use Node 24 (see `.nvmrc`) and pnpm. `pnpm-lock.yaml` is the dependency lockfile.
+Use Node 26.3.0 (see `.nvmrc`) and pnpm. `pnpm-lock.yaml` is the dependency lockfile.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -84,5 +84,5 @@ TypeScript 7 runs `pnpm typecheck` and the Next.js build's type checks through
 `@typescript/typescript6` for its `transpileModule` API, which TypeScript 7.0 does
 not provide. The two packages expose separate `tsc` and `tsc6` commands. Keep the
 compatibility package until those helpers no longer need the TypeScript 6 API.
-Node types follow the Node 24 runtime, and NextAuth stays on the v5 beta release
+Node types follow the Node 26 runtime, and NextAuth stays on the v5 beta release
 track.
