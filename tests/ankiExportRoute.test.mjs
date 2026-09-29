@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 
 function loadRoute({ premium = true, cachedAudio = null } = {}) {
   const speechCalls = [];

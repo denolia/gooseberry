@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 
 const cursorId = "11111111-1111-4111-8111-111111111111";
 const cursorTimestamp = "2026-09-18 12:34:56.123456+00";

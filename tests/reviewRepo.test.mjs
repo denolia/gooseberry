@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 
 const reviewedAt = new Date("2026-01-01T12:00:00.000Z");
 const nextState = {

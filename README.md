@@ -67,7 +67,22 @@ pnpm dev
 Run `pnpm test`, `pnpm typecheck`, `pnpm lint`, and `pnpm build` to validate changes.
 The production build needs network access to download the Google font.
 
-TypeScript stays on 6.0 because the current `typescript-eslint` packages require
-TypeScript below 6.1. ESLint stays on 9 because the React, accessibility, and import
-plugins used by `eslint-config-next` do not yet declare ESLint 10 support. Node
-types follow the Node 24 runtime, and NextAuth stays on the v5 beta release track.
+Linting uses Oxlint with the migrated Next.js, TypeScript, React, import, and
+accessibility rules in `.oxlintrc.json`. Prettier remains the formatter. The React
+Compiler rules are explicitly enabled to preserve the previous checks; their
+Oxlint implementations are experimental. Existing application lint findings are
+still reported as errors or warnings, rather than suppressed during migration.
+
+The migration preserves 80 rules, with two coverage gaps: Next.js's
+`no-location-assign-relative-destination` is not implemented in Oxlint, and
+`react/no-deprecated` needs the separate type-aware `typescript/no-deprecated`
+rule. JSX variable tracking is built in; the old React Compiler `config` and
+`gating` rules do not apply to Oxlint's fixed compiler configuration.
+
+TypeScript 7 runs `pnpm typecheck` and the Next.js build's type checks through
+`experimental.useTypeScriptCli`. Test helpers explicitly import
+`@typescript/typescript6` for its `transpileModule` API, which TypeScript 7.0 does
+not provide. The two packages expose separate `tsc` and `tsc6` commands. Keep the
+compatibility package until those helpers no longer need the TypeScript 6 API.
+Node types follow the Node 24 runtime, and NextAuth stays on the v5 beta release
+track.

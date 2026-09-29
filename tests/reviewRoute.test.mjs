@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { z } from "zod";
 
 function loadRoute({ session = { user: { id: "user-1" } }, card = null } = {}) {

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 
 test("speech generator requests a clear MP3 pronunciation", async () => {
   const calls = [];
