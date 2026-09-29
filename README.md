@@ -57,7 +57,11 @@ It preserves more than just the source word and translation, including examples,
 
 ## Development
 
-Use Node 26.3.0 (see `.nvmrc`) and pnpm. `pnpm-lock.yaml` is the dependency lockfile.
+Use Node 26.3.0 (see `.nvmrc`) and pnpm 11.6.0 (pinned in `package.json`).
+`pnpm-lock.yaml` is the dependency lockfile.
+Vercel's install and build commands explicitly use pnpm 11.6.0 in `vercel.json`
+to avoid its legacy package-manager auto-detection. Update those commands together
+with `packageManager` when changing pnpm versions.
 
 ```sh
 pnpm install --frozen-lockfile
