@@ -176,6 +176,7 @@ test("translation route records tokens for invalid output and persists usage bef
     };
     const route = loadModule("../src/app/api/translate/route.ts", {
       openai: {
+        __esModule: true,
         default: class {
           chat = {
             completions: {

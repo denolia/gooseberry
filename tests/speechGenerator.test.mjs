@@ -21,6 +21,7 @@ test("speech generator requests a clear MP3 pronunciation", async () => {
   new Function("require", "exports", code)((name) => {
     if (name !== "openai") throw new Error(`Unexpected dependency ${name}`);
     return {
+      __esModule: true,
       default: class {
         audio = {
           speech: {

@@ -54,3 +54,20 @@ It preserves more than just the source word and translation, including examples,
 - Add more translation directions
 - Add a smoother onboarding flow for first-time users
 - Add optional direct import through AnkiConnect
+
+## Development
+
+Use Node 24 (see `.nvmrc`) and pnpm. `pnpm-lock.yaml` is the dependency lockfile.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+Run `pnpm test`, `pnpm typecheck`, `pnpm lint`, and `pnpm build` to validate changes.
+The production build needs network access to download the Google font.
+
+TypeScript stays on 6.0 because the current `typescript-eslint` packages require
+TypeScript below 6.1. ESLint stays on 9 because the React, accessibility, and import
+plugins used by `eslint-config-next` do not yet declare ESLint 10 support. Node
+types follow the Node 24 runtime, and NextAuth stays on the v5 beta release track.
