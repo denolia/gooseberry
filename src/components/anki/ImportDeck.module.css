@@ -29,7 +29,6 @@
   background: var(--surface-raised);
 }
 
-.panel h2,
 .panel legend {
   font-size: 1.1rem;
   font-weight: 700;
@@ -37,10 +36,6 @@
 
 .panel legend {
   padding: 0 0.35rem;
-}
-
-.panel h2 {
-  margin-bottom: 0.85rem;
 }
 
 .panel h3 {
@@ -164,7 +159,10 @@
 
 .noteType {
   padding: 1rem 0;
-  border-bottom: 1px solid var(--border-color);
+}
+
+.noteType + .noteType {
+  border-top: 1px solid var(--border-color);
 }
 
 .noteType summary {

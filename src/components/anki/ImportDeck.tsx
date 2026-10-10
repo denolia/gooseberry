@@ -790,8 +790,8 @@ export function ImportDeck() {
         </section>
       ) : (
         <>
-          <section className={styles.panel}>
-            <h2>1. Choose your deck</h2>
+          <fieldset className={styles.panel}>
+            <legend>1. Choose your deck</legend>
             <label className={styles.fileLabel} htmlFor="anki-package-file">
               Anki deck file (.apkg)
             </label>
@@ -837,7 +837,7 @@ export function ImportDeck() {
               pronunciation later. Existing Anki reviews and deck settings are
               retained for future support; study starts fresh here.
             </p>
-          </section>
+          </fieldset>
 
           {pkg && (
             <>
@@ -1149,8 +1149,8 @@ export function ImportDeck() {
                   })}
               </fieldset>
 
-              <section className={styles.panel}>
-                <h2>4. Check the preview</h2>
+              <fieldset className={styles.panel}>
+                <legend>4. Check the preview</legend>
                 <div className={styles.summary}>
                   <p>
                     <strong>{included.length}</strong> words included
@@ -1318,7 +1318,7 @@ export function ImportDeck() {
                     in the correct direction.
                   </span>
                 </label>
-              </section>
+              </fieldset>
 
               <section className={styles.importActions} aria-live="polite">
                 {phase === "uploading" ||
