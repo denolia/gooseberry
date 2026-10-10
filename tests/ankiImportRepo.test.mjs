@@ -165,8 +165,8 @@ beforeEach(async () => {
 });
 after(() => fixture.close());
 
-test("commits sanitized vocabulary and fresh independent cards while retaining all source schedules privately", async () => {
-  const job = await imported();
+test("explicit fresh imports retain source schedules privately without applying them", async () => {
+  const job = await imported({ importProgress: false });
   assert.equal(job.status, "completed");
   assert.equal(job.addedCount, 1);
   assert.equal(job.skippedCount, 0);
@@ -202,6 +202,299 @@ test("commits sanitized vocabulary and fresh independent cards while retaining a
     /m\.\.\./,
   );
   assert.deepEqual(await repo.getImportNoteContext(item.id, otherId), {});
+});
+
+test("default imports carry matched source progress into durable baselines without duplicating native reviews", async () => {
+  const job = await imported();
+  assert.equal(job.importedProgressCount, 1);
+  const [state] = (await client.query("SELECT * FROM fsrs_card_state")).rows;
+  assert.equal(state.state, 2);
+  assert.equal(state.scheduled_days, 77);
+  assert.equal(state.reps, 123);
+  assert.equal(state.lapses, 4);
+  assert.equal(state.stability, 77);
+  const [baseline] = (
+    await client.query("SELECT * FROM study_card_import_baseline")
+  ).rows;
+  assert.equal(baseline.import_job_id, job.jobId);
+  assert.equal(baseline.source_card_id, "9007199254741000");
+  assert.equal(baseline.baseline_state.reps, 123);
+  assert.equal(
+    baseline.baseline_state.conversionVersion,
+    "anki-to-gooseberry-v1",
+  );
+  const [linked] = (
+    await client.query("SELECT * FROM study_card WHERE external_source='anki'")
+  ).rows;
+  assert.equal(linked.template_key, "recognition");
+  assert.equal(linked.external_id, baseline.source_card_id);
+  assert.equal(linked.is_suspended, true);
+  assert.equal((await client.query("SELECT * FROM study_card")).rows.length, 5);
+  assert.equal(
+    (await client.query("SELECT * FROM review_event")).rows.length,
+    0,
+  );
+  assert.equal(
+    (await client.query("SELECT * FROM import_source_review")).rows.length,
+    1,
+  );
+  const again = await repo.commitAnkiImport(job.jobId, userId, {
+    expectedBatchCount: 1,
+    expectedNoteCount: 1,
+  });
+  assert.equal(again.importedProgressCount, 1);
+  assert.equal(
+    (await client.query("SELECT * FROM study_card_import_baseline")).rows
+      .length,
+    1,
+  );
+});
+
+test("reimport recovers progress in an existing fresh set but preserves locally reviewed cards", async () => {
+  const fresh = await imported({ importProgress: false });
+  const recognition = (
+    await client.query(
+      "SELECT * FROM study_card WHERE template_key='recognition'",
+    )
+  ).rows[0];
+  const recovered = await imported({ targetSetId: fresh.wordSetId });
+  assert.equal(recovered.addedCount, 0);
+  assert.equal(recovered.importedProgressCount, 1);
+  assert.equal(
+    (await client.query("SELECT * FROM study_card_import_baseline")).rows[0]
+      .study_card_id,
+    recognition.id,
+  );
+  await client.query("UPDATE study_card SET is_suspended=false WHERE id=$1", [
+    recognition.id,
+  ]);
+  const reviews = load("@/db/reviewRepo");
+  await reviews.recordReview({
+    userId,
+    wordSetId: fresh.wordSetId,
+    studyCardId: recognition.id,
+    reviewEventId: crypto.randomUUID(),
+    rating: 3,
+    reviewedAt: new Date(),
+  });
+  const before = (await client.query("SELECT * FROM fsrs_card_state")).rows;
+  const third = await imported({ targetSetId: fresh.wordSetId });
+  assert.equal(third.importedProgressCount, 0);
+  assert.deepEqual(
+    (await client.query("SELECT * FROM fsrs_card_state")).rows,
+    before,
+  );
+  assert.equal(
+    (await client.query("SELECT * FROM review_event")).rows.length,
+    1,
+  );
+});
+
+test("reimport recovers an untouched exercise when Anki regenerated its source card ID", async () => {
+  const fresh = await imported({ importProgress: false });
+  await client.query(
+    "UPDATE study_card SET external_source='anki', external_id='old-source-card-id' WHERE template_key='recognition'",
+  );
+  const recovered = await imported({ targetSetId: fresh.wordSetId });
+  assert.equal(recovered.addedCount, 0);
+  assert.equal(recovered.importedProgressCount, 1);
+  const [card] = (
+    await client.query(
+      "SELECT * FROM study_card WHERE template_key='recognition'",
+    )
+  ).rows;
+  assert.equal(card.external_id, "9007199254741000");
+  assert.equal(
+    (await client.query("SELECT * FROM fsrs_card_state")).rows[0].reps,
+    123,
+  );
+});
+
+test("reimport leaves conflicting source card mappings untouched without failing publication", async () => {
+  const fresh = await imported({ importProgress: false });
+  await client.query(
+    "UPDATE study_card SET external_source='anki', external_id='9007199254741000' WHERE template_key='production'",
+  );
+  const recovered = await imported({ targetSetId: fresh.wordSetId });
+  assert.equal(recovered.status, "completed");
+  assert.equal(recovered.importedProgressCount, 0);
+  assert.equal(
+    (await client.query("SELECT * FROM fsrs_card_state")).rows.length,
+    0,
+  );
+  const [card] = (
+    await client.query("SELECT * FROM study_card WHERE external_source='anki'")
+  ).rows;
+  assert.equal(card.template_key, "production");
+  assert.equal(card.external_id, "9007199254741000");
+});
+
+test("source ordinal mapping keeps recognition and typed answers independent and other directions new", async () => {
+  const metadata = begin().packageMetadata;
+  metadata.models = [
+    {
+      ...model,
+      templates: [
+        ...model.templates,
+        {
+          ord: 1,
+          name: "Typed Finnish",
+          questionFormat: "{{Back}}{{type:Nominatiivi}}",
+          answerFormat: "{{type:Nominatiivi}}",
+          raw: {},
+        },
+      ],
+    },
+  ];
+  metadata.collection = {
+    creationTime: 1738638000,
+    config: { schedVer: 2, creationOffset: -120 },
+    raw: {},
+  };
+  const job = await repo.beginAnkiImport(
+    userId,
+    schemas.BeginImportSchema.parse(
+      begin({ packageMetadata: metadata, schedulingTimeZone: "Europe/Berlin" }),
+    ),
+  );
+  await repo.stageAnkiImport(
+    job.jobId,
+    userId,
+    schemas.ImportBatchSchema.parse({
+      batchIndex: 0,
+      notes: [note()],
+      cards: [
+        card({ queue: 2, due: 610 }),
+        card({
+          id: "9007199254741002",
+          ord: 1,
+          queue: 2,
+          due: 640,
+          ivl: 10,
+          reps: 8,
+        }),
+      ],
+    }),
+  );
+  const committed = await repo.commitAnkiImport(job.jobId, userId, {
+    expectedBatchCount: 1,
+    expectedNoteCount: 1,
+  });
+  assert.equal(committed.importedProgressCount, 2);
+  const states = (
+    await client.query(
+      "SELECT card.template_key, state.due_at, state.reps FROM study_card card JOIN fsrs_card_state state ON state.study_card_id=card.id ORDER BY template_key",
+    )
+  ).rows;
+  assert.deepEqual(
+    states.map((row) => row.template_key),
+    ["recognition", "type_answer"],
+  );
+  assert.equal(
+    new Date(states[0].due_at).toISOString(),
+    "2026-10-07T02:00:00.000Z",
+  );
+  assert.equal(
+    new Date(states[1].due_at).toISOString(),
+    "2026-11-06T03:00:00.000Z",
+  );
+  assert.deepEqual(
+    states.map((row) => row.reps),
+    [123, 8],
+  );
+});
+
+test("duplicate sibling ordinals reject publication without leaving cards or progress behind", async () => {
+  const job = await repo.beginAnkiImport(
+    userId,
+    schemas.BeginImportSchema.parse(begin()),
+  );
+  await repo.stageAnkiImport(
+    job.jobId,
+    userId,
+    schemas.ImportBatchSchema.parse({
+      batchIndex: 0,
+      notes: [note()],
+      cards: [card(), card({ id: "9007199254741002" })],
+    }),
+  );
+  await assert.rejects(
+    repo.commitAnkiImport(job.jobId, userId, {
+      expectedBatchCount: 1,
+      expectedNoteCount: 1,
+    }),
+    { status: 409 },
+  );
+  assert.equal((await client.query("SELECT * FROM word_set")).rows.length, 0);
+  assert.equal(
+    (await client.query("SELECT * FROM study_card_import_baseline")).rows
+      .length,
+    0,
+  );
+});
+
+test("a failure saving imported progress rolls back the entire publication", async () => {
+  await client.exec(
+    "ALTER TABLE study_card_import_baseline ADD CONSTRAINT test_progress_failure CHECK (false)",
+  );
+  try {
+    await assert.rejects(imported());
+    assert.equal((await client.query("SELECT * FROM word_set")).rows.length, 0);
+    assert.equal(
+      (await client.query("SELECT * FROM study_card")).rows.length,
+      0,
+    );
+    assert.equal(
+      (await client.query("SELECT * FROM fsrs_card_state")).rows.length,
+      0,
+    );
+    assert.equal(
+      (await client.query("SELECT status FROM anki_import_job")).rows[0].status,
+      "receiving",
+    );
+  } finally {
+    await client.exec(
+      "ALTER TABLE study_card_import_baseline DROP CONSTRAINT test_progress_failure",
+    );
+  }
+});
+
+test("reimport cannot replace a native schedule that has no imported baseline", async () => {
+  const first = await imported({ importProgress: false });
+  const recognition = (
+    await client.query(
+      "SELECT id FROM study_card WHERE template_key='recognition'",
+    )
+  ).rows[0];
+  const reviews = load("@/db/reviewRepo");
+  await reviews.recordReview({
+    userId,
+    wordSetId: first.wordSetId,
+    studyCardId: recognition.id,
+    reviewEventId: crypto.randomUUID(),
+    rating: 3,
+    reviewedAt: new Date(),
+  });
+  const before = (await client.query("SELECT * FROM fsrs_card_state")).rows;
+  const importedAgain = await imported({ targetSetId: first.wordSetId });
+  assert.equal(importedAgain.importedProgressCount, 0);
+  assert.deepEqual(
+    (await client.query("SELECT * FROM fsrs_card_state")).rows,
+    before,
+  );
+  assert.equal(
+    (await client.query("SELECT * FROM study_card_import_baseline")).rows
+      .length,
+    0,
+  );
+  assert.equal(
+    (
+      await client.query("SELECT is_suspended FROM study_card WHERE id=$1", [
+        recognition.id,
+      ])
+    ).rows[0].is_suspended,
+    false,
+  );
 });
 
 test("begin, batches, and commits are idempotent and reject conflicting replay", async () => {

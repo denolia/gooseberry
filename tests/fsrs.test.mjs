@@ -6,6 +6,8 @@ import {
   FSRS_SCHEDULER_VERSION,
   previewRatings,
   replayReviewHistory,
+  serializeFsrsState,
+  deserializeFsrsState,
 } from "../src/lib/review/fsrs.ts";
 import { FsrsCardState, ReviewRating } from "../src/lib/review/model.ts";
 
@@ -70,4 +72,36 @@ test("history replay is deterministic and uses timestamp then sequence order", (
   assert.deepEqual(replayed, stepped);
   assert.equal(replayed.reps, 2);
   assert.equal(replayed.state, FsrsCardState.Review);
+});
+
+test("imported baselines survive serialization and seed later Gooseberry replay", () => {
+  const baseline = {
+    ...applyReview(
+      createInitialFsrsState(introducedAt),
+      ReviewRating.Easy,
+      introducedAt,
+    ),
+    reps: 50,
+    lapses: 4,
+    schedulerVersion: "import-source-v1",
+  };
+  assert.deepEqual(
+    deserializeFsrsState(serializeFsrsState(baseline)),
+    baseline,
+  );
+  const restored = replayReviewHistory(introducedAt, [], baseline);
+  assert.equal(restored.reps, 50);
+  assert.equal(restored.lapses, 4);
+  assert.equal(restored.dueAt.toISOString(), baseline.dueAt.toISOString());
+  assert.equal(restored.schedulerVersion, FSRS_SCHEDULER_VERSION);
+  const event = {
+    rating: ReviewRating.Good,
+    reviewedAt: baseline.dueAt,
+    sequence: 1,
+  };
+  assert.deepEqual(
+    replayReviewHistory(introducedAt, [event], baseline),
+    applyReview(baseline, event.rating, event.reviewedAt),
+  );
+  assert.equal(baseline.reps, 50);
 });

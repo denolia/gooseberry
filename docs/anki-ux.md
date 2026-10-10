@@ -16,7 +16,9 @@ Study presents recognition, production, word forms, typed production and example
 
 ## Import and enrichment
 
-**Import Anki deck** opens local package inspection, deck selection, language confirmation, field mapping and prompt/answer previews. Import is text-only and starts fresh Gooseberry progress. Missing imported fields remain editable. Same-set reimport skips source GUIDs and preserves edits/progress; undo removes only notes created by that import. See [Anki import](anki-import.md).
+**Import Anki deck** opens local package inspection, deck selection, language confirmation, field mapping and prompt/answer previews. Import is text-only. **Keep Anki learning progress** defaults on: the learner checks source-template matches and an editable study timezone, initially taken from the browser. Matching exercises keep converted schedules; additional modes start new. Suspension and unexpired burial are respected, while future ratings use Gooseberry's scheduler.
+
+Missing imported fields remain editable. Same-set reimport preserves content edits and existing Gooseberry progress, and can recover source progress for untouched exercises. Undo removes only notes created by that import. See [Anki import](anki-import.md).
 
 A word's actions include **Generate missing content** when fields are empty. The learner chooses fields, requests a proposal, edits it and saves selected values. Existing fields are preserved, content revisions protect concurrent edits, and AI-origin content is labeled. Opening, importing or studying a note never automatically triggers enrichment.
 

@@ -1,6 +1,6 @@
 import { getDb } from "@/db/drizzle";
 import { studyCard, wordSetItem } from "@/db/schema";
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 import {
   STUDY_CARD_TEMPLATES,
   STUDY_CARD_TEMPLATE_KEYS,
@@ -31,6 +31,13 @@ export function studyCardContentCondition(key: StudyCardTemplateKey) {
     ...getStudyCardTemplate(key).requiredFields.map(
       (field) => sql`btrim(${wordSetItem[field]}, ${CONTENT_WHITESPACE}) <> ''`,
     ),
+  )!;
+}
+
+export function availableStudyCardCondition(now: Date) {
+  return and(
+    eq(studyCard.isSuspended, false),
+    or(isNull(studyCard.buriedUntil), lte(studyCard.buriedUntil, now)),
   )!;
 }
 

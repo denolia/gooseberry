@@ -8,7 +8,9 @@ import ts from "@typescript/typescript6";
 
 const externalRequire = createRequire(import.meta.url);
 let SQL;
-before(async () => { SQL = await initSqlJs(); });
+before(async () => {
+  SQL = await initSqlJs();
+});
 const now = new Date("2026-10-10T12:00:00.000Z");
 const tomorrow = "2026-10-11T12:00:00.000Z";
 
@@ -39,7 +41,7 @@ function createFixture({ complete = true, empty = false } = {}) {
     );
     CREATE TABLE study_card (
       id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()), word_set_item_id TEXT,
-      template_key TEXT, created_at TEXT,
+      template_key TEXT, created_at TEXT, is_suspended INTEGER DEFAULT 0, buried_until TEXT,
       UNIQUE(word_set_item_id, template_key)
     );
     CREATE TABLE fsrs_card_state (
@@ -47,6 +49,10 @@ function createFixture({ complete = true, empty = false } = {}) {
       difficulty REAL, elapsed_days INTEGER, scheduled_days INTEGER,
       learning_steps INTEGER, reps INTEGER, lapses INTEGER, state INTEGER,
       last_review_at TEXT, scheduler_version TEXT, revision INTEGER,
+      PRIMARY KEY(user_id, study_card_id)
+    );
+    CREATE TABLE study_card_import_baseline (
+      user_id TEXT, study_card_id TEXT, baseline_state TEXT,
       PRIMARY KEY(user_id, study_card_id)
     );
     CREATE TABLE review_event (
@@ -86,14 +92,18 @@ function createFixture({ complete = true, empty = false } = {}) {
           return `CROSS JOIN (${rows.map((row) => `SELECT ${row[1]} AS key`).join(" UNION ALL ")}) AS template`;
         },
       )
-      .replace(/::text/g, "")
+      .replace(/::(?:text|integer)/g, "")
       .replace(/ ~ /g, " REGEXP ")
       .replace(/\$(\d+)/g, "?$1");
     const statement = storage.prepare(adapted);
     try {
       statement.bind(
         params.map((value) =>
-          value instanceof Date ? value.toISOString() : value,
+          value instanceof Date
+            ? value.toISOString()
+            : typeof value === "boolean"
+              ? Number(value)
+              : value,
         ),
       );
       const rows = [];
@@ -106,6 +116,10 @@ function createFixture({ complete = true, empty = false } = {}) {
   const modules = new Map();
   function load(name) {
     if (name === "@/db/drizzle") return { getDb: () => database };
+    // Imported baseline/cache recovery uses genuine PostgreSQL in
+    // importedReviewBaseline.test.mjs; this fixture covers ordinary card SQL.
+    if (name === "@/db/reviewProjectionRepo")
+      return { ensureReviewProjections: async () => {} };
     if (!name.startsWith("@/")) return externalRequire(name);
     if (modules.has(name)) return modules.get(name);
     const exports = {};
@@ -363,7 +377,7 @@ test("review writes reject inactive, unsupported and unowned card identities", a
   const { repo, storage, cards } = createFixture({ complete: false });
   await queue(repo);
   storage.run(
-    "INSERT INTO study_card VALUES ('custom-card', 'item-1', 'custom', ?)",
+    "INSERT INTO study_card (id,word_set_item_id,template_key,created_at) VALUES ('custom-card', 'item-1', 'custom', ?)",
     [now.toISOString()],
   );
   const inactiveId = cards().find((card) => card[1] === "word_forms")[0];
@@ -396,7 +410,7 @@ test("reconciliation preserves preexisting recognition identity and history", as
   const { repo, storage, setState } = createFixture();
   const introducedAt = "2026-02-01T12:00:00.000Z";
   storage.run(
-    "INSERT INTO study_card VALUES ('legacy-recognition', 'item-1', 'recognition', ?)",
+    "INSERT INTO study_card (id,word_set_item_id,template_key,created_at) VALUES ('legacy-recognition', 'item-1', 'recognition', ?)",
     [introducedAt],
   );
   setState("recognition", { reps: 12 });

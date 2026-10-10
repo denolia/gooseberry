@@ -2,10 +2,12 @@ import { getDb } from "@/db/drizzle";
 import { fsrsCardState, studyCard, wordSet, wordSetItem } from "@/db/schema";
 import {
   eligibleStudyCardCondition,
+  availableStudyCardCondition,
   ensureStudyCards,
 } from "@/db/studyCardRepo";
 import { and, eq, sql } from "drizzle-orm";
 import { FsrsCardState, type FsrsCardStateValue } from "@/lib/review/model";
+import { ensureReviewProjections } from "@/db/reviewProjectionRepo";
 
 export type WordSetItemReviewStats = {
   wordSetItemId: string;
@@ -31,13 +33,15 @@ export async function getWordSetItemReviewStats(input: {
   now?: Date;
 }): Promise<WordSetItemReviewStats[]> {
   await ensureStudyCards(input.userId, input.wordSetId);
+  await ensureReviewProjections(input.userId, input.wordSetId);
   const now = input.now ?? new Date();
   const rows = await getDb()
     .select({
       wordSetItemId: wordSetItem.id,
       cardCount: sql<number>`count(${studyCard.id})`,
       dueCount: sql<number>`count(${studyCard.id}) FILTER (
-        WHERE ${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.dueAt} <= ${now}
+        WHERE ${availableStudyCardCondition(now)}
+          AND (${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.dueAt} <= ${now})
       )`,
       // A note summarizes eligible exercises: relearning/learning first, then
       // untouched exercises, then established review cards.
@@ -98,13 +102,15 @@ export async function getWordSetReviewStats(input: {
   now: Date;
 }): Promise<WordSetReviewStats[]> {
   await ensureStudyCards(input.userId);
+  await ensureReviewProjections(input.userId);
   const rows = await getDb()
     .select({
       wordSetId: wordSet.id,
       itemCount: sql<number>`count(DISTINCT ${wordSetItem.id})`,
       cardCount: sql<number>`count(${studyCard.id})`,
       dueCount: sql<number>`count(${studyCard.id}) FILTER (
-        WHERE ${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.dueAt} <= ${input.now}
+        WHERE ${availableStudyCardCondition(input.now)}
+          AND (${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.dueAt} <= ${input.now})
       )`,
     })
     .from(wordSet)

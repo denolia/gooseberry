@@ -25,6 +25,7 @@ import {
 } from "@/lib/anki/import/schemas";
 import type { AnkiPackage, AnkiNote } from "@/lib/anki/import/readerTypes";
 import { STUDY_CARD_TEMPLATE_KEYS } from "@/lib/review/templates";
+import { ankiProgressWriteStatements } from "@/db/ankiProgressRepo";
 
 type ImportJob = typeof ankiImportJob.$inferSelect;
 export class AnkiImportError extends Error {
@@ -49,6 +50,7 @@ export function importJobView(job: ImportJob) {
     addedCount: job.addedCount,
     skippedCount: job.skippedCount,
     needsAttentionCount: job.needsAttentionCount,
+    importedProgressCount: job.importedProgressCount,
   };
 }
 function canonical(value: unknown): string {
@@ -126,6 +128,7 @@ export async function listAnkiImports(userId: string) {
       addedCount: ankiImportJob.addedCount,
       skippedCount: ankiImportJob.skippedCount,
       needsAttentionCount: ankiImportJob.needsAttentionCount,
+      importedProgressCount: ankiImportJob.importedProgressCount,
     })
     .from(ankiImportJob)
     .where(eq(ankiImportJob.userId, userId))
@@ -141,7 +144,16 @@ export async function beginAnkiImport(userId: string, input: BeginImportInput) {
       error instanceof Error ? error.message : "Invalid mapping",
     );
   }
-  const hash = digest(input);
+  // Preserve hashes for jobs created before progress options existed when
+  // the new options have their compatible defaults.
+  const { importProgress, schedulingTimeZone, ...legacyInput } = input;
+  const hash = digest({
+    ...legacyInput,
+    ...(importProgress === false ? { importProgress } : {}),
+    ...(schedulingTimeZone && schedulingTimeZone !== "UTC"
+      ? { schedulingTimeZone }
+      : {}),
+  });
   const [existing] = await getDb()
     .select()
     .from(ankiImportJob)
@@ -191,6 +203,8 @@ export async function beginAnkiImport(userId: string, input: BeginImportInput) {
       targetSetId: input.targetSetId ?? null,
       mapping: input.mapping,
       packageMetadata: input.packageMetadata,
+      importProgress: input.importProgress,
+      schedulingTimeZone: input.schedulingTimeZone,
     })
     .onConflictDoNothing({
       target: [ankiImportJob.userId, ankiImportJob.requestKey],
@@ -390,7 +404,18 @@ export async function commitAnkiImport(
   expected: { expectedBatchCount: number; expectedNoteCount: number },
 ) {
   const job = await ownedJob(jobId, userId);
-  if (job.status === "completed") return importJobView(job);
+  if (job.status === "completed") {
+    const db = getDb();
+    const progress = await ankiProgressWriteStatements(job, userId);
+    if (progress.length)
+      await db.batch([
+        db.execute(
+          sql`SELECT id FROM app_user WHERE id = ${userId} FOR UPDATE`,
+        ),
+        ...progress.map((statement) => db.execute(statement)),
+      ]);
+    return importJobView(await ownedJob(jobId, userId));
+  }
   if (job.status !== "receiving")
     throw new AnkiImportError("This import cannot be committed", 409);
   if (
@@ -408,6 +433,7 @@ export async function commitAnkiImport(
     sql`, `,
   );
   const db = getDb();
+  const progress = await ankiProgressWriteStatements(job, userId);
   // Serialize publication by owner, then take a fresh statement snapshot for
   // the destination size check. Different jobs can target the same word set.
   await db.batch([
@@ -428,6 +454,8 @@ export async function commitAnkiImport(
           AND NOT EXISTS (SELECT 1 FROM import_source_note note WHERE note.job_id = card.job_id AND note.source_note_id = card.source_note_id))
         AND NOT EXISTS (SELECT 1 FROM import_source_review review WHERE review.job_id = locked.id
           AND NOT EXISTS (SELECT 1 FROM import_source_card card WHERE card.job_id = review.job_id AND card.source_card_id = review.source_card_id))
+        AND NOT EXISTS (SELECT 1 FROM import_source_card card WHERE card.job_id = locked.id
+          GROUP BY card.source_note_id, card.raw_card->>'ord' HAVING count(*) > 1)
     ), created_set AS (
       INSERT INTO word_set (user_id, name, source_lang, target_lang)
       SELECT user_id, name, source_lang, target_lang FROM ready WHERE target_set_id IS NULL RETURNING id
@@ -468,6 +496,7 @@ export async function commitAnkiImport(
       updated_at = now(), completed_at = now()
     FROM destination WHERE anki_import_job.id = destination.id
     `),
+    ...progress.map((statement) => db.execute(statement)),
   ]);
   const updated = await ownedJob(jobId, userId);
   if (updated.status !== "completed") {

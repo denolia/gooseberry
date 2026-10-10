@@ -18,6 +18,7 @@ export type ImportJobStatus = {
   addedCount: number;
   skippedCount: number;
   needsAttentionCount: number;
+  importedProgressCount: number;
 };
 
 const encoder = new TextEncoder();

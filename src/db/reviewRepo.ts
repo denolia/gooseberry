@@ -3,6 +3,7 @@ import {
   fsrsCardState,
   reviewEvent,
   studyCard,
+  studyCardImportBaseline,
   wordSet,
   wordSetItem,
 } from "@/db/schema";
@@ -10,9 +11,11 @@ import { and, asc, eq, isNull, lte, notInArray, or, sql } from "drizzle-orm";
 import {
   applyReview,
   createInitialFsrsState,
+  deserializeFsrsState,
   FSRS_SCHEDULER_VERSION,
   replayReviewHistory,
   type FsrsStateProjection,
+  type SerializedFsrsStateProjection,
 } from "@/lib/review/fsrs";
 import {
   ReviewRatingSchema,
@@ -21,10 +24,12 @@ import {
 } from "@/lib/review/model";
 import {
   eligibleStudyCardCondition,
+  availableStudyCardCondition,
   ensureStudyCards,
   studyCardContentCondition,
 } from "@/db/studyCardRepo";
 import { STUDY_CARD_TEMPLATE_KEYS } from "@/lib/review/templates";
+import { ensureReviewProjections } from "@/db/reviewProjectionRepo";
 
 const MAX_REVIEW_WRITE_ATTEMPTS = 3;
 
@@ -53,6 +58,9 @@ export type DueReviewCard = {
 
 type ReviewCardRow = Omit<DueReviewCard, "state" | "revision"> & {
   introducedAt: Date;
+  baseline: SerializedFsrsStateProjection | null;
+  isSuspended: boolean;
+  buriedUntil: Date | null;
   projection: {
     dueAt: Date;
     stability: number;
@@ -86,11 +94,13 @@ export async function getDueReviewCards(input: {
   excludedStudyCardIds?: string[];
 }): Promise<DueReviewCard[]> {
   await ensureStudyCards(input.userId, input.wordSetId);
+  await ensureReviewProjections(input.userId, input.wordSetId);
 
   const conditions = [
     eq(wordSet.userId, input.userId),
     eq(wordSet.id, input.wordSetId),
     eligibleStudyCardCondition(),
+    availableStudyCardCondition(input.now),
     or(isNull(fsrsCardState.studyCardId), lte(fsrsCardState.dueAt, input.now)),
   ];
   if (input.excludedStudyCardIds?.length) {
@@ -118,10 +128,10 @@ function exerciseRoundOrder() {
   const start = sql`((${wordSetItem.position} % ${count} + ${count}) % ${count})`;
   const currentIndex = sql`CASE ${studyCard.templateKey} ${sql.join(
     STUDY_CARD_TEMPLATE_KEYS.map(
-      (key, index) => sql`WHEN ${key} THEN ${index}`,
+      (key, index) => sql`WHEN ${key} THEN ${index}::integer`,
     ),
     sql` `,
-  )} ELSE ${count} END`;
+  )} ELSE ${count}::integer END`;
   const currentRotation = sql`((${currentIndex} - ${start} + ${count}) % ${count})`;
   // Count all applicable siblings before this one, including cards already
   // answered or prefetched. Filtering/exclusions must not restart the rounds.
@@ -155,19 +165,28 @@ export async function recordReview(input: {
       input.studyCardId,
     );
     if (!row) throw new ReviewCardNotFoundError("Review card not found");
+    if (
+      row.isSuspended ||
+      (row.buriedUntil && row.buriedUntil > input.reviewedAt)
+    ) {
+      throw new ReviewCardNotDueError("Review card is suspended or buried");
+    }
 
     let currentState = row.projection
       ? projectionFromRow(row.projection)
-      : createInitialFsrsState(row.introducedAt);
+      : row.baseline
+        ? deserializeFsrsState(row.baseline)
+        : createInitialFsrsState(row.introducedAt);
 
     if (
-      row.projection &&
+      !row.projection ||
       row.projection.schedulerVersion !== FSRS_SCHEDULER_VERSION
     ) {
       currentState = await rebuildCardState(
         input.userId,
         input.studyCardId,
         row.introducedAt,
+        row.baseline,
       );
     }
 
@@ -207,6 +226,8 @@ async function getRecordedReviewState(input: {
       studyCardId: reviewEvent.studyCardId,
       rating: reviewEvent.rating,
       reviewedAt: reviewEvent.reviewedAt,
+      introducedAt: studyCard.createdAt,
+      baseline: studyCardImportBaseline.baselineState,
       projection: {
         dueAt: fsrsCardState.dueAt,
         stability: fsrsCardState.stability,
@@ -226,6 +247,13 @@ async function getRecordedReviewState(input: {
     .innerJoin(studyCard, eq(studyCard.id, reviewEvent.studyCardId))
     .innerJoin(wordSetItem, eq(wordSetItem.id, studyCard.wordSetItemId))
     .innerJoin(wordSet, eq(wordSet.id, wordSetItem.wordSetId))
+    .leftJoin(
+      studyCardImportBaseline,
+      and(
+        eq(studyCardImportBaseline.userId, input.userId),
+        eq(studyCardImportBaseline.studyCardId, reviewEvent.studyCardId),
+      ),
+    )
     .leftJoin(
       fsrsCardState,
       and(
@@ -247,15 +275,22 @@ async function getRecordedReviewState(input: {
   if (
     row.studyCardId !== input.studyCardId ||
     row.rating !== input.rating ||
-    row.reviewedAt.getTime() !== input.reviewedAt.getTime() ||
-    !row.projection
+    row.reviewedAt.getTime() !== input.reviewedAt.getTime()
   ) {
     throw new ReviewWriteConflictError(
       "The review ID was already used for a different review",
     );
   }
 
-  return projectionFromRow(row.projection);
+  return row.projection &&
+    row.projection.schedulerVersion === FSRS_SCHEDULER_VERSION
+    ? projectionFromRow(row.projection)
+    : rebuildCardState(
+        input.userId,
+        input.studyCardId,
+        row.introducedAt,
+        row.baseline,
+      );
 }
 
 function baseCardQuery(userId: string) {
@@ -276,6 +311,9 @@ function baseCardQuery(userId: string) {
       comments: wordSetItem.comments,
       tags: wordSetItem.tags,
       introducedAt: studyCard.createdAt,
+      baseline: studyCardImportBaseline.baselineState,
+      isSuspended: studyCard.isSuspended,
+      buriedUntil: studyCard.buriedUntil,
       projection: {
         dueAt: fsrsCardState.dueAt,
         stability: fsrsCardState.stability,
@@ -294,6 +332,13 @@ function baseCardQuery(userId: string) {
     .from(studyCard)
     .innerJoin(wordSetItem, eq(wordSetItem.id, studyCard.wordSetItemId))
     .innerJoin(wordSet, eq(wordSet.id, wordSetItem.wordSetId))
+    .leftJoin(
+      studyCardImportBaseline,
+      and(
+        eq(studyCardImportBaseline.studyCardId, studyCard.id),
+        eq(studyCardImportBaseline.userId, userId),
+      ),
+    )
     .leftJoin(
       fsrsCardState,
       and(
@@ -326,6 +371,7 @@ async function rebuildCardState(
   userId: string,
   studyCardId: string,
   introducedAt: Date,
+  baseline: SerializedFsrsStateProjection | null,
 ): Promise<FsrsStateProjection> {
   const history = await getDb()
     .select({
@@ -338,6 +384,7 @@ async function rebuildCardState(
       and(
         eq(reviewEvent.userId, userId),
         eq(reviewEvent.studyCardId, studyCardId),
+        eq(reviewEvent.source, "gooseberry"),
       ),
     )
     .orderBy(asc(reviewEvent.reviewedAt), asc(reviewEvent.sequence));
@@ -348,6 +395,7 @@ async function rebuildCardState(
       ...event,
       rating: ReviewRatingSchema.parse(event.rating),
     })),
+    baseline ? deserializeFsrsState(baseline) : null,
   );
 }
 
@@ -438,7 +486,9 @@ function toDueReviewCard(row: ReviewCardRow): DueReviewCard {
     tags: row.tags,
     state: row.projection
       ? projectionFromRow(row.projection)
-      : createInitialFsrsState(row.introducedAt),
+      : row.baseline
+        ? deserializeFsrsState(row.baseline)
+        : createInitialFsrsState(row.introducedAt),
     revision: row.projection?.revision ?? null,
   };
 }

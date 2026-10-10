@@ -26,6 +26,31 @@ export type FsrsStateProjection = {
   schedulerVersion: string;
 };
 
+export type SerializedFsrsStateProjection = Omit<
+  FsrsStateProjection,
+  "dueAt" | "lastReviewAt"
+> & { dueAt: string; lastReviewAt: string | null };
+
+export function serializeFsrsState(
+  state: FsrsStateProjection,
+): SerializedFsrsStateProjection {
+  return {
+    ...state,
+    dueAt: state.dueAt.toISOString(),
+    lastReviewAt: state.lastReviewAt?.toISOString() ?? null,
+  };
+}
+
+export function deserializeFsrsState(
+  state: SerializedFsrsStateProjection,
+): FsrsStateProjection {
+  return {
+    ...state,
+    dueAt: new Date(state.dueAt),
+    lastReviewAt: state.lastReviewAt ? new Date(state.lastReviewAt) : null,
+  };
+}
+
 export type ReviewHistoryEvent = {
   rating: ReviewRatingValue;
   reviewedAt: Date;
@@ -76,6 +101,7 @@ export function previewRatings(
 export function replayReviewHistory(
   introducedAt: Date,
   history: ReviewHistoryEvent[],
+  baseline?: FsrsStateProjection | null,
 ): FsrsStateProjection {
   return [...history]
     .sort(
@@ -85,7 +111,9 @@ export function replayReviewHistory(
     )
     .reduce(
       (state, event) => applyReview(state, event.rating, event.reviewedAt),
-      createInitialFsrsState(introducedAt),
+      baseline
+        ? { ...baseline, schedulerVersion: FSRS_SCHEDULER_VERSION }
+        : createInitialFsrsState(introducedAt),
     );
 }
 

@@ -109,6 +109,29 @@
   margin-top: 1rem;
 }
 
+.progressSettings {
+  margin-top: 1.5rem;
+}
+
+.progressSettings > p,
+.templateMappings > p {
+  margin-top: 0.5rem;
+}
+
+.progressPreview {
+  margin: 1rem 0;
+  padding: 0.85rem;
+  border-left: 3px solid var(--accent);
+  background: var(--background);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.progressPreview ul {
+  padding-left: 1.2rem;
+}
+
 .deckHeading,
 .actions,
 .previewNavigation,

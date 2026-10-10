@@ -12,7 +12,7 @@ The goal is not just to return a direct translation, but to give enough context 
 - Saves recent translation history
 - Organizes saved items into Anki sets
 - Runs native study sessions with independent FSRS scheduling for five exercise directions
-- Imports Anki vocabulary decks with field mapping, resumable text batches and omitted media
+- Imports Anki vocabulary decks with field/template mapping, learning-progress continuation, resumable text batches and omitted media
 - Generates selected missing fields on request, with editable proposals before saving
 - Exports study material for Anki in `.csv` and `.apkg` formats
 
@@ -68,12 +68,17 @@ new-exercise limit.
 
 Choose **Import Anki deck** in the set library. Preview a local `.apkg`, choose
 decks and languages, and map each note type before importing. Media is omitted;
-only bounded text batches reach the server. Imports start with fresh Gooseberry
-progress while retaining source reviews and presets privately.
+only bounded text batches reach the server. **Keep Anki learning progress**
+defaults on. Confirm source-template matches and the study timezone: matching
+exercises retain converted due dates, intervals and counters, while additional
+exercise types start new. Suspension and unexpired burial are respected.
+Source reviews and presets remain private; future ratings use Gooseberry's
+scheduler.
 
 Missing fields can remain empty. Edit them or use **Generate missing content**
 to review an AI proposal before saving. Reimport into the same set skips existing
-source notes and preserves local edits and progress. See the
+source notes, preserves local edits/progress and can recover Anki progress for
+untouched exercises. See the
 [import behavior and limits](docs/anki-import.md) and
 [analysis of the supplied personal export](docs/anki-personal-export-analysis.md).
 
@@ -94,8 +99,10 @@ Run `pnpm test`, `pnpm typecheck`, `pnpm lint`, and `pnpm build` to validate cha
 The production build needs network access to download the Google font.
 
 Apply the SQL migrations in order using the existing database workflow. Import
-and enrichment require `0009_anki_text_import.sql` and
-`0010_requested_enrichment.sql` before deploying this version. They are not
+and enrichment require `0009_anki_text_import.sql`,
+`0010_requested_enrichment.sql` and `0011_imported_study_progress.sql` before
+deploying this version. Migration 0011 does not automatically convert older
+imports; reimport into the existing set to recover untouched progress. They are not
 applied to a remote database by development, build or test commands. Tests use
 local SQLite/PGlite fixtures and mocked AI calls.
 

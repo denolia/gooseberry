@@ -1,4 +1,5 @@
 import type { AnkiNote, AnkiNoteType } from "./readerTypes";
+import type { StudyCardTemplateKey } from "@/lib/review/templates";
 
 export type FieldMapping = { fields: number[]; separator: string };
 export type NoteTypeMapping = {
@@ -9,6 +10,10 @@ export type NoteTypeMapping = {
   wordForms?: FieldMapping;
   comments?: FieldMapping;
   examples?: { sample: FieldMapping; translation: FieldMapping }[];
+  exerciseTemplates?: {
+    ord: number;
+    templateKey: StudyCardTemplateKey | null;
+  }[];
 };
 export type ImportMappedContent = {
   original: string;

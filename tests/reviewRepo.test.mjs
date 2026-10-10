@@ -24,7 +24,7 @@ function loadRepo({
   templateKey = "recognition",
   owned = true,
 } = {}) {
-  const calls = { batches: [], executes: [], selects: 0 };
+  const calls = { batches: [], executes: [], selects: 0, ownedCardReads: 0 };
   const row = {
     id: "11111111-1111-4111-8111-111111111111",
     wordSetItemId: "item-1",
@@ -59,11 +59,15 @@ function loadRepo({
     orderBy() {
       return this;
     },
+    then(resolve, reject) {
+      return Promise.resolve(rows).then(resolve, reject);
+    },
     limit: async () => rows,
   });
   const db = {
     select(fields) {
       calls.selects += 1;
+      if (Object.hasOwn(fields, "id")) calls.ownedCardReads += 1;
       const isRecordedReviewLookup =
         fields &&
         Object.hasOwn(fields, "studyCardId") &&
@@ -81,9 +85,11 @@ function loadRepo({
                 },
               ]
             : []
-          : owned
-            ? [row]
-            : [],
+          : Object.hasOwn(fields, "sequence")
+            ? []
+            : owned
+              ? [row]
+              : [],
       );
     },
     insert() {
@@ -127,6 +133,7 @@ function loadRepo({
         fsrsCardState: tables,
         reviewEvent: tables,
         studyCard: tables,
+        studyCardImportBaseline: tables,
         wordSet: tables,
         wordSetItem: tables,
       },
@@ -151,12 +158,17 @@ function loadRepo({
           reps: 0,
         }),
         FSRS_SCHEDULER_VERSION: "test-scheduler",
-        replayReviewHistory: () => nextState,
+        replayReviewHistory: (introducedAt) => ({
+          ...nextState,
+          dueAt: introducedAt,
+          reps: 0,
+        }),
       },
       "@/lib/review/model": {
         ReviewRatingSchema: { parse: (value) => value },
       },
       "@/db/studyCardRepo": {
+        availableStudyCardCondition: () => ({ op: "available" }),
         eligibleStudyCardCondition: () => ({ op: "eligible" }),
         studyCardContentCondition: () => ({ op: "content-eligible" }),
         ensureStudyCards: async (userId, wordSetId) => {
@@ -166,6 +178,7 @@ function loadRepo({
           });
         },
       },
+      "@/db/reviewProjectionRepo": { ensureReviewProjections: async () => {} },
       "@/lib/review/templates": {
         STUDY_CARD_TEMPLATE_KEYS: [
           "recognition",
@@ -269,7 +282,7 @@ test("reloads and retries after an optimistic revision conflict", async () => {
   });
 
   assert.equal(calls.batches.length, 2);
-  assert.equal(calls.selects, 3);
+  assert.equal(calls.ownedCardReads, 2);
   assert.equal(calls.batches[0][0].values.id, calls.batches[1][0].values.id);
 });
 

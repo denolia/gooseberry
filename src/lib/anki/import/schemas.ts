@@ -5,6 +5,8 @@ import {
 } from "@/components/ui/Languages";
 import type { NoteTypeMapping } from "./mapping";
 import type { AnkiPackage } from "./readerTypes";
+import { STUDY_CARD_TEMPLATE_KEYS } from "@/lib/review/templates";
+import { duplicateAnkiStudyTemplates } from "./templateMapping";
 
 export const IMPORT_BODY_LIMIT = 3 * 1024 * 1024;
 export const IMPORT_NOTE_LIMIT = 20000;
@@ -31,6 +33,15 @@ export const NoteTypeMappingSchema = z.object({
   examples: z
     .array(z.object({ sample: fieldMapping, translation: fieldMapping }))
     .max(20)
+    .optional(),
+  exerciseTemplates: z
+    .array(
+      z.object({
+        ord: z.number().int().min(0).max(100),
+        templateKey: z.enum(STUDY_CARD_TEMPLATE_KEYS).nullable(),
+      }),
+    )
+    .max(100)
     .optional(),
 });
 const modelSchema = z.object({
@@ -101,6 +112,19 @@ export const BeginImportSchema = z.object({
   sourceLang: z.string().refine(isSourceLanguageCode),
   targetLang: z.string().refine(isTargetLanguageCode),
   targetSetId: z.string().uuid().optional(),
+  importProgress: z.boolean().default(true),
+  schedulingTimeZone: z
+    .string()
+    .max(100)
+    .default("UTC")
+    .refine((zone) => {
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: zone });
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Choose a valid study timezone"),
   mapping: z.array(NoteTypeMappingSchema).min(1).max(100),
   packageMetadata: PackageMetadataSchema,
 });
@@ -186,6 +210,27 @@ export function validateImportMapping(input: BeginImportInput): void {
     seen.add(mapping.modelId);
     const model = models.get(mapping.modelId);
     if (!model) throw new Error("Mapping references an unknown note type");
+    const templateOrdinals = new Set(
+      model.templates.map((template) => template.ord),
+    );
+    const overrides = mapping.exerciseTemplates ?? [];
+    if (
+      new Set(overrides.map((entry) => entry.ord)).size !== overrides.length ||
+      overrides.some((entry) => !templateOrdinals.has(entry.ord))
+    ) {
+      throw new Error(
+        "Exercise mapping references an unknown or duplicate Anki template",
+      );
+    }
+    if (
+      input.importProgress &&
+      !mapping.skip &&
+      duplicateAnkiStudyTemplates(model, mapping).length
+    ) {
+      throw new Error(
+        "Match each Gooseberry exercise to at most one Anki card type",
+      );
+    }
     const selections = [
       mapping.original,
       mapping.translation,

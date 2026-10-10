@@ -34,6 +34,12 @@ import {
   type NoteTypeMapping,
 } from "@/lib/anki/import/mapping";
 import { readPackageFile } from "@/lib/anki/import/readerClient";
+import {
+  defaultSchedulingTimeZone,
+  isValidSchedulingTimeZone,
+  previewImportProgress,
+} from "@/lib/anki/import/clientProgress";
+import { resolveAnkiStudyTemplate } from "@/lib/anki/import/templateMapping";
 import type {
   AnkiNoteType,
   AnkiPackage,
@@ -42,6 +48,9 @@ import type {
 import {
   getApplicableStudyCardTemplateKeys,
   getStudyCardTemplate,
+  isStudyCardTemplateKey,
+  STUDY_CARD_TEMPLATES,
+  type StudyCardTemplateKey,
 } from "@/lib/review/templates";
 import styles from "./ImportDeck.module.css";
 
@@ -71,6 +80,8 @@ type ResumeImport = {
   sourceLang: string;
   targetLang: string;
   targetSetId: string;
+  importProgress?: boolean;
+  schedulingTimeZone?: string;
   selectedDeckIds: string[];
   mapping: NoteTypeMapping[];
 };
@@ -112,6 +123,11 @@ function readResume(userId: string, sha256: string): ResumeImport | null {
       !isSourceLanguageCode(candidate.sourceLang) ||
       !isTargetLanguageCode(candidate.targetLang) ||
       typeof candidate.targetSetId !== "string" ||
+      (candidate.importProgress !== undefined &&
+        typeof candidate.importProgress !== "boolean") ||
+      (candidate.schedulingTimeZone !== undefined &&
+        (typeof candidate.schedulingTimeZone !== "string" ||
+          !isValidSchedulingTimeZone(candidate.schedulingTimeZone))) ||
       !Array.isArray(candidate.selectedDeckIds) ||
       !candidate.selectedDeckIds.every((id) => typeof id === "string") ||
       !Array.isArray(candidate.mapping) ||
@@ -123,6 +139,16 @@ function readResume(userId: string, sha256: string): ResumeImport | null {
           fieldMappingValid(mapping.translation) &&
           (!mapping.wordForms || fieldMappingValid(mapping.wordForms)) &&
           (!mapping.comments || fieldMappingValid(mapping.comments)) &&
+          (!mapping.exerciseTemplates ||
+            (Array.isArray(mapping.exerciseTemplates) &&
+              mapping.exerciseTemplates.every(
+                (template) =>
+                  template &&
+                  Number.isInteger(template.ord) &&
+                  template.ord >= 0 &&
+                  (template.templateKey === null ||
+                    isStudyCardTemplateKey(template.templateKey)),
+              ))) &&
           (!mapping.examples ||
             (Array.isArray(mapping.examples) &&
               mapping.examples.every(
@@ -160,6 +186,20 @@ function clearResume(userId: string, sha256: string) {
   } catch {
     // Storage can be blocked independently from the import itself.
   }
+}
+
+function exerciseMatchLabel(
+  key: StudyCardTemplateKey,
+  sourceLabel: string,
+  targetLabel: string,
+) {
+  const direction =
+    key === "recognition"
+      ? `${sourceLabel} → ${targetLabel}`
+      : key === "word_forms"
+        ? `${sourceLabel} → word forms`
+        : `${targetLabel} → ${sourceLabel}`;
+  return `${getStudyCardTemplate(key).label} · ${direction}`;
 }
 
 function FieldMappingEditor({
@@ -276,6 +316,8 @@ export function ImportDeck() {
     getLanguageCode(currentTargetLanguage),
   );
   const [targetSetId, setTargetSetId] = useState("");
+  const [importProgress, setImportProgress] = useState(true);
+  const [schedulingTimeZone, setSchedulingTimeZone] = useState("UTC");
   const [selectedDeckIds, setSelectedDeckIds] = useState<string[]>([]);
   const [mapping, setMapping] = useState<NoteTypeMapping[]>([]);
   const [directionConfirmed, setDirectionConfirmed] = useState(false);
@@ -343,6 +385,16 @@ export function ImportDeck() {
     0,
   );
   const skippedCount = entries.length - included.length;
+  const validTimeZone = isValidSchedulingTimeZone(schedulingTimeZone);
+  const progressPreview = useMemo(
+    () =>
+      pkg && validTimeZone
+        ? previewImportProgress(pkg, content, mapping, schedulingTimeZone)
+        : null,
+    [pkg, validTimeZone, content, mapping, schedulingTimeZone],
+  );
+  const duplicateProgressMappings =
+    importProgress && Boolean(progressPreview?.duplicateMappings.length);
   const preview =
     entries[Math.min(previewIndex, Math.max(0, entries.length - 1))];
   const locked =
@@ -423,6 +475,12 @@ export function ImportDeck() {
             : getLanguageCode(currentTargetLanguage)),
       );
       setTargetSetId(saved?.targetSetId ?? "");
+      setImportProgress(saved?.importProgress ?? true);
+      setSchedulingTimeZone(
+        saved
+          ? (saved.schedulingTimeZone ?? "UTC")
+          : defaultSchedulingTimeZone(),
+      );
       setSelectedDeckIds(
         saved?.selectedDeckIds ?? read.decks.map((deck) => deck.id),
       );
@@ -477,6 +535,8 @@ export function ImportDeck() {
       sourceLang,
       targetLang,
       targetSetId,
+      importProgress,
+      schedulingTimeZone,
       selectedDeckIds,
       mapping,
     };
@@ -497,13 +557,25 @@ export function ImportDeck() {
       sourceLang,
       targetLang,
       targetSetId: targetSetId || undefined,
-      mapping,
+      importProgress,
+      schedulingTimeZone,
+      mapping: mapping.filter((value) =>
+        content.notes.some((note) => note.modelId === value.modelId),
+      ),
       packageMetadata,
     };
   }
 
   async function runImport() {
-    if (!pkg || !file || !directionConfirmed || !included.length) return;
+    if (
+      !pkg ||
+      !file ||
+      !directionConfirmed ||
+      !included.length ||
+      !validTimeZone ||
+      duplicateProgressMappings
+    )
+      return;
     let batches;
     try {
       batches = createImportBatches(content);
@@ -665,7 +737,28 @@ export function ImportDeck() {
       `Anki import report: ${file?.name ?? name}`,
       `${sourceLabel} → ${targetLabel}`,
       `${entries.length} selected notes; ${included.length} included; ${skippedCount} skipped; ${needsAttentionCount} need attention.`,
-      `${pkg.diagnostics.omittedMediaCount} media files omitted. Review history and deck settings are retained; Gooseberry progress starts fresh.`,
+      `${pkg.diagnostics.omittedMediaCount} media files omitted. Anki review history and presets are retained as source data. Future reviews use Gooseberry's scheduler.`,
+      importProgress
+        ? `Learning progress requested in ${schedulingTimeZone}: ${progressPreview?.matchedCount ?? 0} of ${progressPreview?.studiedCount ?? 0} studied source cards matched. Existing Gooseberry progress is kept on reimport.`
+        : "Fresh study progress requested. Existing Gooseberry progress is kept on reimport.",
+      ...(job?.status === "completed"
+        ? [
+            `Learning progress applied to ${job.importedProgressCount ?? 0} studied exercises.`,
+          ]
+        : []),
+      ...(importProgress
+        ? [
+            ...(progressPreview?.unmatchedTemplates ?? []).map(
+              (template) =>
+                `Progress not matched: ${template.modelName} / ${template.templateName} (${template.count} studied cards).`,
+            ),
+            ...(progressPreview?.unsupportedCount
+              ? [
+                  `Progress not supported: ${progressPreview.unsupportedCount} studied source cards have unsupported scheduling data.`,
+                ]
+              : []),
+          ]
+        : []),
       ...pkg.diagnostics.warnings.map((warning) => `Warning: ${warning}`),
       "",
       ...entries.flatMap((entry) => {
@@ -737,8 +830,12 @@ export function ImportDeck() {
             </p>
           )}
           <p className={styles.muted}>
-            Imported audio and images were omitted. Your Gooseberry study
-            progress starts fresh.
+            {importProgress
+              ? `Anki learning progress was kept for ${job.importedProgressCount ?? 0} studied exercises. Additional exercises start new.`
+              : "Imported exercises start with fresh study progress."}{" "}
+            Existing Gooseberry progress is kept when words are skipped on
+            reimport. Future reviews use Gooseberry’s scheduler; Anki presets
+            are retained as source data. Imported audio and images were omitted.
           </p>
           <div className={styles.actions}>
             {exerciseCount > 0 && (
@@ -834,8 +931,9 @@ export function ImportDeck() {
             )}
             <p className={styles.muted}>
               Audio and images are left out. You can generate Gooseberry
-              pronunciation later. Existing Anki reviews and deck settings are
-              retained for future support; study starts fresh here.
+              pronunciation later. Choose whether to keep Anki learning progress
+              below. Anki review history and presets are retained as source
+              data; future reviews use Gooseberry’s scheduler.
             </p>
           </fieldset>
 
@@ -970,6 +1068,47 @@ export function ImportDeck() {
                     skipped. Your edits and study progress stay intact.
                   </p>
                 )}
+                <div className={styles.progressSettings}>
+                  <label className={styles.checkboxLabel}>
+                    <input
+                      type="checkbox"
+                      checked={importProgress}
+                      onChange={(event) =>
+                        setImportProgress(event.target.checked)
+                      }
+                    />
+                    <span>Keep Anki learning progress</span>
+                  </label>
+                  <p className={styles.muted}>
+                    {importProgress
+                      ? "Matching exercises keep their due dates and intervals. Additional exercise types start new. Check the matches below; some Anki card types may not have an equivalent."
+                      : "Imported exercises start new. Your Anki review history is retained as source data."}
+                  </p>
+                  <label className={styles.destination}>
+                    Study time zone
+                    <input
+                      type="text"
+                      value={schedulingTimeZone}
+                      maxLength={100}
+                      placeholder="Europe/Helsinki"
+                      aria-invalid={!validTimeZone}
+                      aria-describedby="import-time-zone-help"
+                      onChange={(event) =>
+                        setSchedulingTimeZone(event.target.value.trim())
+                      }
+                    />
+                  </label>
+                  <p className={styles.muted} id="import-time-zone-help">
+                    Use the time zone you studied in, such as Europe/Helsinki.
+                    Anki does not include it in the deck. It determines which
+                    day a review is due.
+                  </p>
+                  {!validTimeZone && (
+                    <p className={styles.error} role="alert">
+                      Enter a valid time zone, such as Europe/Helsinki or UTC.
+                    </p>
+                  )}
+                </div>
               </fieldset>
 
               <fieldset className={styles.panel} disabled={locked || busy}>
@@ -1140,6 +1279,136 @@ export function ImportDeck() {
                                   All mapped examples are saved. Study uses the
                                   first complete pair for now.
                                 </p>
+                                {importProgress && (
+                                  <div className={styles.templateMappings}>
+                                    <h4>Match learning progress</h4>
+                                    <p className={styles.muted}>
+                                      Match each Anki card type to one
+                                      Gooseberry exercise. Choose “Do not
+                                      transfer” for types without an equivalent.
+                                    </p>
+                                    <div className={styles.twoColumns}>
+                                      {model.templates.map((template) => {
+                                        const explicit =
+                                          value.exerciseTemplates?.find(
+                                            (entry) =>
+                                              entry.ord === template.ord,
+                                          );
+                                        const inferred =
+                                          resolveAnkiStudyTemplate(
+                                            model,
+                                            {
+                                              ...value,
+                                              exerciseTemplates: [],
+                                            },
+                                            template.ord,
+                                          );
+                                        const resolved =
+                                          resolveAnkiStudyTemplate(
+                                            model,
+                                            value,
+                                            template.ord,
+                                          );
+                                        return (
+                                          <label key={template.ord}>
+                                            {template.name}
+                                            <select
+                                              value={
+                                                explicit
+                                                  ? (explicit.templateKey ??
+                                                    "none")
+                                                  : "auto"
+                                              }
+                                              onChange={(event) => {
+                                                const selected =
+                                                  event.target.value;
+                                                const overrides = (
+                                                  value.exerciseTemplates ?? []
+                                                ).filter(
+                                                  (entry) =>
+                                                    entry.ord !== template.ord,
+                                                );
+                                                if (
+                                                  selected === "none" ||
+                                                  isStudyCardTemplateKey(
+                                                    selected,
+                                                  )
+                                                )
+                                                  overrides.push({
+                                                    ord: template.ord,
+                                                    templateKey:
+                                                      selected === "none"
+                                                        ? null
+                                                        : selected,
+                                                  });
+                                                updateMapping(model.id, {
+                                                  exerciseTemplates: overrides,
+                                                });
+                                              }}
+                                            >
+                                              <option value="auto">
+                                                {inferred
+                                                  ? `Suggested: ${exerciseMatchLabel(inferred, sourceLabel, targetLabel)}`
+                                                  : "No suggested match"}
+                                              </option>
+                                              {STUDY_CARD_TEMPLATES.map(
+                                                ({ key }) => (
+                                                  <option
+                                                    key={key}
+                                                    value={key}
+                                                    disabled={
+                                                      key !== resolved &&
+                                                      model.templates.some(
+                                                        (other) =>
+                                                          other.ord !==
+                                                            template.ord &&
+                                                          resolveAnkiStudyTemplate(
+                                                            model,
+                                                            value,
+                                                            other.ord,
+                                                          ) === key,
+                                                      )
+                                                    }
+                                                  >
+                                                    {exerciseMatchLabel(
+                                                      key,
+                                                      sourceLabel,
+                                                      targetLabel,
+                                                    )}
+                                                  </option>
+                                                ),
+                                              )}
+                                              <option value="none">
+                                                Do not transfer
+                                              </option>
+                                            </select>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                    {(progressPreview?.duplicateMappings ?? [])
+                                      .filter(
+                                        (issue) => issue.modelId === model.id,
+                                      )
+                                      .map((issue) => (
+                                        <p
+                                          className={styles.error}
+                                          role="alert"
+                                          key={issue.modelId}
+                                        >
+                                          More than one Anki card type matches{" "}
+                                          {issue.templateKeys
+                                            .map(
+                                              (key) =>
+                                                getStudyCardTemplate(key).label,
+                                            )
+                                            .join(", ")}
+                                          . Match each exercise once, or choose
+                                          “Do not transfer” for the extra type.
+                                        </p>
+                                      ))}
+                                  </div>
+                                )}
                               </>
                             )}
                           </>
@@ -1167,6 +1436,60 @@ export function ImportDeck() {
                     </p>
                   )}
                 </div>
+                {importProgress && progressPreview && (
+                  <div className={styles.progressPreview}>
+                    <p>
+                      <strong>{progressPreview.matchedCount}</strong> of{" "}
+                      {progressPreview.studiedCount} studied Anki cards matched
+                      for learning progress.
+                    </p>
+                    <p className={styles.muted}>
+                      Progress is retained for matched exercises even when
+                      missing content keeps them unavailable. Existing
+                      Gooseberry progress is kept on reimport.
+                    </p>
+                    {progressPreview.unmatchedTemplates.length > 0 && (
+                      <details className={styles.savedExamples}>
+                        <summary>
+                          {progressPreview.unmatchedTemplates.reduce(
+                            (count, template) => count + template.count,
+                            0,
+                          )}{" "}
+                          studied cards have no exercise match
+                        </summary>
+                        <p>
+                          Their learning progress will not transfer. Review the
+                          matches above; the original review history is kept as
+                          source data.
+                        </p>
+                        <ul>
+                          {progressPreview.unmatchedTemplates.map(
+                            (template) => (
+                              <li key={`${template.modelId}:${template.ord}`}>
+                                {template.modelName} · {template.templateName}:{" "}
+                                {template.count}
+                              </li>
+                            ),
+                          )}
+                        </ul>
+                      </details>
+                    )}
+                    {progressPreview.unsupportedCount > 0 && (
+                      <p className={styles.notice}>
+                        {progressPreview.unsupportedCount} studied cards have
+                        scheduling data that cannot be transferred. Their
+                        matching exercises start new; the original review
+                        history is kept as source data.
+                      </p>
+                    )}
+                    {duplicateProgressMappings && (
+                      <p className={styles.error} role="alert">
+                        Resolve the duplicate exercise matches above before
+                        importing, or turn off “Keep Anki learning progress”.
+                      </p>
+                    )}
+                  </div>
+                )}
                 {needsAttentionCount > 0 && (
                   <p className={styles.notice}>
                     Incomplete words are saved for later. Exercises appear as
@@ -1365,7 +1688,9 @@ export function ImportDeck() {
                         !directionConfirmed ||
                         !included.length ||
                         !name.trim() ||
-                        !content.notes.length
+                        !content.notes.length ||
+                        !validTimeZone ||
+                        duplicateProgressMappings
                       }
                       onClick={() => void runImport()}
                     >

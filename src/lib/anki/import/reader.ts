@@ -382,7 +382,7 @@ export function readAnkiPackage(
     const deckIds = new Set(decks.map((deck) => deck.id));
     if (cards.some((card) => !noteIds.has(card.nid) || !deckIds.has(card.did)) || revlogs.some((row) => !cardIds.has(row.cid)))
       throw new AnkiPackageError("The collection contains orphaned cards or review history.");
-    const warnings = ["Anki schedules and review presets are preserved as source metadata; Gooseberry starts with fresh exercise schedules."];
+    const warnings = ["Anki deck presets are retained as source data. Future reviews use Gooseberry’s scheduler."];
     if (archive.omittedMediaCount)
       warnings.push(`${archive.omittedMediaCount} media entries were omitted without decompression.`);
     onProgress?.({ phase: "complete" });

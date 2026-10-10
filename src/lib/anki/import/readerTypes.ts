@@ -1,5 +1,5 @@
 // JSON-safe source records. Protobuf blobs are retained as base64 in `raw`;
-// source schedules/configuration are never converted into Gooseberry state here.
+// Scheduling conversion happens separately after explicit template mapping.
 export type AnkiJsonValue =
   | string
   | number

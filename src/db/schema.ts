@@ -17,6 +17,7 @@ import {
   smallint,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import type { SerializedFsrsStateProjection } from "@/lib/review/fsrs";
 
 const bytea = customType<{ data: Uint8Array; driverData: unknown }>({
   dataType() {
@@ -219,6 +220,8 @@ export const studyCard = pgTable(
     templateKey: text("template_key").notNull(),
     externalSource: text("external_source"),
     externalId: text("external_id"),
+    isSuspended: boolean("is_suspended").default(false).notNull(),
+    buriedUntil: timestamp("buried_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -244,8 +247,8 @@ export const studyCard = pgTable(
   ],
 );
 
-// Canonical review history. Scheduling state can always be rebuilt by replaying
-// these events in reviewedAt/sequence order.
+// Canonical native review history. Replay from an imported baseline when one
+// exists, then apply these events in reviewedAt/sequence order.
 export const reviewEvent = pgTable(
   "review_event",
   {
@@ -398,6 +401,11 @@ export const ankiImportJob = pgTable(
     targetSetId: uuid("target_set_id"),
     wordSetId: uuid("word_set_id"),
     ownsSet: boolean("owns_set").default(false).notNull(),
+    importProgress: boolean("import_progress").default(true).notNull(),
+    schedulingTimeZone: text("scheduling_time_zone").default("UTC").notNull(),
+    importedProgressCount: integer("imported_progress_count")
+      .default(0)
+      .notNull(),
     status: text("status").default("receiving").notNull(),
     mapping: jsonb("mapping").$type<unknown[]>().notNull(),
     packageMetadata: jsonb("package_metadata")
@@ -427,6 +435,31 @@ export const ankiImportJob = pgTable(
       sql`${t.status} IN ('receiving', 'completed', 'cancelled', 'removed')`,
     ),
   ],
+);
+
+// Canonical starting state imported from a source card. Gooseberry reviews are
+// separate events; replacing the FSRS projection must never discard this state.
+export const studyCardImportBaseline = pgTable(
+  "study_card_import_baseline",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    studyCardId: uuid("study_card_id")
+      .notNull()
+      .references(() => studyCard.id, { onDelete: "cascade" }),
+    importJobId: uuid("import_job_id")
+      .notNull()
+      .references(() => ankiImportJob.id, { onDelete: "cascade" }),
+    sourceCardId: text("source_card_id").notNull(),
+    baselineState: jsonb("baseline_state")
+      .$type<SerializedFsrsStateProjection>()
+      .notNull(),
+    importedAt: timestamp("imported_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.studyCardId] })],
 );
 
 export const ankiImportBatch = pgTable(
