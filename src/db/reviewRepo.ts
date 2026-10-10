@@ -22,6 +22,7 @@ import {
 import {
   eligibleStudyCardCondition,
   ensureStudyCards,
+  studyCardContentCondition,
 } from "@/db/studyCardRepo";
 import { STUDY_CARD_TEMPLATE_KEYS } from "@/lib/review/templates";
 
@@ -99,26 +100,40 @@ export async function getDueReviewCards(input: {
   const rows = await baseCardQuery(input.userId)
     .where(and(...conditions))
     .orderBy(
-      // Keep existing scheduled cards first. Introduce new exercises by mode,
-      // spreading sibling prompts across notes instead of showing all at once.
+      // Scheduled reviews keep their due-date priority. New exercises visit
+      // notes in rounds, rotating the preferred exercise at each set position.
       sql`CASE WHEN ${fsrsCardState.studyCardId} IS NULL THEN 1 ELSE 0 END`,
       sql`${fsrsCardState.dueAt} ASC NULLS LAST`,
-      sql`CASE WHEN ${fsrsCardState.studyCardId} IS NULL THEN
-        CASE ${studyCard.templateKey}
-          ${sql.join(
-            STUDY_CARD_TEMPLATE_KEYS.map(
-              (key, index) => sql`WHEN ${key} THEN ${index}`,
-            ),
-            sql` `,
-          )}
-          ELSE 99
-        END ELSE 0 END`,
+      exerciseRoundOrder(),
       asc(wordSetItem.position),
       asc(studyCard.id),
     )
     .limit(Math.max(1, Math.min(input.limit, 50)));
 
   return rows.map(toDueReviewCard);
+}
+
+function exerciseRoundOrder() {
+  const count = STUDY_CARD_TEMPLATE_KEYS.length;
+  const start = sql`((${wordSetItem.position} % ${count} + ${count}) % ${count})`;
+  const currentIndex = sql`CASE ${studyCard.templateKey} ${sql.join(
+    STUDY_CARD_TEMPLATE_KEYS.map(
+      (key, index) => sql`WHEN ${key} THEN ${index}`,
+    ),
+    sql` `,
+  )} ELSE ${count} END`;
+  const currentRotation = sql`((${currentIndex} - ${start} + ${count}) % ${count})`;
+  // Count all applicable siblings before this one, including cards already
+  // answered or prefetched. Filtering/exclusions must not restart the rounds.
+  return sql`(${sql.join(
+    STUDY_CARD_TEMPLATE_KEYS.map(
+      (key, index) => sql`CASE
+    WHEN ${studyCardContentCondition(key)} AND
+      ((${index} - ${start} + ${count}) % ${count}) < ${currentRotation}
+    THEN 1 ELSE 0 END`,
+    ),
+    sql` + `,
+  )})`;
 }
 
 export async function recordReview(input: {

@@ -296,7 +296,7 @@ test("availability treats Unicode whitespace exactly like String.trim", async ()
   assert.equal(set.cardCount, 3);
 });
 
-test("new cards interleave notes by mode and scheduled reviews take priority", async () => {
+test("new cards rotate exercises across notes and scheduled reviews take priority", async () => {
   const { repo, storage, setState } = createFixture({ complete: false });
   storage.run(`INSERT INTO word_set_item
     SELECT 'item-2', word_set_id, 'kissa', 'кот', word_forms, sample,
@@ -307,17 +307,55 @@ test("new cards interleave notes by mode and scheduled reviews take priority", a
     cards.map((card) => [card.templateKey, card.wordSetItemId]),
     [
       ["recognition", "item-1"],
-      ["recognition", "item-2"],
-      ["production", "item-1"],
       ["production", "item-2"],
-      ["type_answer", "item-1"],
+      ["production", "item-1"],
       ["type_answer", "item-2"],
+      ["type_answer", "item-1"],
+      ["recognition", "item-2"],
     ],
   );
   const scheduledId = setState("type_answer", {
     dueAt: "2026-10-09T12:00:00.000Z",
   });
   assert.equal((await queue(repo))[0].id, scheduledId);
+});
+
+test("new-card rounds keep word order, diversify all modes and survive prefetch exclusions", async () => {
+  const { repo, storage } = createFixture();
+  for (let position = 1; position < 8; position += 1) {
+    storage.run(
+      `INSERT INTO word_set_item
+      SELECT ?, word_set_id, original || ?, translation, word_forms, sample,
+        sample_translation, comments, tags, ?, created_at
+      FROM word_set_item WHERE id = 'item-1'`,
+      [`item-${position + 1}`, String(position), position],
+    );
+  }
+  const first = await queue(repo, { limit: 8 });
+  assert.deepEqual(
+    first.map((card) => card.wordSetItemId),
+    Array.from({ length: 8 }, (_, i) => `item-${i + 1}`),
+  );
+  assert.equal(new Set(first.map((card) => card.templateKey)).size, 5);
+  const remaining = await queue(repo, {
+    limit: 8,
+    excludedStudyCardIds: first.map((card) => card.id),
+  });
+  assert.deepEqual(
+    remaining.map((card) => card.wordSetItemId),
+    first.map((card) => card.wordSetItemId),
+  );
+  assert(
+    remaining.every((card, i) => card.templateKey !== first[i].templateKey),
+  );
+  const complete = await queue(repo, { limit: 50 });
+  assert.equal(complete.length, 40);
+  assert(
+    complete.every(
+      (card, i) =>
+        i === 0 || card.wordSetItemId !== complete[i - 1].wordSetItemId,
+    ),
+  );
 });
 
 test("review writes reject inactive, unsupported and unowned card identities", async () => {

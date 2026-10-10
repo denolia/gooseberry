@@ -158,6 +158,7 @@ function loadRepo({
       },
       "@/db/studyCardRepo": {
         eligibleStudyCardCondition: () => ({ op: "eligible" }),
+        studyCardContentCondition: () => ({ op: "content-eligible" }),
         ensureStudyCards: async (userId, wordSetId) => {
           calls.executes.push({
             strings: ["INSERT INTO study_card (...) ON CONFLICT"],

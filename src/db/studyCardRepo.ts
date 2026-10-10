@@ -4,6 +4,8 @@ import { and, eq, or, sql } from "drizzle-orm";
 import {
   STUDY_CARD_TEMPLATES,
   STUDY_CARD_TEMPLATE_KEYS,
+  getStudyCardTemplate,
+  type StudyCardTemplateKey,
 } from "@/lib/review/templates";
 
 // Match JavaScript String.trim(), including nonbreaking spaces and BOMs that
@@ -18,11 +20,16 @@ export function eligibleStudyCardCondition() {
     ...STUDY_CARD_TEMPLATES.map((template) =>
       and(
         eq(studyCard.templateKey, template.key),
-        ...template.requiredFields.map(
-          (field) =>
-            sql`btrim(${wordSetItem[field]}, ${CONTENT_WHITESPACE}) <> ''`,
-        ),
+        studyCardContentCondition(template.key),
       ),
+    ),
+  )!;
+}
+
+export function studyCardContentCondition(key: StudyCardTemplateKey) {
+  return and(
+    ...getStudyCardTemplate(key).requiredFields.map(
+      (field) => sql`btrim(${wordSetItem[field]}, ${CONTENT_WHITESPACE}) <> ''`,
     ),
   )!;
 }

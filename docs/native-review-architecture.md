@@ -75,9 +75,12 @@ Suspension and bury expiry belong to per-card availability state, separate
 from FSRS progress and content completeness. Those later additions do not
 require replacing current card UUIDs or their review histories.
 
-Queues prioritize scheduled due reviews before new exercises. New cards are
-ordered by exercise type across notes to avoid presenting all siblings of a
-word consecutively; a daily introduction limit is still future work.
+Queues prioritize scheduled due reviews before new exercises, with earlier
+due dates first. New exercises visit words in set order in rounds, rotating
+the preferred exercise by word position so directions are mixed. Missing
+fields are skipped, and answered/prefetched siblings retain their place in
+the rounds. This spaces a word's exercises apart whenever other words are
+available; a daily introduction limit is still future work.
 
 ## Rollout and review session
 
