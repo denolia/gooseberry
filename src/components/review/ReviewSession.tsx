@@ -330,8 +330,8 @@ export function ReviewSession({
           >
             Try again
           </button>
-          <Link className={styles.textLink} href={`/anki/${wordSetId}`}>
-            Back to set
+          <Link className={styles.textLink} href="/anki">
+            Back to sets
           </Link>
         </div>
         {failureToast}
@@ -349,8 +349,8 @@ export function ReviewSession({
           <p className={styles.eyebrow}>Session complete</p>
           <h1>You’re caught up</h1>
           <p>No cards in this set are due right now.</p>
-          <Link className={styles.primaryButton} href={`/anki/${wordSetId}`}>
-            Back to set
+          <Link className={styles.primaryButton} href="/anki">
+            Back to sets
           </Link>
         </div>
         {failureToast}
@@ -372,7 +372,7 @@ export function ReviewSession({
               {card.sourceLang.toUpperCase()} → {card.targetLang.toUpperCase()}
             </p>
           </div>
-          <Link className={styles.exitLink} href={`/anki/${wordSetId}`}>
+          <Link className={styles.exitLink} href="/anki">
             End session
           </Link>
         </header>
