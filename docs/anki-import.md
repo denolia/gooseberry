@@ -38,6 +38,8 @@ Only selected text records and package metadata reach the server in requests bel
 
 Import jobs stage private rows until one atomic commit publishes notes and all five exercise identities. Request keys, ordered batch hashes and source GUID uniqueness make retries safe and reject conflicting replays. After a reload, browser recovery asks for the same file again and resumes the saved job.
 
+Upload progress follows server-confirmed batches and shows received words, Anki cards and reviews, including after a pause or reload. The final save has a separate loading indicator: added-word and transferred-learning counts become final only when the atomic commit succeeds.
+
 Reimport into the same set skips existing source GUIDs, preserving local content edits, and adds new notes. It can recover Anki progress for an untouched existing exercise, but never overwrites a native review, projection or import baseline. A new destination set intentionally creates another copy. Undo removes words added by that import and their Gooseberry reviews, while preserving preexisting notes, their progress and later manual additions. An import-created set is deleted only when empty. Cancellation/undo deletes the job's source snapshots.
 
 Private source tables retain original note fields/GUIDs, source cards and their scheduling data, review logs, note types, deck paths and collection/preset configuration. Converted items have fresh Gooseberry export GUIDs, import ownership, structured examples, field provenance and a content revision. Raw source records remain separate from native events, converted baselines and FSRS projections.

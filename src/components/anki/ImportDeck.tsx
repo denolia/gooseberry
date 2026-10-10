@@ -327,7 +327,7 @@ export function ImportDeck() {
   const [resumeStored, setResumeStored] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
-  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
+  const [batchCount, setBatchCount] = useState(0);
   const operationRef = useRef(0);
   const controllerRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -406,6 +406,12 @@ export function ImportDeck() {
   const busy = ["reading", "uploading", "committing", "cancelling"].includes(
     phase,
   );
+  // Only acknowledged server writes count as received. This also restores
+  // progress immediately when resuming an already staged import.
+  const receivedBatches = Math.min(job?.nextBatchIndex ?? 0, batchCount);
+  const uploadPercent = batchCount
+    ? Math.floor((100 * receivedBatches) / batchCount)
+    : 0;
   const sourceLabel =
     SourceLanguageSelectOptions.find((option) => option.value === sourceLang)
       ?.label ?? sourceLang;
@@ -422,6 +428,7 @@ export function ImportDeck() {
     setPackage(null);
     setFile(nextFile);
     setJob(null);
+    setBatchCount(0);
     setResumeAvailable(false);
     setDirectionConfirmed(false);
     setPhase("reading");
@@ -597,15 +604,12 @@ export function ImportDeck() {
     const controller = new AbortController();
     controllerRef.current = controller;
     setError(null);
+    setBatchCount(batches.length);
     setPhase("uploading");
     const saved = configuration();
     setResumeStored(writeResume(userId, saved));
     let current = job;
     try {
-      setBatchProgress({
-        done: current?.nextBatchIndex ?? 0,
-        total: batches.length,
-      });
       current = current
         ? await importRequest<ImportJobStatus>(
             `/api/anki/imports/${current.jobId}`,
@@ -647,7 +651,6 @@ export function ImportDeck() {
           );
           if (operationRef.current !== operation) return;
           setJob(current);
-          setBatchProgress({ done: index + 1, total: batches.length });
         }
         setPhase("committing");
         current = await importRequest<ImportJobStatus>(
@@ -705,6 +708,7 @@ export function ImportDeck() {
       if (operationRef.current !== operation) return;
       clearResume(userId, sha256);
       setJob(null);
+      setBatchCount(0);
       setResumeAvailable(false);
       setRequestKey(crypto.randomUUID());
       setPhase("ready");
@@ -1644,31 +1648,69 @@ export function ImportDeck() {
               </fieldset>
 
               <section className={styles.importActions} aria-live="polite">
+                {(phase === "uploading" ||
+                  phase === "committing" ||
+                  phase === "paused") && (
+                  <>
+                    <p role="status">
+                      {phase === "committing"
+                        ? "Finishing your import…"
+                        : phase === "paused"
+                          ? `Import paused. ${uploadPercent}% received.`
+                          : `Uploading your vocabulary… ${uploadPercent}%`}
+                    </p>
+                    <progress
+                      aria-label={
+                        phase === "committing"
+                          ? "Saving your study set"
+                          : "Deck upload progress"
+                      }
+                      max={Math.max(1, batchCount)}
+                      value={
+                        phase === "committing" ? undefined : receivedBatches
+                      }
+                    />
+                    <ul className={styles.receivedCounts}>
+                      <li>
+                        {job?.stagedNoteCount ?? 0} of {content.notes.length}{" "}
+                        words received
+                      </li>
+                      {content.cards.length > 0 && (
+                        <li>
+                          {job?.stagedCardCount ?? 0} of {content.cards.length}{" "}
+                          Anki cards received
+                        </li>
+                      )}
+                      {content.revlogs.length > 0 && (
+                        <li>
+                          {job?.stagedReviewCount ?? 0} of{" "}
+                          {content.revlogs.length} reviews received
+                        </li>
+                      )}
+                    </ul>
+                    {phase === "committing" && (
+                      <p className={styles.muted}>
+                        All deck data received. Your words and learning progress
+                        are being saved together.
+                      </p>
+                    )}
+                  </>
+                )}
                 {phase === "uploading" ||
                 phase === "committing" ||
                 phase === "cancelling" ? (
                   <>
-                    <p role="status">
-                      {phase === "cancelling"
-                        ? "Cancelling your import…"
-                        : phase === "committing"
-                          ? "Saving your study set…"
-                          : `Saving your vocabulary… ${batchProgress.total ? Math.round((100 * batchProgress.done) / batchProgress.total) : 0}%`}
-                    </p>
+                    {phase === "cancelling" && (
+                      <p role="status">Cancelling your import…</p>
+                    )}
                     {phase === "uploading" && (
-                      <>
-                        <progress
-                          max={Math.max(1, batchProgress.total)}
-                          value={batchProgress.done}
-                        />
-                        <button
-                          type="button"
-                          className={styles.secondaryButton}
-                          onClick={() => controllerRef.current?.abort()}
-                        >
-                          Pause import
-                        </button>
-                      </>
+                      <button
+                        type="button"
+                        className={styles.secondaryButton}
+                        onClick={() => controllerRef.current?.abort()}
+                      >
+                        Pause import
+                      </button>
                     )}
                   </>
                 ) : (

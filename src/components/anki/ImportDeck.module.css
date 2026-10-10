@@ -417,6 +417,17 @@
   accent-color: var(--accent);
 }
 
+.receivedCounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
+  margin: 0.6rem 0 1rem;
+  padding: 0;
+  list-style: none;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
 .complete {
   display: grid;
   justify-items: start;

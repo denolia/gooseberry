@@ -15,6 +15,8 @@ export type ImportJobStatus = {
   wordSetId: string | null;
   nextBatchIndex: number;
   stagedNoteCount: number;
+  stagedCardCount: number;
+  stagedReviewCount: number;
   addedCount: number;
   skippedCount: number;
   needsAttentionCount: number;
