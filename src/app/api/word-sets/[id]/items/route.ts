@@ -6,6 +6,7 @@ import {
   getExistingSourceTranslationIds,
   getWordSet,
   getWordSetItems,
+  getWordSetItem,
   updateWordSetItem,
 } from "@/db/wordSetRepo";
 import { getTranslationsByIds } from "@/db/translationRepo";
@@ -22,14 +23,24 @@ const AddItemsSchema = z.object({
 });
 
 const UpdateItemSchema = z.object({
-  original: z.string().trim().min(1).optional(),
-  translation: z.string().trim().min(1).optional(),
-  wordForms: z.string().optional(),
-  sample: z.string().optional(),
-  sampleTranslation: z.string().optional(),
-  comments: z.string().optional(),
-  tags: z.string().optional(),
+  original: z.string().trim().max(10000).optional(),
+  translation: z.string().trim().max(10000).optional(),
+  wordForms: z.string().max(20000).optional(),
+  sample: z.string().max(50000).optional(),
+  sampleTranslation: z.string().max(50000).optional(),
+  comments: z.string().max(50000).optional(),
+  tags: z.string().max(2000).optional(),
   position: z.number().int().optional(),
+  contentRevision: z.number().int().min(0).optional(),
+  examplePairs: z
+    .array(
+      z.object({
+        sample: z.string().max(50000),
+        translation: z.string().max(50000),
+      }),
+    )
+    .max(20)
+    .optional(),
 });
 
 const DeleteItemSchema = z.object({
@@ -261,7 +272,7 @@ export async function PATCH(
     const body = await request.json();
     const { itemId, ...updates } = body;
 
-    if (!itemId) {
+    if (!z.uuid().safeParse(itemId).success) {
       return NextResponse.json(
         { error: "itemId is required" },
         { status: 400 },
@@ -269,11 +280,25 @@ export async function PATCH(
     }
 
     const validated = UpdateItemSchema.parse(updates);
+    const existingItem = await getWordSetItem(itemId);
+    if (!existingItem || existingItem.wordSetId !== id)
+      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    if (
+      !existingItem.sourceNoteKey &&
+      (validated.original === "" || validated.translation === "")
+    )
+      return NextResponse.json(
+        { error: "Source word and translation are required." },
+        { status: 400 },
+      );
 
     const updatedItem = await updateWordSetItem(id, itemId, validated);
 
     if (!updatedItem) {
-      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "This word changed. Refresh before saving." },
+        { status: 409 },
+      );
     }
 
     return NextResponse.json({ success: true });

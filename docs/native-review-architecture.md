@@ -7,19 +7,26 @@
 forms, examples, notes and tags. It corresponds to an Anki **note**, and its
 `anki_note_guid` remains the stable note identity for export.
 
+Imported items retain a separate source GUID/key, private import snapshots and
+field provenance. Their original/translation can be empty while awaiting an
+edit or explicit generation. Structured `example_pairs` preserve all mapped
+examples, including unpaired text; the first complete pair supplies the native
+example exercise. Legacy items without pairs still use their stored text.
+`content_revision` guards proposal/manual saves against concurrent changes.
+
 Each exercise has a separate `study_card` UUID, identified uniquely by the
 item and `template_key`. Editing shared note content updates every exercise;
 answering one exercise updates only that exercise's scheduling. The five
 keys and their availability rules live in
 [the shared template registry](../src/lib/review/templates.ts):
 
-| Key | Prompt → answer | Required content |
-| --- | --- | --- |
-| `recognition` | Original → translation | Original and translation |
-| `production` | Translation → original | Original and translation |
-| `word_forms` | Original → word forms | Original and word forms |
-| `type_answer` | Translation → typed original | Original and translation |
-| `example` | Translated example → source example | Sample and sample translation |
+| Key           | Prompt → answer                     | Required content              |
+| ------------- | ----------------------------------- | ----------------------------- |
+| `recognition` | Original → translation              | Original and translation      |
+| `production`  | Translation → original              | Original and translation      |
+| `word_forms`  | Original → word forms               | Original and word forms       |
+| `type_answer` | Translation → typed original        | Original and translation      |
+| `example`     | Translated example → source example | Sample and sample translation |
 
 All five identities are retained even when an exercise lacks the fields it
 needs. Queries filter availability from the current content. Adding forms or
@@ -65,7 +72,10 @@ not inferred from content availability. In particular, reviewing a sibling
 does not currently bury the other exercises automatically. Anki's sibling
 behavior is described in [its studying manual](https://docs.ankiweb.net/manual/studying).
 
-Future imports can attach namespaced source card identities to existing
+Text imports now preserve raw source cards, review logs, deck/preset configuration
+and note fields in private import tables, separately from native review events.
+They create fresh exercises without FSRS state. Later progress migration can
+attach namespaced source card identities to existing
 `study_card.external_source`/`external_id` fields and preserve source review
 details in `review_event.source_metadata`. Template keys remain extensible;
 imported/custom templates need not reuse the five built-in keys. Preserve
@@ -108,6 +118,8 @@ and durability limits are documented in
 
 The [APKG exporter](../src/lib/anki/apkgExporter.ts) shares exercise keys and
 eligibility with native study. It still exports one note, not five unrelated
-notes. The [Anki import plan](anki-import-plan.md) describes later text
-conversion, explicit missing-value generation and fresh per-exercise progress;
-no importer or enrichment endpoint is part of this extension.
+notes. The [Anki import design](anki-import-plan.md) describes implemented text
+conversion, explicit missing-value proposals, bounded/resumable transport and
+fresh per-exercise progress. Import/enrichment require additive migrations
+`0009` and `0010`; neither resets existing review state. Source review migration
+and per-card suspension/burying remain separate later additions.

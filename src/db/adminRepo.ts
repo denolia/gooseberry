@@ -18,6 +18,7 @@ export type AdminUserStats = {
   enabled_cards: number;
   translate_calls: number;
   analyze_calls: number;
+  enrich_calls: number;
   successful_calls: number;
   month_calls: number;
   input_words: number;
@@ -63,6 +64,7 @@ export async function getAdminUsers(query: string, page: number) {
     LEFT JOIN LATERAL (
       SELECT count(*) FILTER (WHERE operation = 'translate')::int translate_calls,
         count(*) FILTER (WHERE operation = 'analyze')::int analyze_calls,
+        count(*) FILTER (WHERE operation = 'enrich')::int enrich_calls,
         count(*) FILTER (WHERE status = 'succeeded')::int successful_calls,
         count(*) FILTER (WHERE created_at >= date_trunc('month', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')::int month_calls,
         coalesce(sum(input_words), 0)::float8 input_words,

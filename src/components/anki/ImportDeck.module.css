@@ -1,0 +1,450 @@
+.container {
+  width: min(100%, 940px);
+  margin: 0 auto;
+  padding: 1.25rem 0;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.header h1 {
+  margin: 0.75rem 0 0.4rem;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+}
+
+.header p,
+.muted,
+.backLink {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.panel {
+  min-width: 0;
+  margin: 0 0 1.25rem;
+  padding: clamp(1rem, 4vw, 1.75rem);
+  border: 1px solid var(--border-color);
+  background: var(--surface-raised);
+}
+
+.panel h2,
+.panel legend {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.panel legend {
+  padding: 0 0.35rem;
+}
+
+.panel h2 {
+  margin-bottom: 0.85rem;
+}
+
+.panel h3 {
+  margin: 1.1rem 0 0.75rem;
+  font-size: 0.95rem;
+}
+
+.panel h4 {
+  margin: 1.25rem 0 0.75rem;
+  font-size: 0.85rem;
+}
+
+.panel p + p {
+  margin-top: 0.65rem;
+}
+
+.fileLabel,
+.fieldLabel,
+.twoColumns > label,
+.destination {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.fileInput {
+  display: block;
+  width: 100%;
+  margin: 0.6rem 0;
+  padding: 0.65rem;
+  border: 1px solid var(--border-color);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.fileInput::file-selector-button {
+  margin-right: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-color);
+  background: var(--button-secondary-bg);
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+}
+
+.container select,
+.container input[type="text"] {
+  min-width: 0;
+  width: 100%;
+  min-height: 2.6rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0;
+  background: var(--input-background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.twoColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.destination {
+  margin-top: 1rem;
+}
+
+.deckHeading,
+.actions,
+.previewNavigation,
+.importActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.deckHeading h3 {
+  margin: 0;
+  flex: 1;
+}
+
+.deckList {
+  display: grid;
+  max-height: 260px;
+  gap: 0.55rem;
+  margin: 0.8rem 0;
+  overflow: auto;
+}
+
+.checkboxLabel,
+.directionConfirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.checkboxLabel input,
+.directionConfirmation input {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.15rem;
+  accent-color: var(--accent);
+}
+
+.directionConfirmation {
+  margin-top: 1.3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.noteType {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.noteType summary {
+  margin-bottom: 0.9rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.noteType summary span {
+  margin-left: 0.65rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.fieldMapping {
+  min-width: 0;
+}
+
+.fieldSelection {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.fieldSelection select {
+  flex: 1;
+}
+
+.joinLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.joinLabel select {
+  width: auto;
+  flex: 1;
+}
+
+.examplePair {
+  margin-bottom: 1rem;
+  padding: 0.25rem 0.8rem 0.65rem;
+  border-left: 2px solid var(--border-color);
+}
+
+.primaryButton,
+.secondaryButton,
+.smallButton {
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border-color);
+  background: var(--button-secondary-bg);
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.primaryButton {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+
+.primaryButton:hover {
+  background: var(--accent-strong);
+}
+
+.secondaryButton:hover,
+.smallButton:hover {
+  background: var(--button-secondary-hover);
+}
+
+.smallButton {
+  padding: 0.45rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.textButton,
+.dangerButton {
+  padding: 0.35rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.dangerButton {
+  margin-top: 1rem;
+  color: var(--danger);
+}
+
+.container button:disabled,
+.container input:disabled,
+.container select:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.notice {
+  margin: 0.75rem 0;
+  padding: 0.8rem 1rem;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--background));
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.error {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.summary p {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0 !important;
+  padding: 0.8rem;
+  background: var(--background);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.summary strong {
+  color: var(--foreground);
+  font-size: 1.4rem;
+}
+
+.previewNavigation {
+  justify-content: space-between;
+  padding: 0.65rem 0;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.previewFields {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.75rem 0 1.25rem;
+}
+
+.previewFields > div {
+  display: grid;
+  grid-template-columns: 95px minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.previewFields dt {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.previewFields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.exercisePreview {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+
+.exercisePreview li {
+  padding: 0.8rem;
+  border: 1px solid var(--border-color);
+}
+
+.exercisePreview strong {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.exercisePreview p {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.savedExamples {
+  margin: 1rem 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.savedExamples summary {
+  cursor: pointer;
+}
+
+.savedExamples > div {
+  margin: 0.6rem 0;
+  padding: 0.65rem;
+  background: var(--background);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.importActions {
+  padding: 0.5rem 0 1rem;
+}
+
+.importActions progress {
+  width: min(100%, 300px);
+  accent-color: var(--accent);
+}
+
+.complete {
+  display: grid;
+  justify-items: start;
+  gap: 0.85rem;
+  padding: 2rem;
+  border: 1px solid var(--border-color);
+  background: var(--surface-raised);
+}
+
+.complete h2 {
+  font-size: 1.5rem;
+}
+
+.completeMark {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border: 1px solid var(--success);
+  color: var(--success);
+  font-size: 1.5rem;
+}
+
+.loading {
+  padding: 2rem;
+  text-align: center;
+}
+
+.container :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .twoColumns {
+    grid-template-columns: 1fr;
+  }
+
+  .previewNavigation span {
+    order: -1;
+    width: 100%;
+  }
+
+  .previewFields > div {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+
+  .complete {
+    padding: 1.25rem;
+  }
+}

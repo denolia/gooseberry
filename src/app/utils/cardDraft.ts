@@ -14,20 +14,41 @@ export type CardDraft = Omit<CardFields, "sample" | "sampleTranslation"> & {
   examples: { sample: string; translation: string }[];
 };
 
-export function draftFromFields(fields: CardFields): CardDraft {
+export function draftFromFields(
+  fields: CardFields & {
+    examplePairs?: { sample: string; translation: string }[];
+  },
+): CardDraft {
   const samples = fields.sample ? fields.sample.split("; ") : [];
   const translations = fields.sampleTranslation
     ? fields.sampleTranslation.split("; ")
     : [];
   return {
     ...fields,
-    examples: Array.from(
-      { length: Math.max(samples.length, translations.length) },
-      (_, i) => ({
-        sample: samples[i] ?? "",
-        translation: translations[i] ?? "",
-      }),
-    ),
+    examples: fields.examplePairs?.length
+      ? fields.examplePairs.map((pair) => ({ ...pair }))
+      : Array.from(
+          { length: Math.max(samples.length, translations.length) },
+          (_, i) => ({
+            sample: samples[i] ?? "",
+            translation: translations[i] ?? "",
+          }),
+        ),
+  };
+}
+
+// Imported examples are explicit pairs, never reconstructed from punctuation.
+// Native study uses the first complete pair and retains the rest for editing.
+export function studyFieldsFromDraft(draft: CardDraft) {
+  const pair = draft.examples.find(
+    (example) => example.sample.trim() && example.translation.trim(),
+  );
+  return {
+    ...fieldsFromDraft(draft),
+    sample: pair?.sample ?? draft.examples[0]?.sample ?? "",
+    sampleTranslation:
+      pair?.translation ?? draft.examples[0]?.translation ?? "",
+    examplePairs: draft.examples,
   };
 }
 

@@ -174,6 +174,18 @@ export const wordSetItem = pgTable(
 
     // Optional reference to source translation (for traceability)
     sourceTranslationId: uuid("source_translation_id"),
+    // Import identity is separate from the fresh Gooseberry export GUID.
+    sourceNoteKey: text("source_note_key"),
+    importJobId: uuid("import_job_id"),
+    examplePairs: jsonb("example_pairs")
+      .$type<{ sample: string; translation: string }[]>()
+      .default([])
+      .notNull(),
+    contentRevision: integer("content_revision").default(0).notNull(),
+    fieldOrigins: jsonb("field_origins")
+      .$type<Record<string, unknown>>()
+      .default({})
+      .notNull(),
 
     position: integer("position").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -189,6 +201,9 @@ export const wordSetItem = pgTable(
       t.position,
     ),
     guidIdx: index("word_set_item_guid_idx").on(t.ankiNoteGuid),
+    importedIdentity: uniqueIndex("word_set_item_source_note_idx")
+      .on(t.wordSetId, t.sourceNoteKey)
+      .where(sql`${t.sourceNoteKey} IS NOT NULL`),
   }),
 );
 
@@ -343,6 +358,7 @@ export const aiUsage = pgTable(
     status: text("status").notNull().default("pending"),
     inputWords: integer("input_words").notNull(),
     inputTokens: integer("input_tokens"),
+    reservedTokens: integer("reserved_tokens").default(0).notNull(),
     cachedInputTokens: integer("cached_input_tokens"),
     outputTokens: integer("output_tokens"),
     reasoningTokens: integer("reasoning_tokens"),
@@ -357,5 +373,169 @@ export const aiUsage = pgTable(
       t.userId,
       t.createdAt,
     ),
+    nonnegativeReservation: check(
+      "ai_usage_reserved_tokens_check",
+      sql`${t.reservedTokens} >= 0`,
+    ),
   }),
+);
+
+export const ankiImportJob = pgTable(
+  "anki_import_job",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    requestKey: uuid("request_key").notNull(),
+    requestHash: text("request_hash").notNull(),
+    fileName: text("file_name").notNull(),
+    fileSize: integer("file_size").notNull(),
+    fileSha256: text("file_sha256").notNull(),
+    name: text("name").notNull(),
+    sourceLang: text("source_lang").notNull(),
+    targetLang: text("target_lang").notNull(),
+    targetSetId: uuid("target_set_id"),
+    wordSetId: uuid("word_set_id"),
+    ownsSet: boolean("owns_set").default(false).notNull(),
+    status: text("status").default("receiving").notNull(),
+    mapping: jsonb("mapping").$type<unknown[]>().notNull(),
+    packageMetadata: jsonb("package_metadata")
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    nextBatchIndex: integer("next_batch_index").default(0).notNull(),
+    stagedNoteCount: integer("staged_note_count").default(0).notNull(),
+    stagedCardCount: integer("staged_card_count").default(0).notNull(),
+    stagedReviewCount: integer("staged_review_count").default(0).notNull(),
+    stagedByteCount: integer("staged_byte_count").default(0).notNull(),
+    addedCount: integer("added_count").default(0).notNull(),
+    skippedCount: integer("skipped_count").default(0).notNull(),
+    needsAttentionCount: integer("needs_attention_count").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("anki_import_job_request_idx").on(t.userId, t.requestKey),
+    index("anki_import_job_user_idx").on(t.userId, t.createdAt),
+    check(
+      "anki_import_job_status_check",
+      sql`${t.status} IN ('receiving', 'completed', 'cancelled', 'removed')`,
+    ),
+  ],
+);
+
+export const ankiImportBatch = pgTable(
+  "anki_import_batch",
+  {
+    jobId: uuid("job_id")
+      .notNull()
+      .references(() => ankiImportJob.id, { onDelete: "cascade" }),
+    batchIndex: integer("batch_index").notNull(),
+    payloadHash: text("payload_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.jobId, t.batchIndex] })],
+);
+
+// Private source archive, also used as staging until the atomic commit. It is
+// never joined into ordinary item-list responses or trusted as executable HTML.
+export const importSourceNote = pgTable(
+  "import_source_note",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    jobId: uuid("job_id")
+      .notNull()
+      .references(() => ankiImportJob.id, { onDelete: "cascade" }),
+    itemId: uuid("item_id").references(() => wordSetItem.id, {
+      onDelete: "set null",
+    }),
+    proposedItemId: uuid("proposed_item_id").defaultRandom().notNull(),
+    sourceNoteId: text("source_note_id").notNull(),
+    sourceNoteKey: text("source_note_key").notNull(),
+    sourceGuid: text("source_guid").notNull(),
+    modelId: text("model_id").notNull(),
+    rawNote: jsonb("raw_note").$type<Record<string, unknown>>().notNull(),
+    mappedContent: jsonb("mapped_content")
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    skipped: boolean("skipped").default(false).notNull(),
+    needsAttention: boolean("needs_attention").default(false).notNull(),
+    position: integer("position").notNull(),
+  },
+  (t) => [
+    uniqueIndex("import_source_note_id_idx").on(t.jobId, t.sourceNoteId),
+    uniqueIndex("import_source_note_key_idx").on(t.jobId, t.sourceNoteKey),
+    index("import_source_note_item_idx").on(t.itemId),
+  ],
+);
+
+export const importSourceCard = pgTable(
+  "import_source_card",
+  {
+    jobId: uuid("job_id")
+      .notNull()
+      .references(() => ankiImportJob.id, { onDelete: "cascade" }),
+    sourceCardId: text("source_card_id").notNull(),
+    sourceNoteId: text("source_note_id").notNull(),
+    rawCard: jsonb("raw_card").$type<Record<string, unknown>>().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.jobId, t.sourceCardId] }),
+    index("import_source_card_note_idx").on(t.jobId, t.sourceNoteId),
+  ],
+);
+
+export const importSourceReview = pgTable(
+  "import_source_review",
+  {
+    jobId: uuid("job_id")
+      .notNull()
+      .references(() => ankiImportJob.id, { onDelete: "cascade" }),
+    sourceReviewId: text("source_review_id").notNull(),
+    sourceCardId: text("source_card_id").notNull(),
+    rawReview: jsonb("raw_review").$type<Record<string, unknown>>().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.jobId, t.sourceReviewId] }),
+    index("import_source_review_card_idx").on(t.jobId, t.sourceCardId),
+  ],
+);
+
+export const enrichmentRequest = pgTable(
+  "enrichment_request",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => wordSetItem.id, { onDelete: "cascade" }),
+    requestKey: uuid("request_key").notNull(),
+    contentRevision: integer("content_revision").notNull(),
+    fields: jsonb("fields").$type<string[]>().notNull(),
+    status: text("status").default("pending").notNull(),
+    proposal: jsonb("proposal").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("enrichment_request_key_idx").on(t.userId, t.requestKey),
+    uniqueIndex("enrichment_request_pending_item_idx")
+      .on(t.itemId)
+      .where(sql`${t.status} = 'pending'`),
+    check(
+      "enrichment_request_status_check",
+      sql`${t.status} IN ('pending', 'completed', 'failed', 'applied')`,
+    ),
+  ],
 );

@@ -1,0 +1,93 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgb(12 32 19 / 45%);
+  padding: 1rem;
+}
+.dialog {
+  width: min(100%, 36rem);
+  max-height: 90dvh;
+  overflow-y: auto;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #183624);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 18%);
+}
+.dialog header,
+.dialog footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.dialog h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+.dialog p {
+  line-height: 1.5;
+}
+.dialog fieldset {
+  border: 1px solid #d5dfd6;
+  border-radius: 0.6rem;
+  margin: 1rem 0;
+}
+.dialog button {
+  font: inherit;
+  cursor: pointer;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid #ccd8cf;
+  border-radius: 0.5rem;
+  background: #f3f7f3;
+  color: #244d32;
+}
+.dialog footer {
+  margin-top: 1rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.dialog footer button:last-child {
+  background: #2e6340;
+  color: #fff;
+}
+.dialog button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.context {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.option {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0.6rem 0;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 1rem 0;
+}
+.field textarea {
+  resize: vertical;
+  width: 100%;
+  font: inherit;
+  padding: 0.6rem;
+  border: 1px solid #c6d4c9;
+  border-radius: 0.4rem;
+  box-sizing: border-box;
+}
+.field small,
+.origin {
+  color: #54745e;
+  font-size: 0.85rem;
+}
+.error {
+  color: #a43528;
+}

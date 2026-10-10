@@ -156,22 +156,27 @@ export function WordSetList() {
             Save words as you translate. Study, refine, or export them here.
           </p>
         </div>
-        <button
-          className={styles.createButton}
-          onClick={() => {
-            if (!showCreateForm) {
-              setCreateSourceLang(
-                getLanguageCode(currentSourceLanguage) as SourceLanguageCode,
-              );
-              setCreateTargetLang(
-                getLanguageCode(currentTargetLanguage) as TargetLanguageCode,
-              );
-            }
-            setShowCreateForm(!showCreateForm);
-          }}
-        >
-          {showCreateForm ? "Cancel" : "+ New set"}
-        </button>
+        <div className={styles.headerActions}>
+          <Link className={styles.importButton} href="/anki/import">
+            Import Anki deck
+          </Link>
+          <button
+            className={styles.createButton}
+            onClick={() => {
+              if (!showCreateForm) {
+                setCreateSourceLang(
+                  getLanguageCode(currentSourceLanguage) as SourceLanguageCode,
+                );
+                setCreateTargetLang(
+                  getLanguageCode(currentTargetLanguage) as TargetLanguageCode,
+                );
+              }
+              setShowCreateForm(!showCreateForm);
+            }}
+          >
+            {showCreateForm ? "Cancel" : "+ New set"}
+          </button>
+        </div>
       </div>
 
       {showCreateForm && (

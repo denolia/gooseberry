@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { generateSpeechMp3 } from "@/lib/audio/speech";
 import { hasPremiumAccess } from "@/lib/premium/entitlements";
 import { cacheSpeech, getCachedSpeech } from "@/db/speechCacheRepo";
+import { getApplicableStudyCardTemplateKeys } from "@/lib/review/templates";
 //dummy change
 export const maxDuration = 60;
 
@@ -100,6 +101,22 @@ export async function POST(
       return NextResponse.json({ error: "Word set is empty" }, { status: 400 });
     }
 
+    let ankiNotes = items.map((item) => mapWordSetItemToAnkiNote(item, true));
+    if (
+      format === "apkg" &&
+      ankiNotes.some(
+        (note) => getApplicableStudyCardTemplateKeys(note).length === 0,
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Some words have no usable exercise. Complete their missing content before exporting an Anki deck, or export CSV to keep incomplete words.",
+        },
+        { status: 400 },
+      );
+    }
+
     if (includeAudio && items.length > MAX_AUDIO_EXPORT_ITEMS) {
       return NextResponse.json(
         {
@@ -109,12 +126,13 @@ export async function POST(
       );
     }
 
-    let ankiNotes = items.map((item) => mapWordSetItemToAnkiNote(item, true));
     let media: Array<{ filename: string; data: Uint8Array }> = [];
 
     if (includeAudio) {
       const uniqueItemsByAudio = new Map(
-        items.map((item) => [item.original.trim(), item]),
+        items
+          .filter((item) => item.original.trim())
+          .map((item) => [item.original.trim(), item]),
       );
       const uniqueAudioItems = [...uniqueItemsByAudio.values()];
       media = await mapWithConcurrency(

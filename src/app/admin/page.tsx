@@ -156,7 +156,8 @@ export default async function AdminPage({
                 <td>
                   <strong>
                     {number(user.translate_calls)} translations ·{" "}
-                    {number(user.analyze_calls)} analyses
+                    {number(user.analyze_calls)} analyses ·{" "}
+                    {number(user.enrich_calls)} enrichments
                   </strong>
                   <span>
                     {number(user.month_calls)} requests this month (UTC)

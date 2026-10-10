@@ -1,4 +1,4 @@
-import { AnkiNote } from "@/app/utils/ankiSchema";
+import type { AnkiNote } from "@/app/utils/ankiSchema";
 
 /**
  * Creates a CSV file compatible with Anki import
@@ -7,14 +7,16 @@ import { AnkiNote } from "@/app/utils/ankiSchema";
  */
 export function createCsvContent(
   notes: AnkiNote[],
-  sourceLang: string,
-  targetLang: string,
+  _sourceLang: string,
+  _targetLang: string,
 ): string {
   const rows: string[] = [];
 
   // Add Anki directives and header
   rows.push("#separator:tab");
-  rows.push("#html:true");
+  // Gooseberry fields are plain text. In particular, an imported literal
+  // "<script>" or "<img>" must remain text when this file is opened in Anki.
+  rows.push("#html:false");
   rows.push("#tags column:8");
   rows.push(
     "# Original\tTranslation\tWord Forms\tSample\tSample Translation\tComments\tGUID\tTags",
@@ -47,7 +49,10 @@ function formatCsvRow(fields: string[]): string {
     .map((field) => {
       // Escape quotes by doubling them, and wrap in quotes if contains tab, newline, or quote
       const needsQuotes =
-        field.includes("\t") || field.includes("\n") || field.includes('"');
+        field.includes("\t") ||
+        field.includes("\n") ||
+        field.includes("\r") ||
+        field.includes('"');
       const escaped = field.replace(/"/g, '""');
       return needsQuotes ? `"${escaped}"` : escaped;
     })

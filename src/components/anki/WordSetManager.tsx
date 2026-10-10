@@ -7,9 +7,11 @@ import { CardEditor } from "./CardEditor";
 import {
   CardDraft,
   draftFromFields,
-  fieldsFromDraft,
+  studyFieldsFromDraft,
 } from "@/app/utils/cardDraft";
 import { TranslationSelector } from "./TranslationSelector";
+import { EnrichmentDialog } from "./EnrichmentDialog";
+import { missingEnrichmentFields } from "@/lib/anki/enrichment";
 import { reviewCountLabel, reviewStateLabel } from "@/lib/review/stats";
 import type { FsrsCardStateValue } from "@/lib/review/model";
 import styles from "./WordSetManager.module.css";
@@ -32,6 +34,10 @@ interface WordSetItem {
   comments: string;
   tags: string;
   position: number;
+  sourceNoteKey: string | null;
+  contentRevision: number;
+  examplePairs: { sample: string; translation: string }[];
+  fieldOrigins: Record<string, { origin?: string }>;
   review: {
     cardCount: number;
     dueCount: number;
@@ -71,6 +77,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const [error, setError] = useState<string | null>(null);
   const [showSelector, setShowSelector] = useState(false);
   const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [enrichingItem, setEnrichingItem] = useState<WordSetItem | null>(null);
   const [editValues, setEditValues] = useState<CardDraft | null>(null);
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
@@ -259,10 +266,18 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       const response = await fetch(`/api/word-sets/${wordSetId}/items`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId, ...fieldsFromDraft(editValues) }),
+        body: JSON.stringify({
+          itemId,
+          ...studyFieldsFromDraft(editValues),
+          contentRevision: items.find((item) => item.id === itemId)
+            ?.contentRevision,
+        }),
       });
 
-      if (!response.ok) throw new Error("Failed to update item");
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to update item");
+      }
 
       setEditingItem(null);
       setEditValues(null);
@@ -394,7 +409,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
           <p className={styles.meta}>
             {wordSet.sourceLang.toUpperCase()} →{" "}
             {wordSet.targetLang.toUpperCase()} • {items.length}{" "}
-            {items.length === 1 ? "card" : "cards"}
+            {items.length === 1 ? "word" : "words"}
           </p>
         </div>
         <div className={styles.actions}>
@@ -672,6 +687,20 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
         />
       )}
 
+      {enrichingItem && (
+        <EnrichmentDialog
+          item={enrichingItem}
+          wordSetId={wordSetId}
+          onClose={() => setEnrichingItem(null)}
+          onSaved={() => {
+            void loadItems();
+            setStatusMessage(
+              "Saved the reviewed content. Newly available exercises are ready to study.",
+            );
+          }}
+        />
+      )}
+
       {items.length === 0 ? (
         <div className={styles.empty}>
           No cards yet. Save a word from a translation, or add words from your
@@ -699,13 +728,15 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                     value={editValues}
                     onChange={setEditValues}
                     disabled={saving}
+                    allowIncomplete={!!item.sourceNoteKey}
                   />
                   <div className={styles.editActions}>
                     <button
                       disabled={
                         saving ||
-                        !editValues.original.trim() ||
-                        !editValues.translation.trim()
+                        (!item.sourceNoteKey &&
+                          (!editValues.original.trim() ||
+                            !editValues.translation.trim()))
                       }
                       className={styles.saveButton}
                     >
@@ -726,13 +757,26 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                   <div className={styles.itemContent}>
                     <div className={styles.itemMain}>
                       <strong className={styles.original}>
-                        {item.original}
+                        {item.original || "Missing source word"}
                       </strong>
                       <span className={styles.arrow}>→</span>
                       <span className={styles.translation}>
-                        {item.translation}
+                        {item.translation || "Missing translation"}
                       </span>
                     </div>
+                    {(!item.original.trim() || !item.translation.trim()) && (
+                      <p className={styles.itemDetail}>
+                        Complete this word to unlock its exercises. Edit it or
+                        request generation below.
+                      </p>
+                    )}
+                    {Object.values(item.fieldOrigins ?? {}).some(
+                      (value) => value.origin === "ai",
+                    ) && (
+                      <p className={styles.itemDetail}>
+                        Includes AI-generated content
+                      </p>
+                    )}
                     {item.wordForms && (
                       <div className={styles.itemDetail}>
                         <em>Forms:</em> {item.wordForms}
@@ -784,6 +828,14 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                         >
                           Edit card
                         </button>
+                        {missingEnrichmentFields(item).length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setEnrichingItem(item)}
+                          >
+                            Generate missing content
+                          </button>
+                        )}
                         <button
                           type="button"
                           className={styles.menuDanger}

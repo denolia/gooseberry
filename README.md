@@ -12,6 +12,8 @@ The goal is not just to return a direct translation, but to give enough context 
 - Saves recent translation history
 - Organizes saved items into Anki sets
 - Runs native study sessions with independent FSRS scheduling for five exercise directions
+- Imports Anki vocabulary decks with field mapping, resumable text batches and omitted media
+- Generates selected missing fields on request, with editable proposals before saving
 - Exports study material for Anki in `.csv` and `.apkg` formats
 
 ## Supported Translation Directions
@@ -55,16 +57,30 @@ removing that content preserves their review histories. Existing recognition
 progress is retained. Typed-answer feedback supports self-rating; the chosen
 rating determines the next review.
 
+Scheduled due reviews come first. New exercises follow word order in rounds,
+rotating exercise types across words so a word's siblings are spaced apart.
+
 See [Native review architecture](docs/native-review-architecture.md). Automatic
 sibling burying, personal review presets and imported progress are future work.
+
+## Import Anki Vocabulary
+
+Choose **Import Anki deck** in the set library. Preview a local `.apkg`, choose
+decks and languages, and map each note type before importing. Media is omitted;
+only bounded text batches reach the server. Imports start with fresh Gooseberry
+progress while retaining source reviews and presets privately for future migration.
+
+Missing fields can remain empty. Edit them or use **Generate missing content**
+to review an AI proposal before saving. Reimport into the same set skips existing
+source notes and preserves local edits and progress. See the
+[import design and limits](docs/anki-import-plan.md) and
+[analysis of the supplied personal export](docs/anki-personal-export-analysis.md).
 
 ## Next Steps
 
 - Add a smoother onboarding flow for first-time users
-- Import shared Anki vocabulary decks with field mapping and user-requested
-  generation of missing content; see the [import plan](docs/anki-import-plan.md).
-  Importing and enrichment are not implemented yet. Imported media is outside
-  that planned scope.
+- Add daily new-material pacing and support larger libraries with pagination
+- Add explicit migration of personal Anki progress and review presets
 
 ## Development
 
@@ -81,6 +97,18 @@ pnpm dev
 
 Run `pnpm test`, `pnpm typecheck`, `pnpm lint`, and `pnpm build` to validate changes.
 The production build needs network access to download the Google font.
+
+Apply the SQL migrations in order using the existing database workflow. Import
+and enrichment require `0009_anki_text_import.sql` and
+`0010_requested_enrichment.sql` before deploying this version. They are not
+applied to a remote database by development, build or test commands. Tests use
+local SQLite/PGlite fixtures and mocked AI calls.
+
+Install/dev/build prepares the local SQL.js WASM used by the import worker.
+`ENRICHMENT_DAILY_TOKEN_LIMIT` defaults to 100,000 reserved tokens per user per
+UTC day; zero disables new generation. `OPENAI_ENRICHMENT_MODEL` optionally
+overrides `OPENAI_TRANSLATION_MODEL` (default `gpt-5-mini`). See
+[usage and quota details](docs/admin-and-quotas.md) before changing limits.
 
 Linting uses Oxlint with the migrated Next.js, TypeScript, React, import, and
 accessibility rules in `.oxlintrc.json`. Prettier remains the formatter. The React

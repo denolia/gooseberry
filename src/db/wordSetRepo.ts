@@ -1,6 +1,6 @@
 import { getDb } from "@/db/drizzle";
 import { studyCard, wordSet, wordSetItem } from "@/db/schema";
-import { and, eq, desc, inArray } from "drizzle-orm";
+import { and, eq, desc, inArray, sql } from "drizzle-orm";
 import { STUDY_CARD_TEMPLATE_KEYS } from "@/lib/review/templates";
 
 export async function createWordSet(input: {
@@ -182,14 +182,49 @@ export async function updateWordSetItem(
     comments?: string;
     tags?: string;
     position?: number;
+    examplePairs?: { sample: string; translation: string }[];
+    contentRevision?: number;
   },
 ) {
   const db = getDb();
+  const { contentRevision, ...content } = updates;
+  const contentFields = Object.keys(content).filter(
+    (field) => field !== "position" && field !== "examplePairs",
+  ) as (
+    | "original"
+    | "translation"
+    | "wordForms"
+    | "sample"
+    | "sampleTranslation"
+    | "comments"
+    | "tags"
+  )[];
+  const originChanges = contentFields.length
+    ? sql.join(
+        contentFields.map(
+          (field) => sql`CASE
+    WHEN ${wordSetItem[field]} IS DISTINCT FROM ${content[field]}
+    THEN ${JSON.stringify({ [field]: { origin: "edited" } })}::jsonb ELSE '{}'::jsonb END`,
+        ),
+        sql` || `,
+      )
+    : sql`'{}'::jsonb`;
   const [item] = await db
     .update(wordSetItem)
-    .set({ ...updates, updatedAt: new Date() })
+    .set({
+      ...content,
+      contentRevision: sql`${wordSetItem.contentRevision} + 1`,
+      fieldOrigins: sql`${wordSetItem.fieldOrigins} || ${originChanges}`,
+      updatedAt: new Date(),
+    })
     .where(
-      and(eq(wordSetItem.id, itemId), eq(wordSetItem.wordSetId, wordSetId)),
+      and(
+        eq(wordSetItem.id, itemId),
+        eq(wordSetItem.wordSetId, wordSetId),
+        contentRevision === undefined
+          ? undefined
+          : eq(wordSetItem.contentRevision, contentRevision),
+      ),
     )
     .returning({ id: wordSetItem.id });
 

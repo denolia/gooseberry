@@ -3,11 +3,22 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import ts from "@typescript/typescript6";
+import * as templates from "../src/lib/review/templates.ts";
 
-function loadRoute({ premium = true, cachedAudio = null } = {}) {
+function loadRoute({
+  premium = true,
+  cachedAudio = null,
+  items = [
+    { id: "item-1", original: "Hallo" },
+    { id: "item-2", original: "Hallo" },
+  ],
+} = {}) {
   const speechCalls = [];
   const packageCalls = [];
   const cacheCalls = [];
+  const cacheLookups = [];
+  const exportedCalls = [];
+  const csvCalls = [];
   const code = ts.transpileModule(
     readFileSync(
       new URL("../src/app/api/word-sets/[id]/export/route.ts", import.meta.url),
@@ -31,19 +42,16 @@ function loadRoute({ premium = true, cachedAudio = null } = {}) {
           sourceLang: "de",
           targetLang: "ru",
         }),
-        getWordSetItems: async () => [
-          { id: "item-1", original: "Hallo" },
-          { id: "item-2", original: "Hallo" },
-        ],
-        updateLastExportedAt: async () => {},
+        getWordSetItems: async () => items,
+        updateLastExportedAt: async (...args) => exportedCalls.push(args),
       },
       "@/app/utils/ankiMapper": {
         mapWordSetItemToAnkiNote: (item) => ({
           original: item.original,
-          translation: "hello",
-          wordForms: "",
-          sample: "",
-          sampleTranslation: "",
+          translation: item.translation ?? "hello",
+          wordForms: item.wordForms ?? "",
+          sample: item.sample ?? "",
+          sampleTranslation: item.sampleTranslation ?? "",
           comments: "",
           tags: "",
           sourceId: item.id,
@@ -56,7 +64,13 @@ function loadRoute({ premium = true, cachedAudio = null } = {}) {
           return Buffer.from("PK-test");
         },
       },
-      "@/lib/anki/csvExporter": { createCsvContent: () => "csv" },
+      "@/lib/anki/csvExporter": {
+        createCsvContent: (...args) => {
+          csvCalls.push(args);
+          return "csv";
+        },
+      },
+      "@/lib/review/templates": templates,
       "@/lib/audio/speech": {
         generateSpeechMp3: async (...args) => {
           speechCalls.push(args);
@@ -67,7 +81,10 @@ function loadRoute({ premium = true, cachedAudio = null } = {}) {
         hasPremiumAccess: async () => premium,
       },
       "@/db/speechCacheRepo": {
-        getCachedSpeech: async () => cachedAudio,
+        getCachedSpeech: async (...args) => {
+          cacheLookups.push(args);
+          return cachedAudio;
+        },
         cacheSpeech: async (...args) => cacheCalls.push(args),
       },
       "node:crypto": { createHash },
@@ -76,7 +93,15 @@ function loadRoute({ premium = true, cachedAudio = null } = {}) {
     return mocks[name];
   }, exports);
 
-  return { route: exports, packageCalls, speechCalls, cacheCalls };
+  return {
+    route: exports,
+    packageCalls,
+    speechCalls,
+    cacheCalls,
+    cacheLookups,
+    exportedCalls,
+    csvCalls,
+  };
 }
 
 test("audio deck export generates duplicate pronunciations once and embeds them", async () => {
@@ -139,4 +164,87 @@ test("cached pronunciation is reused without another speech request", async () =
   assert.equal(speechCalls.length, 0);
   assert.equal(cacheCalls.length, 0);
   assert.equal(packageCalls[0][4][0].data, cachedAudio);
+});
+
+test("Anki export rejects any unusable imported note before pronunciation or package generation", async () => {
+  for (const audio of ["", "&audio=1"]) {
+    const calls = loadRoute({
+      items: [
+        { id: "ready", original: "Hallo" },
+        { id: "incomplete", original: " ", translation: "hello" },
+      ],
+    });
+    const response = await calls.route.POST(
+      new Request(
+        `http://localhost/api/word-sets/set-1/export?format=apkg${audio}`,
+        { method: "POST" },
+      ),
+      { params: Promise.resolve({ id: "set-1" }) },
+    );
+    assert.equal(response.status, 400);
+    assert.match(
+      (await response.json()).error,
+      /Complete their missing content/,
+    );
+    assert.equal(calls.packageCalls.length, 0);
+    assert.equal(calls.speechCalls.length, 0);
+    assert.equal(calls.cacheLookups.length, 0);
+    assert.equal(calls.cacheCalls.length, 0);
+    assert.equal(calls.exportedCalls.length, 0);
+  }
+});
+
+test("Anki export allows every note with at least one usable exercise and omits blank-word audio", async () => {
+  const calls = loadRoute({
+    items: [
+      {
+        id: "forms-only",
+        original: "Haus",
+        translation: "",
+        wordForms: "Häuser",
+      },
+      {
+        id: "example-only",
+        original: "",
+        translation: "",
+        sample: "Hallo!",
+        sampleTranslation: "Привет!",
+      },
+    ],
+  });
+  const response = await calls.route.POST(
+    new Request(
+      "http://localhost/api/word-sets/set-1/export?format=apkg&audio=1",
+      { method: "POST" },
+    ),
+    { params: Promise.resolve({ id: "set-1" }) },
+  );
+  assert.equal(response.status, 200);
+  assert.equal(
+    calls.packageCalls[0][1].length,
+    2,
+    "every usable note is exported",
+  );
+  assert.equal(calls.speechCalls.length, 1);
+  assert.equal(calls.speechCalls[0][0], "Haus");
+  assert.equal(calls.packageCalls[0][1][1].sourceAudio, undefined);
+  assert.equal(calls.exportedCalls.length, 1);
+});
+
+test("CSV export retains incomplete notes as a portable text fallback", async () => {
+  const calls = loadRoute({
+    items: [{ id: "incomplete", original: "", translation: "hello" }],
+  });
+  const response = await calls.route.POST(
+    new Request("http://localhost/api/word-sets/set-1/export?format=csv", {
+      method: "POST",
+    }),
+    { params: Promise.resolve({ id: "set-1" }) },
+  );
+  assert.equal(response.status, 200);
+  assert.equal(calls.csvCalls[0][0].length, 1);
+  assert.equal(calls.csvCalls[0][0][0].original, "");
+  assert.equal(calls.packageCalls.length, 0);
+  assert.equal(calls.speechCalls.length, 0);
+  assert.equal(calls.exportedCalls.length, 1);
 });

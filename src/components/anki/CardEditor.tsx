@@ -7,10 +7,12 @@ export function CardEditor({
   value,
   onChange,
   disabled = false,
+  allowIncomplete = false,
 }: {
   value: CardDraft;
   onChange: (value: CardDraft) => void;
   disabled?: boolean;
+  allowIncomplete?: boolean;
 }) {
   const [editingExamples, setEditingExamples] = useState(false);
   const examplesId = useId();
@@ -26,7 +28,9 @@ export function CardEditor({
           rows={key === "comments" ? 2 : 1}
           value={value[key]}
           onChange={(e) => onChange({ ...value, [key]: e.target.value })}
-          required={key === "original" || key === "translation"}
+          required={
+            !allowIncomplete && (key === "original" || key === "translation")
+          }
         />
       </label>
     );
