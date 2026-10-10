@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type Ref } from "react";
+import { useCallback, useEffect, useRef, useState, type Ref } from "react";
 import styles from "./SourceAudioButton.module.css";
 
 export function SourceAudioButton({
@@ -20,13 +20,27 @@ export function SourceAudioButton({
   const audioUrlRef = useRef<string | null>(null);
   const requestRef = useRef<AbortController | null>(null);
 
+  const releaseAudio = useCallback(({ keepUrl = false } = {}) => {
+    const audio = audioRef.current;
+    audioRef.current = null;
+    if (audio) {
+      audio.onended = null;
+      audio.onerror = null;
+      audio.pause();
+    }
+    if (!keepUrl) {
+      const url = audioUrlRef.current;
+      audioUrlRef.current = null;
+      if (url) URL.revokeObjectURL(url);
+    }
+  }, []);
+
   useEffect(
     () => () => {
       requestRef.current?.abort();
-      audioRef.current?.pause();
-      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+      releaseAudio();
     },
-    [],
+    [releaseAudio],
   );
 
   async function play() {
@@ -34,10 +48,11 @@ export function SourceAudioButton({
     setError("");
     const request = new AbortController();
     requestRef.current = request;
+    let audio: HTMLAudioElement | null = null;
 
     try {
-      let audio = audioRef.current;
-      if (!audio) {
+      let url = audioUrlRef.current;
+      if (!url) {
         setStatus("loading");
         const response = await fetch("/api/speech", {
           method: "POST",
@@ -53,23 +68,38 @@ export function SourceAudioButton({
         }
 
         const blob = await response.blob();
-        if (request.signal.aborted) return;
-        const url = URL.createObjectURL(blob);
+        if (request.signal.aborted) {
+          if (requestRef.current === request) setStatus("idle");
+          return;
+        }
+        url = URL.createObjectURL(blob);
         audioUrlRef.current = url;
-        audio = new Audio(url);
-        audio.onended = () => setStatus("idle");
-        audio.onerror = () => {
-          setStatus("idle");
-          setError("Could not play pronunciation");
-        };
-        audioRef.current = audio;
       }
 
-      audio.currentTime = 0;
-      await audio.play();
+      audioRef.current?.pause();
+      audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => {
+        if (audioRef.current === audio) setStatus("idle");
+      };
+      audio.onerror = () => {
+        if (audioRef.current === audio) {
+          releaseAudio();
+          setStatus("idle");
+          setError("Could not play pronunciation");
+        }
+      };
+
       setStatus("playing");
+      await audio.play();
     } catch (reason) {
-      if (request.signal.aborted) return;
+      if (requestRef.current !== request) return;
+      if (request.signal.aborted) {
+        setStatus("idle");
+        return;
+      }
+      if (audio && audioRef.current !== audio) return;
+      releaseAudio({ keepUrl: audio !== null && !audio.error });
       setStatus("idle");
       setError(
         reason instanceof Error
