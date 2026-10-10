@@ -47,3 +47,6 @@ expired_client_secret_*.apps.googleusercontent.com.json
 .idea/dataSources*
 .idea/data_source_mapping.xml
 /migrations/meta/*
+
+# Prepared from the installed sql.js package for the local import worker.
+/public/sql-wasm.wasm

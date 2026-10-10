@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import test from "node:test";
+import test, { before } from "node:test";
 import initSqlJs from "sql.js";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import ts from "@typescript/typescript6";
 
 const externalRequire = createRequire(import.meta.url);
-const SQL = await initSqlJs();
+let SQL;
+before(async () => { SQL = await initSqlJs(); });
 const now = new Date("2026-10-10T12:00:00.000Z");
 const tomorrow = "2026-10-11T12:00:00.000Z";
 
