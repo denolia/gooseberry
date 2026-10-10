@@ -33,6 +33,15 @@
   font-weight: 650;
 }
 
+.exerciseLabel {
+  margin-bottom: 0.5rem;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .languagePair {
   margin-top: 0.25rem;
   color: var(--text-secondary);
@@ -79,6 +88,66 @@
   font-weight: 620;
   line-height: 1.08;
   overflow-wrap: anywhere;
+}
+
+.promptSide h2.sentence,
+.answerSide h2.sentence {
+  font-size: clamp(1.6rem, 4vw, 2.6rem);
+  line-height: 1.3;
+}
+
+.answerContext {
+  margin-top: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+}
+
+.typedAnswer {
+  display: grid;
+  width: min(100%, 520px);
+  gap: 0.5rem;
+  margin-top: 1.75rem;
+  text-align: left;
+}
+
+.typedAnswer label {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.typedAnswer input {
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 1.15rem;
+}
+
+.typedAnswer p,
+.answerComparison > p:last-child {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.answerComparison {
+  width: min(100%, 520px);
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  background: var(--background);
+}
+
+.enteredAnswer {
+  margin: 0.4rem 0;
+  font-size: 1.15rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .answerWrap {

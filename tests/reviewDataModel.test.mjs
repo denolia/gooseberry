@@ -10,6 +10,7 @@ import {
   ReviewRating,
   ReviewRatingSchema,
 } from "../src/lib/review/model.ts";
+import { STUDY_CARD_TEMPLATE_KEYS } from "../src/lib/review/templates.ts";
 
 test("review mode defaults can distinguish simple and full controls", () => {
   assert.deepEqual(ReviewMode, { Simple: "simple", Full: "full" });
@@ -57,7 +58,7 @@ test("the review migration backfills stable native card identities", () => {
   );
 });
 
-test("adding content creates its native study card in the same transaction", async () => {
+test("adding content creates all stable study identities in the same transaction", async () => {
   const operations = [];
   const batchedQueries = [];
   const tables = {
@@ -101,7 +102,7 @@ test("adding content creates its native study card in the same transaction", asy
         getDb: () => db,
       },
       "@/db/schema": tables,
-      "@/lib/review/model": { NATIVE_STUDY_CARD_TEMPLATE },
+      "@/lib/review/templates": { STUDY_CARD_TEMPLATE_KEYS },
       "drizzle-orm": {
         and: expression,
         desc: expression,
@@ -134,4 +135,31 @@ test("adding content creates its native study card in the same transaction", asy
     operations[0].values[0].id,
   );
   assert.equal(operations[1].values[0].templateKey, NATIVE_STUDY_CARD_TEMPLATE);
+  assert.deepEqual(
+    operations[1].values.map((value) => value.templateKey),
+    [...STUDY_CARD_TEMPLATE_KEYS],
+  );
+  assert(
+    operations[1].values.every(
+      (value) => value.wordSetItemId === operations[0].values[0].id,
+    ),
+  );
+});
+
+test("the multi-exercise backfill preserves existing identities and schedules", () => {
+  const migration = readFileSync(
+    new URL(
+      "../migrations/0008_multi_exercise_study_cards.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  for (const key of STUDY_CARD_TEMPLATE_KEYS) {
+    assert(migration.includes(`('${key}')`));
+  }
+  assert.match(migration, /ON CONFLICT .* DO NOTHING/);
+  assert.doesNotMatch(
+    migration,
+    /DELETE |UPDATE |fsrs_card_state|review_event/,
+  );
 });

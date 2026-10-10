@@ -14,6 +14,11 @@ import {
 import { formatReviewInterval } from "@/lib/review/formatInterval";
 import type { FsrsCardStateValue, ReviewModeValue } from "@/lib/review/model";
 import { withAutomaticRetries } from "@/lib/review/retry";
+import {
+  getStudyCardTemplate,
+  type StudyCardTemplateKey,
+} from "@/lib/review/templates";
+import { exerciseFieldLanguage, typedAnswerMatches } from "./exercises";
 import styles from "./ReviewSession.module.css";
 
 type Rating = 1 | 2 | 3 | 4;
@@ -27,6 +32,7 @@ type RatingPreview = {
 
 type ReviewCard = {
   id: string;
+  templateKey: StudyCardTemplateKey;
   wordSetId: string;
   wordSetName: string;
   sourceLang: string;
@@ -67,6 +73,7 @@ export function ReviewSession({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [typedAnswer, setTypedAnswer] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [failedReviews, setFailedReviews] = useState<ReviewSubmission[]>([]);
   const cardsRef = useRef<ReviewCard[]>([]);
@@ -143,6 +150,7 @@ export function ReviewSession({
 
         if (replace || startsNewCard) {
           setRevealed(false);
+          setTypedAnswer("");
           revealedCardIdRef.current = null;
           shownAt.current = performance.now();
         }
@@ -199,7 +207,15 @@ export function ReviewSession({
   );
 
   useEffect(() => {
-    if (status === "authenticated") void loadCards({ replace: true });
+    if (status === "authenticated") {
+      let active = true;
+      queueMicrotask(() => {
+        if (active) void loadCards({ replace: true });
+      });
+      return () => {
+        active = false;
+      };
+    }
     if (status === "unauthenticated") router.replace("/");
   }, [loadCards, router, status]);
 
@@ -227,6 +243,7 @@ export function ReviewSession({
       const remainingCards = cardsRef.current.slice(1);
       updateCards(remainingCards);
       setRevealed(false);
+      setTypedAnswer("");
       setError(null);
       shownAt.current = performance.now();
       void sendReview(submission);
@@ -255,16 +272,20 @@ export function ReviewSession({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing) {
+        return;
+      }
+      if (
+        event.target instanceof Element &&
+        event.target.closest("input, select, textarea, [contenteditable]")
+      ) {
+        return;
+      }
       if (event.key.toLowerCase() === "p") {
-        if (
-          event.target instanceof Element &&
-          event.target.closest("input, select, textarea, [contenteditable]")
-        ) {
-          return;
+        if (audioButtonRef.current) {
+          event.preventDefault();
+          if (!event.repeat) audioButtonRef.current.click();
         }
-        event.preventDefault();
-        if (!event.repeat) audioButtonRef.current?.click();
         return;
       }
       if (
@@ -360,6 +381,25 @@ export function ReviewSession({
 
   const newCard = isNewState(card.state.state);
   const controls = reviewControls(card.state.state, reviewMode);
+  const template = getStudyCardTemplate(card.templateKey);
+  const promptLanguage = exerciseFieldLanguage(
+    template.promptField,
+    card.sourceLang,
+    card.targetLang,
+  );
+  const answerLanguage = exerciseFieldLanguage(
+    template.answerField,
+    card.sourceLang,
+    card.targetLang,
+  );
+  const sourceVisibleOnPrompt = template.promptField === "original";
+  const hasSourceAudio = card.original.trim().length > 0;
+  const isExample = card.templateKey === "example";
+  const answerMatches = typedAnswerMatches(
+    typedAnswer,
+    card[template.answerField],
+    answerLanguage,
+  );
 
   return (
     <>
@@ -369,7 +409,7 @@ export function ReviewSession({
             <p className={styles.eyebrow}>Reviewing</p>
             <h1>{card.wordSetName}</h1>
             <p className={styles.languagePair}>
-              {card.sourceLang.toUpperCase()} → {card.targetLang.toUpperCase()}
+              {promptLanguage.toUpperCase()} → {answerLanguage.toUpperCase()}
             </p>
           </div>
           <Link className={styles.exitLink} href="/anki">
@@ -377,42 +417,132 @@ export function ReviewSession({
           </Link>
         </header>
 
-        <main className={styles.card} aria-live="polite">
+        <main key={card.id} className={styles.card} aria-live="polite">
           <div className={styles.promptSide}>
+            <p className={styles.exerciseLabel}>{template.label}</p>
             <p className={styles.promptLabel}>
               {reviewPrompt(card.state.state)}
             </p>
-            <h2>{card.original}</h2>
-            <SourceAudioButton
-              key={card.id}
-              ref={audioButtonRef}
-              text={card.original}
-              sourceLanguage={card.sourceLang}
-              shortcut="P"
-            />
+            <h2
+              lang={promptLanguage}
+              className={isExample ? styles.sentence : undefined}
+            >
+              {card[template.promptField]}
+            </h2>
+            {(card.templateKey === "word_forms" || isExample) &&
+              card.translation && (
+                <p className={styles.supporting} lang={card.targetLang}>
+                  {card.translation}
+                </p>
+              )}
+            {sourceVisibleOnPrompt && hasSourceAudio && (
+              <SourceAudioButton
+                key={card.id}
+                ref={audioButtonRef}
+                text={card.original}
+                sourceLanguage={card.sourceLang}
+                shortcut="P"
+              />
+            )}
+            {template.requiresTyping && !revealed && (
+              <div className={styles.typedAnswer}>
+                <label htmlFor="study-typed-answer">
+                  Your answer in {card.sourceLang.toUpperCase()}
+                </label>
+                <input
+                  id="study-typed-answer"
+                  lang={card.sourceLang}
+                  type="text"
+                  value={typedAnswer}
+                  onChange={(event) => setTypedAnswer(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === "Enter" &&
+                      !event.repeat &&
+                      !event.metaKey &&
+                      !event.ctrlKey &&
+                      !event.altKey &&
+                      !event.nativeEvent.isComposing
+                    ) {
+                      event.preventDefault();
+                      revealAnswer();
+                    }
+                  }}
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  aria-describedby="study-typed-answer-help"
+                  autoFocus
+                />
+                <p id="study-typed-answer-help">
+                  Press Enter to check, then rate your recall.
+                </p>
+              </div>
+            )}
           </div>
 
           {!revealed ? (
             <button
               className={styles.revealButton}
               onClick={revealAnswer}
-              autoFocus
+              autoFocus={!template.requiresTyping}
             >
-              Show answer
-              <span className={styles.shortcutHint}>Space</span>
+              {template.requiresTyping ? "Check answer" : "Show answer"}
+              <span className={styles.shortcutHint}>
+                {template.requiresTyping ? "Enter" : "Space"}
+              </span>
             </button>
           ) : (
             <div className={styles.answerWrap}>
               <div className={styles.answerSide}>
-                <p className={styles.sideLabel}>Answer</p>
-                <h2>{card.translation}</h2>
-                {card.wordForms && (
-                  <p className={styles.supporting}>{card.wordForms}</p>
+                {template.requiresTyping && (
+                  <div className={styles.answerComparison} role="status">
+                    <p className={styles.sideLabel}>Your answer</p>
+                    <p className={styles.enteredAnswer} lang={card.sourceLang}>
+                      {typedAnswer.trim() || "No answer entered"}
+                    </p>
+                    <p>
+                      {answerMatches
+                        ? "Matches the answer."
+                        : "Compare with the answer below."}{" "}
+                      Capitalization and spacing are ignored. Rate your own
+                      recall.
+                    </p>
+                  </div>
                 )}
-                {card.sample && (
+                <p className={styles.sideLabel}>Answer</p>
+                {isExample && card.original && (
+                  <p className={styles.answerContext} lang={card.sourceLang}>
+                    {card.original}
+                  </p>
+                )}
+                <h2
+                  lang={answerLanguage}
+                  className={isExample ? styles.sentence : undefined}
+                >
+                  {card[template.answerField]}
+                </h2>
+                {!sourceVisibleOnPrompt && hasSourceAudio && (
+                  <SourceAudioButton
+                    key={card.id}
+                    ref={audioButtonRef}
+                    text={card.original}
+                    sourceLanguage={card.sourceLang}
+                    shortcut="P"
+                  />
+                )}
+                {card.wordForms && template.answerField !== "wordForms" && (
+                  <p className={styles.supporting} lang={card.sourceLang}>
+                    {card.wordForms}
+                  </p>
+                )}
+                {card.sample && !isExample && (
                   <div className={styles.example}>
-                    <p>{card.sample}</p>
-                    {card.sampleTranslation && <p>{card.sampleTranslation}</p>}
+                    <p lang={card.sourceLang}>{card.sample}</p>
+                    {card.sampleTranslation && (
+                      <p lang={card.targetLang}>{card.sampleTranslation}</p>
+                    )}
                   </div>
                 )}
                 {card.comments && (

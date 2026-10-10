@@ -39,6 +39,7 @@ export async function GET() {
         reviewStats: statsBySetId.get(set.id) ?? {
           wordSetId: set.id,
           itemCount: 0,
+          cardCount: 0,
           dueCount: 0,
         },
       })),

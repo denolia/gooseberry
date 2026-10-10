@@ -1,8 +1,8 @@
-# Learn.words
+# Gooseberry
 
 ![Learn.words home screen](docs/home_small.png)
 
-Learn.words is an LLM-powered vocabulary app for translating words, phrases, and short sentences, saving translation history, and turning useful entries into Anki study material.
+Gooseberry is a vocabulary app for translating words, phrases and short sentences, saving useful entries, studying them here, and exporting them to Anki.
 
 The goal is not just to return a direct translation, but to give enough context to actually learn the word: grammar notes, frequency, usage comments, word forms, and example sentences.
 
@@ -11,17 +11,14 @@ The goal is not just to return a direct translation, but to give enough context 
 - Translates input with learning-focused context instead of a minimal dictionary-style answer
 - Saves recent translation history
 - Organizes saved items into Anki sets
+- Runs native study sessions with independent FSRS scheduling for five exercise directions
 - Exports study material for Anki in `.csv` and `.apkg` formats
 
 ## Supported Translation Directions
 
-Currently supported:
-
-- German -> Russian
-- Norwegian -> Russian
-- English -> Russian
-
-More language pairs are planned.
+Source and target selectors support 21 configured languages, including Finnish,
+Russian, English, German and Norwegian. See the current
+[language list](src/components/ui/Languages.ts).
 
 ## Interface Preview
 
@@ -30,7 +27,6 @@ The main screen is built around fast input, quick character insertion for langua
 ![Learn.words detailed translation view](docs/home.png)
 
 ## Export Options
-
 
 ### `.apkg` Export Behavior
 
@@ -46,14 +42,29 @@ Each vocabulary item is one Anki note. Its applicable study cards are siblings, 
 
 ### CSV Export
 
-CSV is the portable fallback. 
+CSV is the portable fallback.
 It preserves more than just the source word and translation, including examples, grammar details, and word forms, but requires manual field mapping to an existing Anki note type.
+
+## Study in Gooseberry
+
+Native study uses the same five exercise directions as export: recognition,
+production, word forms, typed production and example recall. Each exercise has
+its own stable card identity and FSRS schedule while sharing the editable
+vocabulary item. Forms/examples appear when the required content is present;
+removing that content preserves their review histories. Existing recognition
+progress is retained. Typed-answer feedback supports self-rating; the chosen
+rating determines the next review.
+
+See [Native review architecture](docs/native-review-architecture.md). Automatic
+sibling burying, personal review presets and imported progress are future work.
 
 ## Next Steps
 
-- Add more translation directions
 - Add a smoother onboarding flow for first-time users
-- Add optional direct import through AnkiConnect
+- Import shared Anki vocabulary decks with field mapping and user-requested
+  generation of missing content; see the [import plan](docs/anki-import-plan.md).
+  Importing and enrichment are not implemented yet. Imported media is outside
+  that planned scope.
 
 ## Development
 

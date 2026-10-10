@@ -7,7 +7,7 @@ import {
   GOOSEBERRY_FIELD_NAMES,
   GOOSEBERRY_NOTE_TYPE_ID,
   GOOSEBERRY_NOTE_TYPE_NAME,
-} from "../src/lib/anki/apkgExporter.ts";
+} from "./helpers/apkgExporter.mjs";
 
 const completeNote = {
   original: "der Schwarm",

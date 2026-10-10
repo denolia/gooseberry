@@ -15,11 +15,15 @@ import {
   type FsrsStateProjection,
 } from "@/lib/review/fsrs";
 import {
-  NATIVE_STUDY_CARD_TEMPLATE,
   ReviewRatingSchema,
   type FsrsCardStateValue,
   type ReviewRatingValue,
 } from "@/lib/review/model";
+import {
+  eligibleStudyCardCondition,
+  ensureStudyCards,
+} from "@/db/studyCardRepo";
+import { STUDY_CARD_TEMPLATE_KEYS } from "@/lib/review/templates";
 
 const MAX_REVIEW_WRITE_ATTEMPTS = 3;
 
@@ -29,6 +33,7 @@ export class ReviewWriteConflictError extends Error {}
 
 export type DueReviewCard = {
   id: string;
+  wordSetItemId: string;
   wordSetId: string;
   wordSetName: string;
   sourceLang: string;
@@ -79,13 +84,12 @@ export async function getDueReviewCards(input: {
   limit: number;
   excludedStudyCardIds?: string[];
 }): Promise<DueReviewCard[]> {
-  await ensureNativeStudyCards(input.userId, input.wordSetId);
+  await ensureStudyCards(input.userId, input.wordSetId);
 
-  const db = getDb();
   const conditions = [
     eq(wordSet.userId, input.userId),
     eq(wordSet.id, input.wordSetId),
-    eq(studyCard.templateKey, NATIVE_STUDY_CARD_TEMPLATE),
+    eligibleStudyCardCondition(),
     or(isNull(fsrsCardState.studyCardId), lte(fsrsCardState.dueAt, input.now)),
   ];
   if (input.excludedStudyCardIds?.length) {
@@ -95,28 +99,26 @@ export async function getDueReviewCards(input: {
   const rows = await baseCardQuery(input.userId)
     .where(and(...conditions))
     .orderBy(
-      sql`${fsrsCardState.dueAt} ASC NULLS FIRST`,
+      // Keep existing scheduled cards first. Introduce new exercises by mode,
+      // spreading sibling prompts across notes instead of showing all at once.
+      sql`CASE WHEN ${fsrsCardState.studyCardId} IS NULL THEN 1 ELSE 0 END`,
+      sql`${fsrsCardState.dueAt} ASC NULLS LAST`,
+      sql`CASE WHEN ${fsrsCardState.studyCardId} IS NULL THEN
+        CASE ${studyCard.templateKey}
+          ${sql.join(
+            STUDY_CARD_TEMPLATE_KEYS.map(
+              (key, index) => sql`WHEN ${key} THEN ${index}`,
+            ),
+            sql` `,
+          )}
+          ELSE 99
+        END ELSE 0 END`,
       asc(wordSetItem.position),
       asc(studyCard.id),
     )
     .limit(Math.max(1, Math.min(input.limit, 50)));
 
   return rows.map(toDueReviewCard);
-}
-
-// Keep review startup resilient when an environment received the Drizzle DDL
-// through `drizzle-kit push` without running the migration's data backfill.
-// This is idempotent and creates identity only; it never invents review state.
-async function ensureNativeStudyCards(userId: string, wordSetId: string) {
-  await getDb().execute(sql`
-    INSERT INTO study_card (word_set_item_id, template_key, created_at)
-    SELECT item.id, ${NATIVE_STUDY_CARD_TEMPLATE}, item.created_at
-    FROM word_set_item AS item
-    INNER JOIN word_set AS set ON set.id = item.word_set_id
-    WHERE set.id = ${wordSetId}
-      AND set.user_id = ${userId}
-    ON CONFLICT (word_set_item_id, template_key) DO NOTHING
-  `);
 }
 
 export async function recordReview(input: {
@@ -179,6 +181,7 @@ export async function recordReview(input: {
 
 async function getRecordedReviewState(input: {
   userId: string;
+  wordSetId: string;
   studyCardId: string;
   reviewEventId: string;
   rating: ReviewRatingValue;
@@ -205,6 +208,9 @@ async function getRecordedReviewState(input: {
       },
     })
     .from(reviewEvent)
+    .innerJoin(studyCard, eq(studyCard.id, reviewEvent.studyCardId))
+    .innerJoin(wordSetItem, eq(wordSetItem.id, studyCard.wordSetItemId))
+    .innerJoin(wordSet, eq(wordSet.id, wordSetItem.wordSetId))
     .leftJoin(
       fsrsCardState,
       and(
@@ -216,6 +222,8 @@ async function getRecordedReviewState(input: {
       and(
         eq(reviewEvent.id, input.reviewEventId),
         eq(reviewEvent.userId, input.userId),
+        eq(wordSet.userId, input.userId),
+        eq(wordSet.id, input.wordSetId),
       ),
     )
     .limit(1);
@@ -239,6 +247,7 @@ function baseCardQuery(userId: string) {
   return getDb()
     .select({
       id: studyCard.id,
+      wordSetItemId: wordSetItem.id,
       wordSetId: wordSet.id,
       wordSetName: wordSet.name,
       sourceLang: wordSet.sourceLang,
@@ -290,7 +299,7 @@ async function getOwnedReviewCard(
         eq(wordSet.userId, userId),
         eq(wordSet.id, wordSetId),
         eq(studyCard.id, studyCardId),
-        eq(studyCard.templateKey, NATIVE_STUDY_CARD_TEMPLATE),
+        eligibleStudyCardCondition(),
       ),
     )
     .limit(1);
@@ -399,6 +408,7 @@ async function persistReview(input: {
 function toDueReviewCard(row: ReviewCardRow): DueReviewCard {
   return {
     id: row.id,
+    wordSetItemId: row.wordSetItemId,
     wordSetId: row.wordSetId,
     wordSetName: row.wordSetName,
     sourceLang: row.sourceLang,

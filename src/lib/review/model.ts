@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-// The native reviewer starts with one simple source-to-translation prompt per
-// item. More template keys can be added without changing review-history IDs.
+// Keep the original recognition key stable so existing card IDs and review
+// history survive the expansion to the shared registry in templates.ts.
 export const NATIVE_STUDY_CARD_TEMPLATE = "recognition" as const;
 
 export const ReviewMode = {

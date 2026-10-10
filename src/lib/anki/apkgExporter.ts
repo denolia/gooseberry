@@ -1,9 +1,23 @@
 import initSqlJs from "sql.js";
 import { Deck, Note, Notetype, Package } from "ankipack";
 import type { AnkiNote } from "@/app/utils/ankiSchema";
+import {
+  getApplicableStudyCardTemplateKeys,
+  type StudyCardTemplateKey,
+} from "@/lib/review/templates";
 
 export const GOOSEBERRY_NOTE_TYPE_ID = 1760000000001;
 export const GOOSEBERRY_NOTE_TYPE_NAME = "Gooseberry Vocabulary v1";
+
+// Anki identifies a sibling by template ordinal. Keep this historical order
+// even if the Gooseberry registry uses a different display order.
+export const GOOSEBERRY_TEMPLATE_KEYS_BY_ORD = [
+  "recognition",
+  "production",
+  "word_forms",
+  "example",
+  "type_answer",
+] as const satisfies readonly StudyCardTemplateKey[];
 
 export const GOOSEBERRY_FIELD_NAMES = [
   "Gooseberry ID",
@@ -131,9 +145,11 @@ export function createGooseberryNotetype(): Notetype {
       {
         name: "Recognition",
         questionFormat: `
+{{#Original}}{{#Translation}}
 <div class="direction">{{Source Language}} → {{Target Language}}</div>
 <div class="prompt">{{Original}}</div>
 {{Source Audio}}
+{{/Translation}}{{/Original}}
 `,
         answerFormat: `
 {{FrontSide}}
@@ -145,8 +161,10 @@ ${DETAILS}
       {
         name: "Production",
         questionFormat: `
+{{#Original}}{{#Translation}}
 <div class="direction">{{Target Language}} → {{Source Language}}</div>
 <div class="prompt">{{Translation}}</div>
+{{/Translation}}{{/Original}}
 `,
         answerFormat: `
 {{FrontSide}}
@@ -159,12 +177,12 @@ ${DETAILS}
       {
         name: "Word Forms",
         questionFormat: `
-{{#Word Forms}}
+{{#Original}}{{#Word Forms}}
 <div class="direction">Word forms</div>
 <div class="prompt">{{Original}}</div>
 {{Source Audio}}
 <div class="forms">{{Translation}}</div>
-{{/Word Forms}}
+{{/Word Forms}}{{/Original}}
 `,
         answerFormat: `
 {{FrontSide}}
@@ -195,9 +213,11 @@ ${DETAILS}
       {
         name: "Type Answer",
         questionFormat: `
+{{#Original}}{{#Translation}}
 <div class="direction">Type {{Source Language}}</div>
 <div class="prompt">{{Translation}}</div>
 {{type:Original}}
+{{/Translation}}{{/Original}}
 `,
         answerFormat: `
 {{FrontSide}}
@@ -227,6 +247,12 @@ export function buildAnkiPackage(
   });
 
   for (const note of notes) {
+    if (getApplicableStudyCardTemplateKeys(note).length === 0) {
+      // Ankipack otherwise forces the first template and produces a blank card.
+      throw new Error(
+        "Cannot export a note without a usable prompt and answer.",
+      );
+    }
     deck.addNote(
       new Note({
         notetype,
@@ -287,6 +313,7 @@ function parseTags(tags: string): string[] {
 }
 
 function escapeField(value: string): string {
+  if (!value.trim()) return "";
   return value
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")

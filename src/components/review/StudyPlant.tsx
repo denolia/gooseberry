@@ -10,8 +10,8 @@ export function StudyPlant({
 }) {
   const label =
     dueCount === 0
-      ? "No words ready; a resting seed"
-      : `${dueCount} ${dueCount === 1 ? "word" : "words"} ready; ${stage} plant`;
+      ? "No exercises ready; a resting seed"
+      : `${dueCount} ${dueCount === 1 ? "exercise" : "exercises"} ready; ${stage} plant`;
 
   return (
     <svg

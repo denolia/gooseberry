@@ -1,7 +1,7 @@
 import { getDb } from "@/db/drizzle";
 import { studyCard, wordSet, wordSetItem } from "@/db/schema";
 import { and, eq, desc, inArray } from "drizzle-orm";
-import { NATIVE_STUDY_CARD_TEMPLATE } from "@/lib/review/model";
+import { STUDY_CARD_TEMPLATE_KEYS } from "@/lib/review/templates";
 
 export async function createWordSet(input: {
   userId: string;
@@ -116,10 +116,12 @@ export async function addItemsToWordSet(
   const [inserted] = await db.batch([
     db.insert(wordSetItem).values(itemRows).returning({ id: wordSetItem.id }),
     db.insert(studyCard).values(
-      itemRows.map(({ id }) => ({
-        wordSetItemId: id,
-        templateKey: NATIVE_STUDY_CARD_TEMPLATE,
-      })),
+      itemRows.flatMap(({ id }) =>
+        STUDY_CARD_TEMPLATE_KEYS.map((templateKey) => ({
+          wordSetItemId: id,
+          templateKey,
+        })),
+      ),
     ),
   ]);
 

@@ -10,11 +10,7 @@ import {
   fieldsFromDraft,
 } from "@/app/utils/cardDraft";
 import { TranslationSelector } from "./TranslationSelector";
-import {
-  isReadyForReview,
-  reviewCountLabel,
-  reviewStateLabel,
-} from "@/lib/review/stats";
+import { reviewCountLabel, reviewStateLabel } from "@/lib/review/stats";
 import type { FsrsCardStateValue } from "@/lib/review/model";
 import styles from "./WordSetManager.module.css";
 
@@ -37,6 +33,8 @@ interface WordSetItem {
   tags: string;
   position: number;
   review: {
+    cardCount: number;
+    dueCount: number;
     state: FsrsCardStateValue;
     dueAt: string | null;
     reps: number;
@@ -53,8 +51,9 @@ type DeckExportStage = "idle" | "working" | "ready" | "error";
 type ExportFormat = "apkg" | "csv";
 
 function nextReviewLabel(item: WordSetItem): string {
-  if (isReadyForReview(item.review.state, item.review.dueAt, new Date())) {
-    return "Ready now";
+  if (item.review.cardCount === 0) return "Add content to study";
+  if (item.review.dueCount > 0) {
+    return `${item.review.dueCount} of ${item.review.cardCount} exercises ready`;
   }
   if (!item.review.dueAt) return "Not scheduled";
   return `Next ${new Date(item.review.dueAt).toLocaleString(undefined, {
@@ -457,8 +456,8 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                   id="deck-export-description"
                   className={styles.dialogDescription}
                 >
-                  {itemCount} {itemCount === 1 ? "card" : "cards"} will be
-                  exported.
+                  {itemCount} {itemCount === 1 ? "word" : "words"} will be
+                  exported, with up to five exercises per word.
                 </p>
 
                 <fieldset className={styles.formatOptions}>
@@ -765,13 +764,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                       </span>
                       <span
                         className={`${styles.reviewTiming} ${
-                          isReadyForReview(
-                            item.review.state,
-                            item.review.dueAt,
-                            new Date(),
-                          )
-                            ? styles.readyNow
-                            : ""
+                          item.review.dueCount > 0 ? styles.readyNow : ""
                         }`}
                       >
                         {nextReviewLabel(item)}

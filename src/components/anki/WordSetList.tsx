@@ -26,6 +26,7 @@ interface WordSet {
   lastExportedAt: string | null;
   reviewStats?: {
     itemCount: number;
+    cardCount: number;
     dueCount: number;
   };
 }
@@ -252,6 +253,7 @@ export function WordSetList() {
             .map((set) => {
               const reviewStats = set.reviewStats ?? {
                 itemCount: 0,
+                cardCount: 0,
                 dueCount: 0,
               };
               return (
@@ -260,7 +262,7 @@ export function WordSetList() {
                     <StudyPlant
                       stage={plantReadinessStage(
                         reviewStats.dueCount,
-                        reviewStats.itemCount,
+                        reviewStats.cardCount,
                       )}
                       dueCount={reviewStats.dueCount}
                     />
@@ -270,6 +272,9 @@ export function WordSetList() {
                         {set.sourceLang.toUpperCase()} →{" "}
                         {set.targetLang.toUpperCase()} · {reviewStats.itemCount}{" "}
                         {reviewStats.itemCount === 1 ? "word" : "words"}
+                        {" · "}
+                        {reviewStats.cardCount}{" "}
+                        {reviewStats.cardCount === 1 ? "exercise" : "exercises"}
                         {set.lastExportedAt && (
                           <span className={styles.exported}>
                             · Exported{" "}
@@ -282,7 +287,7 @@ export function WordSetList() {
                       >
                         {reviewStats.dueCount === 0
                           ? "All caught up"
-                          : `${reviewStats.dueCount} ${reviewStats.dueCount === 1 ? "word" : "words"} ready`}
+                          : `${reviewStats.dueCount} ${reviewStats.dueCount === 1 ? "exercise" : "exercises"} ready`}
                       </p>
                     </div>
                   </Link>

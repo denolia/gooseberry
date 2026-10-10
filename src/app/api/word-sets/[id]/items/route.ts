@@ -70,6 +70,8 @@ export async function GET(
         ...item,
         review: statsByItemId.get(item.id) ?? {
           wordSetItemId: item.id,
+          cardCount: 0,
+          dueCount: 0,
           state: 0,
           dueAt: null,
           reps: 0,

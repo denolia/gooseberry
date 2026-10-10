@@ -55,11 +55,20 @@ function loadRepo(rows) {
       "drizzle-orm": {
         and: expression,
         eq: expression,
-        sql: (strings, ...values) => ({ strings, values }),
+        sql: (strings, ...values) => ({
+          strings,
+          values,
+          mapWith() {
+            return this;
+          },
+        }),
       },
       "@/lib/review/model": {
-        FsrsCardState: { New: 0 },
-        NATIVE_STUDY_CARD_TEMPLATE: "recognition",
+        FsrsCardState: { New: 0, Learning: 1, Review: 2, Relearning: 3 },
+      },
+      "@/db/studyCardRepo": {
+        eligibleStudyCardCondition: expression,
+        ensureStudyCards: async () => {},
       },
     };
     if (!(name in mocks)) throw new Error(`Unexpected dependency ${name}`);
@@ -73,7 +82,9 @@ test("items without a projection are reported as fresh new cards", async () => {
   const repo = loadRepo([
     {
       wordSetItemId: "item-1",
-      state: null,
+      cardCount: "3",
+      dueCount: "3",
+      state: 0,
       dueAt: null,
       reps: null,
       lapses: null,
@@ -88,6 +99,8 @@ test("items without a projection are reported as fresh new cards", async () => {
 
   assert.deepEqual(stats, {
     wordSetItemId: "item-1",
+    cardCount: 3,
+    dueCount: 3,
     state: 0,
     dueAt: null,
     reps: 0,
@@ -101,6 +114,7 @@ test("set-level review counts are normalized to numbers", async () => {
     {
       wordSetId: "set-1",
       itemCount: "18",
+      cardCount: "65",
       dueCount: "6",
     },
   ]);
@@ -113,6 +127,7 @@ test("set-level review counts are normalized to numbers", async () => {
   assert.deepEqual(stats, {
     wordSetId: "set-1",
     itemCount: 18,
+    cardCount: 65,
     dueCount: 6,
   });
 });

@@ -1,14 +1,16 @@
 import { getDb } from "@/db/drizzle";
 import { fsrsCardState, studyCard, wordSet, wordSetItem } from "@/db/schema";
-import { and, eq, sql } from "drizzle-orm";
 import {
-  FsrsCardState,
-  NATIVE_STUDY_CARD_TEMPLATE,
-  type FsrsCardStateValue,
-} from "@/lib/review/model";
+  eligibleStudyCardCondition,
+  ensureStudyCards,
+} from "@/db/studyCardRepo";
+import { and, eq, sql } from "drizzle-orm";
+import { FsrsCardState, type FsrsCardStateValue } from "@/lib/review/model";
 
 export type WordSetItemReviewStats = {
   wordSetItemId: string;
+  cardCount: number;
+  dueCount: number;
   state: FsrsCardStateValue;
   dueAt: Date | null;
   reps: number;
@@ -19,21 +21,44 @@ export type WordSetItemReviewStats = {
 export type WordSetReviewStats = {
   wordSetId: string;
   itemCount: number;
+  cardCount: number;
   dueCount: number;
 };
 
 export async function getWordSetItemReviewStats(input: {
   userId: string;
   wordSetId: string;
+  now?: Date;
 }): Promise<WordSetItemReviewStats[]> {
+  await ensureStudyCards(input.userId, input.wordSetId);
+  const now = input.now ?? new Date();
   const rows = await getDb()
     .select({
       wordSetItemId: wordSetItem.id,
-      state: fsrsCardState.state,
-      dueAt: fsrsCardState.dueAt,
-      reps: fsrsCardState.reps,
-      lapses: fsrsCardState.lapses,
-      lastReviewAt: fsrsCardState.lastReviewAt,
+      cardCount: sql<number>`count(${studyCard.id})`,
+      dueCount: sql<number>`count(${studyCard.id}) FILTER (
+        WHERE ${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.dueAt} <= ${now}
+      )`,
+      // A note summarizes eligible exercises: relearning/learning first, then
+      // untouched exercises, then established review cards.
+      state: sql<number>`CASE
+        WHEN max(CASE WHEN ${fsrsCardState.state} = ${FsrsCardState.Relearning} THEN 1 ELSE 0 END) = 1 THEN ${FsrsCardState.Relearning}
+        WHEN max(CASE WHEN ${fsrsCardState.state} = ${FsrsCardState.Learning} THEN 1 ELSE 0 END) = 1 THEN ${FsrsCardState.Learning}
+        WHEN count(${studyCard.id}) = 0 OR count(${studyCard.id}) FILTER (WHERE ${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.state} = ${FsrsCardState.New}) > 0 THEN ${FsrsCardState.New}
+        ELSE ${FsrsCardState.Review}
+      END`,
+      // Null denotes an untouched exercise ready immediately. Otherwise take
+      // the earliest of the note's eligible card due dates.
+      dueAt: sql<Date | null>`CASE
+        WHEN count(${studyCard.id}) FILTER (WHERE ${fsrsCardState.studyCardId} IS NULL) > 0 THEN NULL
+        ELSE min(${fsrsCardState.dueAt})
+      END`.mapWith(fsrsCardState.dueAt),
+      reps: sql<number>`coalesce(sum(${fsrsCardState.reps}), 0)`,
+      lapses: sql<number>`coalesce(sum(${fsrsCardState.lapses}), 0)`,
+      lastReviewAt:
+        sql<Date | null>`max(${fsrsCardState.lastReviewAt})`.mapWith(
+          fsrsCardState.lastReviewAt,
+        ),
     })
     .from(wordSetItem)
     .innerJoin(wordSet, eq(wordSet.id, wordSetItem.wordSetId))
@@ -41,7 +66,7 @@ export async function getWordSetItemReviewStats(input: {
       studyCard,
       and(
         eq(studyCard.wordSetItemId, wordSetItem.id),
-        eq(studyCard.templateKey, NATIVE_STUDY_CARD_TEMPLATE),
+        eligibleStudyCardCondition(),
       ),
     )
     .leftJoin(
@@ -53,14 +78,17 @@ export async function getWordSetItemReviewStats(input: {
     )
     .where(
       and(eq(wordSet.id, input.wordSetId), eq(wordSet.userId, input.userId)),
-    );
+    )
+    .groupBy(wordSetItem.id);
 
   return rows.map((row) => ({
     wordSetItemId: row.wordSetItemId,
-    state: (row.state ?? FsrsCardState.New) as FsrsCardStateValue,
+    cardCount: Number(row.cardCount),
+    dueCount: Number(row.dueCount),
+    state: Number(row.state) as FsrsCardStateValue,
     dueAt: row.dueAt,
-    reps: row.reps ?? 0,
-    lapses: row.lapses ?? 0,
+    reps: Number(row.reps),
+    lapses: Number(row.lapses),
     lastReviewAt: row.lastReviewAt,
   }));
 }
@@ -69,11 +97,13 @@ export async function getWordSetReviewStats(input: {
   userId: string;
   now: Date;
 }): Promise<WordSetReviewStats[]> {
+  await ensureStudyCards(input.userId);
   const rows = await getDb()
     .select({
       wordSetId: wordSet.id,
       itemCount: sql<number>`count(DISTINCT ${wordSetItem.id})`,
-      dueCount: sql<number>`count(DISTINCT ${wordSetItem.id}) FILTER (
+      cardCount: sql<number>`count(${studyCard.id})`,
+      dueCount: sql<number>`count(${studyCard.id}) FILTER (
         WHERE ${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.dueAt} <= ${input.now}
       )`,
     })
@@ -83,7 +113,7 @@ export async function getWordSetReviewStats(input: {
       studyCard,
       and(
         eq(studyCard.wordSetItemId, wordSetItem.id),
-        eq(studyCard.templateKey, NATIVE_STUDY_CARD_TEMPLATE),
+        eligibleStudyCardCondition(),
       ),
     )
     .leftJoin(
@@ -99,6 +129,7 @@ export async function getWordSetReviewStats(input: {
   return rows.map((row) => ({
     wordSetId: row.wordSetId,
     itemCount: Number(row.itemCount),
+    cardCount: Number(row.cardCount),
     dueCount: Number(row.dueCount),
   }));
 }

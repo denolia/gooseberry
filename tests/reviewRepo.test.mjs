@@ -18,15 +18,21 @@ const nextState = {
   schedulerVersion: "test-scheduler",
 };
 
-function loadRepo({ conflictOnce = false, existingReview = false } = {}) {
+function loadRepo({
+  conflictOnce = false,
+  existingReview = false,
+  templateKey = "recognition",
+  owned = true,
+} = {}) {
   const calls = { batches: [], executes: [], selects: 0 };
   const row = {
     id: "11111111-1111-4111-8111-111111111111",
+    wordSetItemId: "item-1",
     wordSetId: "set-1",
     wordSetName: "Test",
     sourceLang: "de",
     targetLang: "en",
-    templateKey: "recognition",
+    templateKey,
     original: "Hallo",
     translation: "Hello",
     wordForms: "",
@@ -75,7 +81,9 @@ function loadRepo({ conflictOnce = false, existingReview = false } = {}) {
                 },
               ]
             : []
-          : [row],
+          : owned
+            ? [row]
+            : [],
       );
     },
     insert() {
@@ -132,6 +140,7 @@ function loadRepo({ conflictOnce = false, existingReview = false } = {}) {
         or: expression("or"),
         sql: Object.assign((strings, ...values) => ({ strings, values }), {
           raw: (value) => value,
+          join: (values) => values,
         }),
       },
       "@/lib/review/fsrs": {
@@ -145,8 +154,25 @@ function loadRepo({ conflictOnce = false, existingReview = false } = {}) {
         replayReviewHistory: () => nextState,
       },
       "@/lib/review/model": {
-        NATIVE_STUDY_CARD_TEMPLATE: "recognition",
         ReviewRatingSchema: { parse: (value) => value },
+      },
+      "@/db/studyCardRepo": {
+        eligibleStudyCardCondition: () => ({ op: "eligible" }),
+        ensureStudyCards: async (userId, wordSetId) => {
+          calls.executes.push({
+            strings: ["INSERT INTO study_card (...) ON CONFLICT"],
+            values: [userId, wordSetId],
+          });
+        },
+      },
+      "@/lib/review/templates": {
+        STUDY_CARD_TEMPLATE_KEYS: [
+          "recognition",
+          "production",
+          "word_forms",
+          "type_answer",
+          "example",
+        ],
       },
     };
     if (!(name in mocks)) throw new Error(`Unexpected dependency ${name}`);
@@ -190,6 +216,44 @@ test("records the review event and state projection in one atomic batch", async 
   assert.equal(calls.batches[0][0].kind, "event");
   assert.equal(calls.batches[0][0].values.rating, 3);
   assert.equal(calls.batches[0][1].kind, "state");
+});
+
+test("records a production exercise using its own card identity", async () => {
+  const { repo, calls } = loadRepo({ templateKey: "production" });
+  await repo.recordReview({
+    userId: "user-1",
+    wordSetId: "set-1",
+    studyCardId: "11111111-1111-4111-8111-111111111111",
+    reviewEventId: "22222222-2222-4222-8222-222222222222",
+    rating: 3,
+    reviewedAt,
+  });
+
+  assert.equal(
+    calls.batches[0][0].values.studyCardId,
+    "11111111-1111-4111-8111-111111111111",
+  );
+  assert(
+    calls.batches[0][1].statement.values.includes(
+      "11111111-1111-4111-8111-111111111111",
+    ),
+  );
+});
+
+test("rejects missing, inactive, or unowned exercises before writing history", async () => {
+  const { repo, calls } = loadRepo({ owned: false });
+  await assert.rejects(
+    repo.recordReview({
+      userId: "user-1",
+      wordSetId: "set-1",
+      studyCardId: "11111111-1111-4111-8111-111111111111",
+      reviewEventId: "22222222-2222-4222-8222-222222222222",
+      rating: 3,
+      reviewedAt,
+    }),
+    repo.ReviewCardNotFoundError,
+  );
+  assert.equal(calls.batches.length, 0);
 });
 
 test("reloads and retries after an optimistic revision conflict", async () => {
