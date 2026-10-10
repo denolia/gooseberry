@@ -146,9 +146,8 @@ export default async function AdminPage({
                 </td>
                 <td>
                   <strong>
-                    {number(user.sets)} sets · {number(user.cards)} cards
+                    {number(user.sets)} sets · {number(user.notes)} notes
                   </strong>
-                  <span>{number(user.enabled_cards)} enabled cards</span>
                   <span>
                     {number(user.exported_sets)} sets exported at least once
                   </span>

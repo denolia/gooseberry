@@ -1,125 +1,49 @@
 # Native review architecture
 
-## Content and review identities
+## Notes and exercise identities
 
-`word_set` is a user-owned library grouping with a language pair.
-`word_set_item` owns the editable vocabulary content: original, translation,
-forms, examples, notes and tags. It corresponds to an Anki **note**, and its
-`anki_note_guid` remains the stable note identity for export.
+A user-owned `word_set` groups vocabulary under one language pair. A `word_set_item` holds the editable note content and its stable Anki export GUID. Each item has five `study_card` identities, unique by item and template key.
 
-Imported items retain a separate source GUID/key, private import snapshots and
-field provenance. Their original/translation can be empty while awaiting an
-edit or explicit generation. Structured `example_pairs` preserve all mapped
-examples, including unpaired text; the first complete pair supplies the native
-example exercise. Legacy items without pairs still use their stored text.
-`content_revision` guards proposal/manual saves against concurrent changes.
+| Key           | Prompt → answer                     | Required fields             |
+| ------------- | ----------------------------------- | --------------------------- |
+| `recognition` | Source → translation                | Source and translation      |
+| `production`  | Translation → source                | Source and translation      |
+| `word_forms`  | Source → word forms                 | Source and forms            |
+| `type_answer` | Translation → typed source          | Source and translation      |
+| `example`     | Translated example → source example | Example and its translation |
 
-Each exercise has a separate `study_card` UUID, identified uniquely by the
-item and `template_key`. Editing shared note content updates every exercise;
-answering one exercise updates only that exercise's scheduling. The five
-keys and their availability rules live in
-[the shared template registry](../src/lib/review/templates.ts):
+[The shared registry](../src/lib/review/templates.ts) defines these directions and availability for native study and APKG export. Empty fields hide only dependent exercises. All identities and histories remain intact, so restoring content resumes the same cards. Deleting a note cascades to its cards and reviews.
 
-| Key           | Prompt → answer                     | Required content              |
-| ------------- | ----------------------------------- | ----------------------------- |
-| `recognition` | Original → translation              | Original and translation      |
-| `production`  | Translation → original              | Original and translation      |
-| `word_forms`  | Original → word forms               | Original and word forms       |
-| `type_answer` | Translation → typed original        | Original and translation      |
-| `example`     | Translated example → source example | Sample and sample translation |
+Imported and library-edited notes retain structured example pairs, including unmatched text. The first complete pair supplies the example exercise; legacy notes without pairs use their stored example fields. Imported notes can retain an empty source/translation while awaiting an edit or explicit generation.
 
-All five identities are retained even when an exercise lacks the fields it
-needs. Queries filter availability from the current content. Adding forms or
-examples makes their exercises available; removing them hides those
-exercises without deleting their identities or review history. Restoring
-the content resumes the same cards. Deleting the item itself cascades to its
-cards and reviews.
+Library summaries distinguish words, available exercises and due exercises. Per-word review summaries aggregate available siblings; they do not replace their independent schedules.
 
-Each card has independent FSRS state and canonical events:
+## Scheduling and queue order
 
-- `review_event` records user, study-card UUID, rating, time, optional duration
-  and external identity/metadata. Events are replayed in `reviewed_at`,
-  `sequence` order; application code treats them as append-only.
-- `fsrs_card_state` is a replaceable projection keyed by user and study card.
-  It contains FSRS state, scheduler version, projection revision and last
-  event. A card without a projection is new; creating identities never
-  fabricates reviews or scheduling state.
+Each exercise has its own canonical `review_event` history and replaceable `fsrs_card_state` projection. Events record the learner, card UUID, rating, time and optional duration/source metadata; replay orders them by review time and sequence. A card with no projection is new. Creating a card never fabricates reviews.
 
-Library counts distinguish vocabulary items, available exercise cards and
-due exercises. Anki note/card counts are also different: one exported item
-is one note with up to five applicable sibling cards.
-An item's review summary aggregates its available exercises; it does not
-replace their separate schedules. Repetition/lapse counts are totals, and the
-last-review timestamp is the latest across those exercises.
+[The versioned FSRS adapter](../src/lib/review/fsrs.ts) calculates rating previews and state transitions on the server. Scheduler settings are built into the application. Gooseberry does not apply imported Anki progress/presets, suspension or burying, and reviewing one sibling does not alter the others.
 
-## Scheduling and persistence
+Scheduled due reviews precede new exercises, earliest due first. New exercises visit words in set position order in rounds, rotating the preferred direction across words. Missing fields are skipped, and exclusions for prefetched/answered cards do not restart the rounds. This spaces siblings apart when other words are available. There is no daily new-material limit.
 
-[The FSRS adapter](../src/lib/review/fsrs.ts) wraps `ts-fsrs` in a pure,
-versioned server-side module. It accepts plain state/events and returns rating
-options or rebuilt state. Repositories orchestrate persistence; authenticated
-API routes validate ownership and requests; React receives display-ready
-cards and rating previews.
+## Persistence and sessions
 
-The Neon HTTP driver does not support interactive callback transactions.
-The review repository reads a projection, calculates a result, then uses one
-atomic Neon batch to append the event and conditionally insert/update the
-projection by its `revision`. Conflicts retry after another answer wins.
-Rebuilding discards the projection and replays the same card's events.
+Authenticated routes validate ownership and eligible card identities. The repository reads the current projection, calculates the next state, then atomically appends its event and conditionally updates the projection by revision. Conflicts reload and retry. The Neon HTTP driver uses atomic batches rather than interactive callback transactions. Repeated submissions reuse their event UUID and do not create duplicate reviews.
 
-Scheduler defaults are versioned in code. Personal review presets, Anki
-progress migration, suspension and sibling burying are future work; they are
-not inferred from content availability. In particular, reviewing a sibling
-does not currently bury the other exercises automatically. Anki's sibling
-behavior is described in [its studying manual](https://docs.ankiweb.net/manual/studying).
+The session at `/anki/[id]/review` shows the exercise direction, prompt and revealed answer. New exercises have an introduction control; existing exercises use simple/full self-rating controls, interval previews and keyboard shortcuts. Typed comparison normalizes Unicode, whitespace and case while retaining accents and punctuation. It provides feedback; the learner's chosen rating controls scheduling.
 
-Text imports now preserve raw source cards, review logs, deck/preset configuration
-and note fields in private import tables, separately from native review events.
-They create fresh exercises without FSRS state. Later progress migration can
-attach namespaced source card identities to existing
-`study_card.external_source`/`external_id` fields and preserve source review
-details in `review_event.source_metadata`. Template keys remain extensible;
-imported/custom templates need not reuse the five built-in keys. Preserve
-imported starting state and versioned scheduler presets as canonical inputs
-to replay, rather than keeping the only copy in a replaceable projection.
-Suspension and bury expiry belong to per-card availability state, separate
-from FSRS progress and content completeness. Those later additions do not
-require replacing current card UUIDs or their review histories.
+The browser prefetches exercises and saves ratings in the background. Failed writes support retry/ignore. Pending writes live only in memory; see [review request handling and durability](optimistic-review-updates.md). Synthetic pronunciation is a separate user action.
 
-Queues prioritize scheduled due reviews before new exercises, with earlier
-due dates first. New exercises visit words in set order in rounds, rotating
-the preferred exercise by word position so directions are mixed. Missing
-fields are skipped, and answered/prefetched siblings retain their place in
-the rounds. This spaces a word's exercises apart whenever other words are
-available; a daily introduction limit is still future work.
+## Import and content edits
 
-## Rollout and review session
+[APKG import](anki-import.md) publishes notes and all five card identities together, with fresh native progress. Private source tables retain original notes/cards, schedules, review logs and collection/preset configuration separately from native events.
 
-Migration `0005_native_review_foundation.sql` established the tables and
-backfilled recognition identities. Apply the additive data migration
-[`0008_multi_exercise_study_cards.sql`](../migrations/0008_multi_exercise_study_cards.sql)
-to backfill all five keys without replacing existing recognition UUIDs,
-events or FSRS projections. It changes no table structure. Idempotent,
-user-scoped reconciliation also adds missing identities when querying stats
-or a review queue, covering environments where schema push skipped data
-migrations. New items receive all five identities in the same atomic batch
-as their content; neither path resets learning progress.
+Content edits update shared note fields without replacing exercise UUIDs. A content revision protects concurrent manual/proposal saves, and field provenance records imported, generated or edited text. Requested enrichment fills only reviewed, still-empty fields; enabling an exercise does not reset sibling progress.
 
-The session at `/anki/[id]/review` displays the exercise direction, reveals
-its answer, and preserves the introduction control for new cards and the
-simple/full rating controls with interval previews and keyboard shortcuts.
-Typed production compares the attempt after NFC, whitespace and
-case normalization, while preserving accents and punctuation. The comparison
-is feedback: the learner's selected rating determines FSRS scheduling.
-Synthetic pronunciation is a separate user action, not imported audio.
+APKG export writes one Gooseberry note with applicable sibling templates. Its historical template ordinals are stable. The export GUID is separate from an imported source GUID; export does not reproduce arbitrary source templates or imported progress.
 
-Submissions advance optimistically from a prefetched queue. Request lifecycle
-and durability limits are documented in
-[Optimistic review updates](optimistic-review-updates.md).
+## Database requirements
 
-The [APKG exporter](../src/lib/anki/apkgExporter.ts) shares exercise keys and
-eligibility with native study. It still exports one note, not five unrelated
-notes. The [Anki import design](anki-import-plan.md) describes implemented text
-conversion, explicit missing-value proposals, bounded/resumable transport and
-fresh per-exercise progress. Import/enrichment require additive migrations
-`0009` and `0010`; neither resets existing review state. Source review migration
-and per-card suspension/burying remain separate later additions.
+Migration `0005` establishes review tables and recognition identities. Migration [`0008_multi_exercise_study_cards.sql`](../migrations/0008_multi_exercise_study_cards.sql) backfills the other directions while preserving existing recognition UUIDs, events and schedules. Owner-scoped reconciliation also creates missing identities when statistics/queues are read, without generating FSRS state.
+
+Import/content metadata requires [`0009`](../migrations/0009_anki_text_import.sql); requested enrichment requires [`0010`](../migrations/0010_requested_enrichment.sql). New notes receive all five identities in the same atomic batch as their content. Development/build/test commands do not apply these migrations to remote databases.

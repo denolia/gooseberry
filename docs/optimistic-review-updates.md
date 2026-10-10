@@ -62,18 +62,10 @@ the review page. It is not a delivery guarantee: closing the browser, losing
 the network, or terminating the page can still prevent the write. JavaScript
 retry timers also stop when the page is destroyed.
 
-## Current limitation and possible next step
+## Durability limit
 
 Pending and failed submissions currently live only in memory. Gooseberry does
 not store an outbox in local storage, IndexedDB, or another persistent browser
 store, and it does not resume unsent reviews the next time the browser opens.
-Losing an occasional repetition is acceptable for the current release; the
-card simply remains due on the server and can be reviewed again later.
-
-A possible next step is a persistent browser outbox. Each submission could be
-stored before the UI advances, removed after server confirmation, and replayed
-after the same user opens Gooseberry again. The existing review UUID makes
-that replay safe. Local storage could support a small, simple queue; IndexedDB
-would be a better fit if the outbox grows or needs more robust transactional
-handling. Any implementation should scope entries to the signed-in account
-and discard them after logout or successful synchronization.
+An unsaved review leaves its card due on the server so it can be reviewed again
+in a later session.

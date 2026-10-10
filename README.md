@@ -60,27 +60,22 @@ rating determines the next review.
 Scheduled due reviews come first. New exercises follow word order in rounds,
 rotating exercise types across words so a word's siblings are spaced apart.
 
-See [Native review architecture](docs/native-review-architecture.md). Automatic
-sibling burying, personal review presets and imported progress are future work.
+See [Native review architecture](docs/native-review-architecture.md). Gooseberry
+uses its built-in scheduler settings, without automatic sibling burying or a daily
+new-exercise limit.
 
 ## Import Anki Vocabulary
 
 Choose **Import Anki deck** in the set library. Preview a local `.apkg`, choose
 decks and languages, and map each note type before importing. Media is omitted;
 only bounded text batches reach the server. Imports start with fresh Gooseberry
-progress while retaining source reviews and presets privately for future migration.
+progress while retaining source reviews and presets privately.
 
 Missing fields can remain empty. Edit them or use **Generate missing content**
 to review an AI proposal before saving. Reimport into the same set skips existing
 source notes and preserves local edits and progress. See the
-[import design and limits](docs/anki-import-plan.md) and
+[import behavior and limits](docs/anki-import.md) and
 [analysis of the supplied personal export](docs/anki-personal-export-analysis.md).
-
-## Next Steps
-
-- Add a smoother onboarding flow for first-time users
-- Add daily new-material pacing and support larger libraries with pagination
-- Add explicit migration of personal Anki progress and review presets
 
 ## Development
 

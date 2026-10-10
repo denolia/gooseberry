@@ -14,8 +14,7 @@ export type AdminUserStats = {
   last_translation: string | null;
   sets: number;
   exported_sets: number;
-  cards: number;
-  enabled_cards: number;
+  notes: number;
   translate_calls: number;
   analyze_calls: number;
   enrich_calls: number;
@@ -44,7 +43,7 @@ export async function getAdminUsers(query: string, page: number) {
   const result = await getDb().execute(sql`
     SELECT u.id, u.name, u.email, u.tier, u.created_at, u.last_login_at,
       t.translations, t.unique_entries, t.last_translation,
-      s.sets, s.exported_sets, c.cards, c.enabled_cards,
+      s.sets, s.exported_sets, c.notes,
       a.*
     FROM app_user u
     LEFT JOIN LATERAL (
@@ -58,7 +57,7 @@ export async function getAdminUsers(query: string, page: number) {
       FROM word_set WHERE user_id = u.id
     ) s ON true
     LEFT JOIN LATERAL (
-      SELECT count(*)::int cards, count(*) FILTER (WHERE i.is_enabled)::int enabled_cards
+      SELECT count(*)::int notes
       FROM word_set_item i JOIN word_set w ON i.word_set_id = w.id WHERE w.user_id = u.id
     ) c ON true
     LEFT JOIN LATERAL (
