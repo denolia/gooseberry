@@ -49,3 +49,10 @@
   color: var(--danger);
   font-size: 0.75rem;
 }
+
+.shortcut {
+  padding: 0.1rem 0.25rem;
+  border: 1px solid var(--border-color);
+  font: inherit;
+  font-size: 0.65rem;
+}

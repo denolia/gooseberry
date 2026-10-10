@@ -1,24 +1,28 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import styles from "./SourceAudioButton.module.css";
 
 export function SourceAudioButton({
   text,
   sourceLanguage,
+  shortcut,
+  ref,
 }: {
   text: string;
   sourceLanguage?: string;
+  shortcut?: string;
+  ref?: Ref<HTMLButtonElement>;
 }) {
-  const [status, setStatus] = useState<"idle" | "loading" | "playing">(
-    "idle",
-  );
+  const [status, setStatus] = useState<"idle" | "loading" | "playing">("idle");
   const [error, setError] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
 
   useEffect(
     () => () => {
+      requestRef.current?.abort();
       audioRef.current?.pause();
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
     },
@@ -28,6 +32,8 @@ export function SourceAudioButton({
   async function play() {
     if (status === "loading" || !sourceLanguage) return;
     setError("");
+    const request = new AbortController();
+    requestRef.current = request;
 
     try {
       let audio = audioRef.current;
@@ -37,6 +43,7 @@ export function SourceAudioButton({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text, sourceLanguage }),
+          signal: request.signal,
         });
         if (!response.ok) {
           const body = (await response.json().catch(() => ({}))) as {
@@ -45,7 +52,9 @@ export function SourceAudioButton({
           throw new Error(body.error || "Could not load pronunciation");
         }
 
-        const url = URL.createObjectURL(await response.blob());
+        const blob = await response.blob();
+        if (request.signal.aborted) return;
+        const url = URL.createObjectURL(blob);
         audioUrlRef.current = url;
         audio = new Audio(url);
         audio.onended = () => setStatus("idle");
@@ -60,6 +69,7 @@ export function SourceAudioButton({
       await audio.play();
       setStatus("playing");
     } catch (reason) {
+      if (request.signal.aborted) return;
       setStatus("idle");
       setError(
         reason instanceof Error
@@ -72,10 +82,12 @@ export function SourceAudioButton({
   return (
     <div className={styles.audioControl}>
       <button
+        ref={ref}
         type="button"
         className={styles.audioButton}
         onClick={play}
         disabled={!sourceLanguage || status === "loading"}
+        aria-keyshortcuts={shortcut}
         aria-label={
           status === "loading"
             ? "Generating AI pronunciation"
@@ -92,6 +104,7 @@ export function SourceAudioButton({
           />
         </svg>
         <span>{status === "loading" ? "Generating…" : "AI voice"}</span>
+        {shortcut && <kbd className={styles.shortcut}>{shortcut}</kbd>}
       </button>
       {error && (
         <span className={styles.error} role="alert">

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SourceAudioButton } from "@/components/ui/SourceAudioButton";
 import {
   isNewState,
   reviewControls,
@@ -74,6 +75,7 @@ export function ReviewSession({
   const ignoredCardIdsRef = useRef(new Set<string>());
   const loadingQueueRef = useRef(false);
   const revealedCardIdRef = useRef<string | null>(null);
+  const audioButtonRef = useRef<HTMLButtonElement | null>(null);
   const shownAt = useRef(0);
   const card = cards[0] ?? null;
 
@@ -254,6 +256,24 @@ export function ReviewSession({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key.toLowerCase() === "p") {
+        if (
+          event.target instanceof Element &&
+          event.target.closest("input, select, textarea, [contenteditable]")
+        ) {
+          return;
+        }
+        event.preventDefault();
+        if (!event.repeat) audioButtonRef.current?.click();
+        return;
+      }
+      if (
+        event.key === "Enter" &&
+        event.target instanceof Element &&
+        event.target.closest("button, a")
+      ) {
+        return;
+      }
       if (event.repeat && event.key === " ") {
         event.preventDefault();
         return;
@@ -363,6 +383,13 @@ export function ReviewSession({
               {reviewPrompt(card.state.state)}
             </p>
             <h2>{card.original}</h2>
+            <SourceAudioButton
+              key={card.id}
+              ref={audioButtonRef}
+              text={card.original}
+              sourceLanguage={card.sourceLang}
+              shortcut="P"
+            />
           </div>
 
           {!revealed ? (
@@ -425,7 +452,9 @@ export function ReviewSession({
                       >
                         {control.shortcut && (
                           <span className={styles.ratingKey}>
-                            {control.shortcut === " " ? "Space" : control.shortcut}
+                            {control.shortcut === " "
+                              ? "Space"
+                              : control.shortcut}
                           </span>
                         )}
                         <span className={styles.ratingCopy}>
