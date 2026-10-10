@@ -128,8 +128,7 @@
   font-size: 1.15rem;
 }
 
-.typedAnswer p,
-.answerComparison > p:last-child {
+.typedAnswer p {
   color: var(--text-secondary);
   font-size: 0.8rem;
   line-height: 1.5;
@@ -138,9 +137,6 @@
 .answerComparison {
   width: min(100%, 520px);
   margin-bottom: 1.5rem;
-  padding: 1rem;
-  border: 1px solid var(--border-color);
-  background: var(--background);
 }
 
 .enteredAnswer {
@@ -148,6 +144,30 @@
   font-size: 1.15rem;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.matchedAnswer {
+  color: var(--success);
+}
+
+.incorrectText,
+.correctText {
+  border-radius: 0.15em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  text-decoration-thickness: 0.07em;
+}
+
+.incorrectText {
+  color: color-mix(in srgb, var(--danger) 85%, var(--foreground));
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--danger) 70%, transparent);
+}
+
+.correctText {
+  color: color-mix(in srgb, var(--success) 85%, var(--foreground));
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  text-underline-offset: 0.1em;
 }
 
 .answerWrap {

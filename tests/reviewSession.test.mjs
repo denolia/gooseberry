@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "@typescript/typescript6";
+import * as diff from "diff";
 import {
   FsrsCardState,
   ReviewMode,
@@ -28,7 +29,7 @@ function transpile(path, dependencies = {}) {
   return exports;
 }
 
-const exercises = transpile("../src/components/review/exercises.ts");
+const exercises = transpile("../src/components/review/exercises.ts", { diff });
 const controls = transpile("../src/lib/review/controls.ts", {
   "@/lib/review/model": { FsrsCardState, ReviewMode, ReviewRating },
 });
@@ -312,9 +313,60 @@ test("typing spaces, digits, P and Enter never triggers global shortcuts", async
   });
   tree = session.render();
   assert.equal(prevented, true);
-  assert.match(text(tree), /Matches the answer/);
+  assert.equal(
+    nodes(tree, (node) => node.props?.["aria-label"] === "Your answer matches")
+      .length,
+    1,
+  );
+  assert.doesNotMatch(
+    text(tree),
+    /Capitalization and spacing|Rate your own recall/,
+  );
   assert.equal(session.submissions.length, 0);
   assert.equal(nodes(tree, (node) => node.type === "input").length, 0);
+  session.key("1");
+  assert.equal(session.submissions[0].rating, ReviewRating.Again);
+});
+
+test("typed mistakes highlight only changed fragments after revealing the answer", async (t) => {
+  const session = setup(t, [
+    { ...fixture, templateKey: "type_answer", original: "opettaja" },
+  ]);
+  let tree = await session.ready();
+  nodes(tree, (node) => node.type === "input")[0].props.onChange({
+    target: { value: "opettaiä" },
+  });
+  tree = session.render();
+  assert.equal(
+    nodes(tree, (node) => node.type === "del" || node.type === "ins").length,
+    0,
+  );
+  nodes(
+    tree,
+    (node) => node.type === "button" && /Check answer/.test(text(node)),
+  )[0].props.onClick();
+  tree = session.render();
+  assert.deepEqual(nodes(tree, (node) => node.type === "del").map(text), [
+    "iä",
+  ]);
+  assert.deepEqual(nodes(tree, (node) => node.type === "ins").map(text), [
+    "ja",
+  ]);
+  assert.equal(
+    nodes(tree, (node) => node.props?.["aria-label"] === "Your answer differs")
+      .length,
+    1,
+  );
+  assert.doesNotMatch(
+    text(tree),
+    /Compare with the answer|Capitalization and spacing|Rate your own recall/,
+  );
+  assert.ok(
+    nodes(tree, (node) => node.type === "h2")
+      .map(text)
+      .includes("opettaja"),
+  );
+  assert.equal(session.submissions.length, 0);
   session.key("1");
   assert.equal(session.submissions[0].rating, ReviewRating.Again);
 });

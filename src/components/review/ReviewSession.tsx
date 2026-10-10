@@ -18,7 +18,7 @@ import {
   getStudyCardTemplate,
   type StudyCardTemplateKey,
 } from "@/lib/review/templates";
-import { exerciseFieldLanguage, typedAnswerMatches } from "./exercises";
+import { exerciseFieldLanguage, typedAnswerDiff } from "./exercises";
 import styles from "./ReviewSession.module.css";
 
 type Rating = 1 | 2 | 3 | 4;
@@ -395,11 +395,10 @@ export function ReviewSession({
   const sourceVisibleOnPrompt = template.promptField === "original";
   const hasSourceAudio = card.original.trim().length > 0;
   const isExample = card.templateKey === "example";
-  const answerMatches = typedAnswerMatches(
-    typedAnswer,
-    card[template.answerField],
-    answerLanguage,
-  );
+  const typedComparison =
+    template.requiresTyping && revealed
+      ? typedAnswerDiff(typedAnswer, card[template.answerField], answerLanguage)
+      : null;
 
   return (
     <>
@@ -496,18 +495,34 @@ export function ReviewSession({
           ) : (
             <div className={styles.answerWrap}>
               <div className={styles.answerSide}>
-                {template.requiresTyping && (
-                  <div className={styles.answerComparison} role="status">
+                {typedComparison && (
+                  <div
+                    className={styles.answerComparison}
+                    role="status"
+                    aria-label={
+                      typedComparison.matches
+                        ? "Your answer matches"
+                        : "Your answer differs"
+                    }
+                  >
                     <p className={styles.sideLabel}>Your answer</p>
-                    <p className={styles.enteredAnswer} lang={card.sourceLang}>
-                      {typedAnswer.trim() || "No answer entered"}
-                    </p>
-                    <p>
-                      {answerMatches
-                        ? "Matches the answer."
-                        : "Compare with the answer below."}{" "}
-                      Capitalization and spacing are ignored. Rate your own
-                      recall.
+                    <p
+                      className={`${styles.enteredAnswer} ${
+                        typedComparison.matches ? styles.matchedAnswer : ""
+                      }`}
+                      lang={answerLanguage}
+                    >
+                      {typedComparison.entered.length
+                        ? typedComparison.entered.map((part, index) =>
+                            part.changed ? (
+                              <del className={styles.incorrectText} key={index}>
+                                {part.value}
+                              </del>
+                            ) : (
+                              <span key={index}>{part.value}</span>
+                            ),
+                          )
+                        : "No answer entered"}
                     </p>
                   </div>
                 )}
@@ -521,7 +536,17 @@ export function ReviewSession({
                   lang={answerLanguage}
                   className={isExample ? styles.sentence : undefined}
                 >
-                  {card[template.answerField]}
+                  {typedComparison
+                    ? typedComparison.expected.map((part, index) =>
+                        part.changed ? (
+                          <ins className={styles.correctText} key={index}>
+                            {part.value}
+                          </ins>
+                        ) : (
+                          <span key={index}>{part.value}</span>
+                        ),
+                      )
+                    : card[template.answerField]}
                 </h2>
                 {!sourceVisibleOnPrompt && hasSourceAudio && (
                   <SourceAudioButton
