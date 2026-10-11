@@ -32,6 +32,8 @@ Authenticated routes validate ownership and eligible card identities. The reposi
 
 The session at `/anki/[id]/review` shows the exercise direction, prompt and revealed answer. New exercises have an introduction control; existing exercises use simple/full self-rating controls, interval previews and keyboard shortcuts. Typed comparison normalizes Unicode, whitespace and case while retaining accents and punctuation. After reveal, a grapheme-level diff marks incorrect typed fragments in red with strikethrough and missing/corrected answer fragments in green with underline. It provides feedback; the learner's chosen rating controls scheduling.
 
+Only the type-in answer field requests disabled autocomplete, autocorrection, capitalization, spellchecking and writing suggestions. These are browser/keyboard hints; device settings can override them. See the [HTML writing-suggestions specification](https://html.spec.whatwg.org/multipage/interaction.html#writing-suggestions).
+
 The browser prefetches exercises and saves ratings in the background. Failed writes support retry/ignore. Pending writes live only in memory; see [review request handling and durability](optimistic-review-updates.md). Synthetic pronunciation is a separate user action.
 
 ## Import and content edits

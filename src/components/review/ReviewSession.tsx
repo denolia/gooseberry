@@ -471,6 +471,7 @@ export function ReviewSession({
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
+                  writingsuggestions="false"
                   aria-describedby="study-typed-answer-help"
                   autoFocus
                 />
