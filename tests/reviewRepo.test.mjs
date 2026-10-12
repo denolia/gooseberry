@@ -165,6 +165,7 @@ function loadRepo({
         }),
       },
       "@/lib/review/model": {
+        FsrsCardState: { New: 0 },
         ReviewRatingSchema: { parse: (value) => value },
       },
       "@/db/studyCardRepo": {
@@ -179,6 +180,9 @@ function loadRepo({
         },
       },
       "@/db/reviewProjectionRepo": { ensureReviewProjections: async () => {} },
+      "@/db/studyAllowance": {
+        studyWordAvailabilityCondition: () => ({ op: "allowance" }),
+      },
       "@/lib/review/templates": {
         STUDY_CARD_TEMPLATE_KEYS: [
           "recognition",

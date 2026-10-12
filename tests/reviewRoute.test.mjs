@@ -30,6 +30,7 @@ function loadRoute({ session = { user: { id: "user-1" } }, card = null } = {}) {
       "@/auth": { auth: async () => session },
       "@/db/reviewRepo": {
         ...errors,
+        getNextScheduledReviewAt: async () => null,
         getDueReviewCards: async (input) => {
           calls.get.push(input);
           return card ? [card] : [];

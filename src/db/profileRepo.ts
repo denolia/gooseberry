@@ -7,6 +7,7 @@ import {
   ReviewMode,
   type ReviewModeValue,
 } from "@/lib/review/model";
+import { DEFAULT_NEW_WORDS_PER_DAY } from "@/lib/review/settings";
 
 export type AccountTier = "free" | "premium";
 export type PremiumRequestStatus =
@@ -73,6 +74,8 @@ export async function getUserProfile(userId: string) {
       reviewMode: isReviewMode(preferences?.reviewMode)
         ? preferences.reviewMode
         : ReviewMode.Simple,
+      newWordsPerDay: preferences?.newWordsPerDay ?? DEFAULT_NEW_WORDS_PER_DAY,
+      studyTimeZone: preferences?.studyTimeZone ?? "UTC",
     },
     pendingRequest,
   };
@@ -95,18 +98,24 @@ export async function getUserReviewMode(
 export async function updateUserPreferences(input: {
   userId: string;
   reviewMode: ReviewModeValue;
+  newWordsPerDay?: number;
+  studyTimeZone?: string;
 }) {
   const [preferences] = await getDb()
     .insert(userPreference)
     .values({
       userId: input.userId,
       reviewMode: input.reviewMode,
+      newWordsPerDay: input.newWordsPerDay,
+      studyTimeZone: input.studyTimeZone,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
       target: userPreference.userId,
       set: {
         reviewMode: input.reviewMode,
+        newWordsPerDay: input.newWordsPerDay,
+        studyTimeZone: input.studyTimeZone,
         updatedAt: new Date(),
       },
     })

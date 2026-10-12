@@ -24,7 +24,7 @@ Each exercise has its own canonical `review_event` history and replaceable `fsrs
 
 [The versioned FSRS adapter](../src/lib/review/fsrs.ts) calculates rating previews and state transitions on the server. Imported progress preserves the current schedule through a versioned conversion; subsequent ratings use Gooseberry's built-in settings rather than source presets. Imported suspension and unexpired burial exclude cards from queues, due counts and review submission. Reviewing one sibling does not alter the others.
 
-Scheduled due reviews precede new exercises, earliest due first. New exercises visit words in set position order in rounds, rotating the preferred direction across words. Missing fields are skipped, and exclusions for prefetched/answered cards do not restart the rounds. This spaces siblings apart when other words are available. There is no daily new-material limit.
+Scheduled due reviews precede new exercises, earliest due first. New exercises visit words in set position order in rounds, rotating the preferred direction across words. Missing fields are skipped, and exclusions for prefetched/answered cards do not restart the rounds. This spaces siblings apart when other words are available. Profile study settings default to 20 new words per day per set, resetting at midnight in the saved study time zone. Existing words retain their eligible siblings and due repetitions are uncapped. See the [detailed study-order walkthrough, original behavior, round charts, and code map](study-order.md).
 
 ## Persistence and sessions
 
@@ -51,3 +51,5 @@ APKG export writes one Gooseberry note with applicable sibling templates. Its hi
 Migration `0005` establishes review tables and recognition identities. Migration [`0008_multi_exercise_study_cards.sql`](../migrations/0008_multi_exercise_study_cards.sql) backfills the other directions while preserving existing recognition UUIDs, events and schedules. Owner-scoped reconciliation also creates missing identities when statistics/queues are read, without generating FSRS state.
 
 Import/content metadata requires [`0009`](../migrations/0009_anki_text_import.sql); requested enrichment requires [`0010`](../migrations/0010_requested_enrichment.sql). Migration [`0011`](../migrations/0011_imported_study_progress.sql) adds imported baselines, progress options, suspension and burial. It does not convert previously imported notes automatically; reimport into their existing set to recover untouched progress. New notes receive all five identities in the same atomic batch as their content. Development/build/test commands do not apply these migrations to remote databases.
+
+Migration [`0012`](../migrations/0012_study_set_settings.sql) adds the profile's daily new-word limit and study time zone. Apply it before deploying the updated queue/profile code.

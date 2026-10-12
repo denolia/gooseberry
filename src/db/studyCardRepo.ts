@@ -26,10 +26,18 @@ export function eligibleStudyCardCondition() {
   )!;
 }
 
-export function studyCardContentCondition(key: StudyCardTemplateKey) {
+export function studyCardContentCondition(
+  key: StudyCardTemplateKey,
+  itemAlias?: string,
+) {
   return and(
     ...getStudyCardTemplate(key).requiredFields.map(
-      (field) => sql`btrim(${wordSetItem[field]}, ${CONTENT_WHITESPACE}) <> ''`,
+      (field) =>
+        sql`btrim(${
+          itemAlias
+            ? sql`${sql.identifier(itemAlias)}.${sql.identifier(wordSetItem[field].name)}`
+            : wordSetItem[field]
+        }, ${CONTENT_WHITESPACE}) <> ''`,
     ),
   )!;
 }

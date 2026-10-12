@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import {
   getDueReviewCards,
+  getNextScheduledReviewAt,
   recordReview,
   ReviewCardNotDueError,
   ReviewCardNotFoundError,
@@ -57,11 +58,17 @@ export async function GET(
       ...card,
       ratings: previewRatings(card.state, now),
     }));
+    const nextDueAt = await getNextScheduledReviewAt({
+      userId: session.user.id,
+      wordSetId: id,
+      now,
+    });
 
     return NextResponse.json({
       cards: responseCards,
       // Keep the original field during the client rollout.
       card: responseCards[0] ?? null,
+      nextDueAt,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

@@ -77,6 +77,7 @@ test("an admin profile displays its actual free tier", async () => {
       isReviewMode: (value) => value === "simple" || value === "full",
       ReviewMode: { Simple: "simple", Full: "full" },
     },
+    "@/lib/review/settings": { DEFAULT_NEW_WORDS_PER_DAY: 20 },
     "@/db/drizzle": {
       getDb: () => ({
         select: () => ({

@@ -120,6 +120,12 @@ function createFixture({ complete = true, empty = false } = {}) {
     // importedReviewBaseline.test.mjs; this fixture covers ordinary card SQL.
     if (name === "@/db/reviewProjectionRepo")
       return { ensureReviewProjections: async () => {} };
+    // Daily allowances and time zones run against PostgreSQL in studyAllowance.test.mjs.
+    if (name === "@/db/studyAllowance")
+      return {
+        studyWordAvailabilityCondition: () =>
+          externalRequire("drizzle-orm").sql`true`,
+      };
     if (!name.startsWith("@/")) return externalRequire(name);
     if (modules.has(name)) return modules.get(name);
     const exports = {};

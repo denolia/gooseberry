@@ -8,6 +8,7 @@ import {
 import { and, eq, sql } from "drizzle-orm";
 import { FsrsCardState, type FsrsCardStateValue } from "@/lib/review/model";
 import { ensureReviewProjections } from "@/db/reviewProjectionRepo";
+import { studyWordAvailabilityCondition } from "@/db/studyAllowance";
 
 export type WordSetItemReviewStats = {
   wordSetItemId: string;
@@ -41,6 +42,7 @@ export async function getWordSetItemReviewStats(input: {
       cardCount: sql<number>`count(${studyCard.id})`,
       dueCount: sql<number>`count(${studyCard.id}) FILTER (
         WHERE ${availableStudyCardCondition(now)}
+          AND ${studyWordAvailabilityCondition({ ...input, now })}
           AND (${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.dueAt} <= ${now})
       )`,
       // A note summarizes eligible exercises: relearning/learning first, then
@@ -110,6 +112,7 @@ export async function getWordSetReviewStats(input: {
       cardCount: sql<number>`count(${studyCard.id})`,
       dueCount: sql<number>`count(${studyCard.id}) FILTER (
         WHERE ${availableStudyCardCondition(input.now)}
+          AND ${studyWordAvailabilityCondition(input)}
           AND (${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.dueAt} <= ${input.now})
       )`,
     })

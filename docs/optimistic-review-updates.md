@@ -9,6 +9,16 @@ the server remains the source of truth for review history and FSRS state.
 
 The review API returns up to 20 due cards at a time. The browser keeps those
 cards in memory and starts loading another batch when five cards remain.
+Twenty is a fetch size; the separate profile allowance limits new words per
+day per set. See [study order and daily limits](study-order.md).
+
+Refill responses merge against the live queue. Scheduled exercises move ahead
+of waiting new exercises, while the displayed prompt remains stable. The
+session refreshes when the next scheduled repetition is due and on window
+focus, including while the completion screen is visible.
+It also refills when five scheduled exercises remain, even if the queue still
+contains many new exercises, to keep the rest of the due backlog ahead of new
+material.
 
 Queue-refill requests exclude:
 

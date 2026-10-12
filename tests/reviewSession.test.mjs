@@ -33,6 +33,9 @@ const exercises = transpile("../src/components/review/exercises.ts", { diff });
 const controls = transpile("../src/lib/review/controls.ts", {
   "@/lib/review/model": { FsrsCardState, ReviewMode, ReviewRating },
 });
+const queue = transpile("../src/lib/review/queue.ts", {
+  "@/lib/review/model": { FsrsCardState },
+});
 
 const fixture = {
   id: "card-1",
@@ -75,7 +78,7 @@ function text(tree) {
 
 const nextTick = () => new Promise((resolve) => setImmediate(resolve));
 
-function setup(t, cards, reviewMode = ReviewMode.Simple) {
+function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
   const hooks = [];
   let cursor = 0;
   let effects = [];
@@ -83,6 +86,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple) {
   let audioPlays = 0;
   const audioRefs = [];
   const keyboardListeners = new Set();
+  const focusListeners = new Set();
   const submissions = [];
   const router = { replace() {} };
   const queryClient = { invalidateQueries() {} };
@@ -132,9 +136,11 @@ function setup(t, cards, reviewMode = ReviewMode.Simple) {
   globalThis.window = {
     addEventListener(event, callback) {
       if (event === "keydown") keyboardListeners.add(callback);
+      if (event === "focus") focusListeners.add(callback);
     },
     removeEventListener(event, callback) {
       if (event === "keydown") keyboardListeners.delete(callback);
+      if (event === "focus") focusListeners.delete(callback);
     },
   };
   globalThis.Element = class {
@@ -154,14 +160,17 @@ function setup(t, cards, reviewMode = ReviewMode.Simple) {
     if (originalElement === undefined) delete globalThis.Element;
     else globalThis.Element = originalElement;
   });
-  t.mock.method(globalThis, "fetch", async (_url, options) => {
-    if (options?.method === "POST") {
-      submissions.push(JSON.parse(options.body));
-      return Response.json({});
+  t.mock.method(globalThis, "fetch", async (_url, requestOptions) => {
+    if (requestOptions?.method === "POST") {
+      const submission = JSON.parse(requestOptions.body);
+      submissions.push(submission);
+      return Response.json((await options.saveReview?.(submission)) ?? {});
     }
-    const incoming = firstLoad ? cards : [];
-    firstLoad = false;
-    return Response.json({ cards: incoming });
+    if (firstLoad) {
+      firstLoad = false;
+      return Response.json({ cards, nextDueAt: options.nextDueAt });
+    }
+    return Response.json((await options.loadQueue?.()) ?? { cards: [] });
   });
 
   function SourceAudioButton() {}
@@ -177,6 +186,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple) {
       "@tanstack/react-query": { useQueryClient: () => queryClient },
       "@/components/ui/SourceAudioButton": { SourceAudioButton },
       "@/lib/review/controls": controls,
+      "@/lib/review/queue": queue,
       "@/lib/review/formatInterval": { formatReviewInterval: () => "1 day" },
       "@/lib/review/retry": {
         withAutomaticRetries: (operation) => operation(),
@@ -191,6 +201,9 @@ function setup(t, cards, reviewMode = ReviewMode.Simple) {
 
   return {
     submissions,
+    focus() {
+      focusListeners.forEach((callback) => callback());
+    },
     get audioPlays() {
       return audioPlays;
     },
@@ -439,4 +452,88 @@ test("typed comparison normalizes spacing and Unicode without dropping accents o
   );
   assert.equal(exercises.typedAnswerMatches("Hei", "Hei!", "fi"), false);
   assert.equal(exercises.typedAnswerMatches("   ", "", "fi"), false);
+});
+
+test("a due repetition fetched on focus comes before waiting new exercises", async (t) => {
+  const active = { ...fixture, state: { state: FsrsCardState.New } };
+  const repeated = {
+    ...fixture,
+    id: "due-review",
+    original: "repeat me",
+    state: { state: FsrsCardState.Review, dueAt: new Date().toISOString() },
+  };
+  const session = setup(
+    t,
+    [active, { ...active, id: "fresh-2" }],
+    ReviewMode.Simple,
+    {
+      loadQueue: async () => ({ cards: [repeated] }),
+    },
+  );
+  await session.ready();
+  session.focus();
+  await nextTick();
+  assert.deepEqual(
+    nodes(session.render(), (node) => node.type === "h2").map(text),
+    [active.original],
+  );
+  session.key(" ");
+  session.render();
+  session.key(" ");
+  assert.deepEqual(
+    nodes(session.render(), (node) => node.type === "h2").map(text),
+    [repeated.original],
+  );
+});
+
+test("an answer submitted during a refill never returns from the old queue snapshot", async (t) => {
+  let finishRefill;
+  const waiting = new Promise((resolve) => {
+    finishRefill = resolve;
+  });
+  const cards = Array.from({ length: 7 }, (_, i) => ({
+    ...fixture,
+    id: `card-${i + 1}`,
+    original: `word-${i + 1}`,
+  }));
+  const session = setup(t, cards, ReviewMode.Simple, {
+    loadQueue: () => waiting,
+  });
+  await session.ready();
+  session.focus();
+  session.key(" ");
+  session.render();
+  session.key("2");
+  assert.deepEqual(
+    nodes(session.render(), (node) => node.type === "h2").map(text),
+    ["word-2"],
+  );
+  finishRefill({ cards: [{ ...fixture, id: "card-8", original: "word-8" }] });
+  await nextTick();
+  assert.deepEqual(
+    nodes(session.render(), (node) => node.type === "h2").map(text),
+    ["word-2"],
+  );
+});
+
+test("a completion screen refreshes when the next scheduled repetition becomes due", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let refills = 0;
+  const session = setup(t, [], ReviewMode.Simple, {
+    nextDueAt: new Date(Date.now() + 1000).toISOString(),
+    loadQueue: async () => {
+      refills++;
+      return { cards: [fixture] };
+    },
+  });
+  const complete = await session.ready();
+  assert.match(text(complete), /daily new-word allowance/);
+  assert.match(text(complete), /Next review:/);
+  t.mock.timers.tick(1000);
+  await nextTick();
+  assert.equal(refills, 1);
+  assert.deepEqual(
+    nodes(session.render(), (node) => node.type === "h2").map(text),
+    [fixture.original],
+  );
 });

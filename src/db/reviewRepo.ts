@@ -18,6 +18,7 @@ import {
   type SerializedFsrsStateProjection,
 } from "@/lib/review/fsrs";
 import {
+  FsrsCardState,
   ReviewRatingSchema,
   type FsrsCardStateValue,
   type ReviewRatingValue,
@@ -30,6 +31,7 @@ import {
 } from "@/db/studyCardRepo";
 import { STUDY_CARD_TEMPLATE_KEYS } from "@/lib/review/templates";
 import { ensureReviewProjections } from "@/db/reviewProjectionRepo";
+import { studyWordAvailabilityCondition } from "@/db/studyAllowance";
 
 const MAX_REVIEW_WRITE_ATTEMPTS = 3;
 
@@ -101,6 +103,7 @@ export async function getDueReviewCards(input: {
     eq(wordSet.id, input.wordSetId),
     eligibleStudyCardCondition(),
     availableStudyCardCondition(input.now),
+    studyWordAvailabilityCondition(input),
     or(isNull(fsrsCardState.studyCardId), lte(fsrsCardState.dueAt, input.now)),
   ];
   if (input.excludedStudyCardIds?.length) {
@@ -112,8 +115,8 @@ export async function getDueReviewCards(input: {
     .orderBy(
       // Scheduled reviews keep their due-date priority. New exercises visit
       // notes in rounds, rotating the preferred exercise at each set position.
-      sql`CASE WHEN ${fsrsCardState.studyCardId} IS NULL THEN 1 ELSE 0 END`,
-      sql`${fsrsCardState.dueAt} ASC NULLS LAST`,
+      sql`CASE WHEN ${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.state} = ${FsrsCardState.New} THEN 1 ELSE 0 END`,
+      sql`CASE WHEN ${fsrsCardState.state} <> ${FsrsCardState.New} THEN ${fsrsCardState.dueAt} ELSE NULL END ASC NULLS LAST`,
       exerciseRoundOrder(),
       asc(wordSetItem.position),
       asc(studyCard.id),
@@ -121,6 +124,40 @@ export async function getDueReviewCards(input: {
     .limit(Math.max(1, Math.min(input.limit, 50)));
 
   return rows.map(toDueReviewCard);
+}
+
+export async function getNextScheduledReviewAt(input: {
+  userId: string;
+  wordSetId: string;
+  now: Date;
+}): Promise<Date | null> {
+  const [row] = await getDb()
+    .select({
+      nextDueAt: sql<Date | null>`min(${fsrsCardState.dueAt})`.mapWith(
+        fsrsCardState.dueAt,
+      ),
+    })
+    .from(studyCard)
+    .innerJoin(wordSetItem, eq(wordSetItem.id, studyCard.wordSetItemId))
+    .innerJoin(wordSet, eq(wordSet.id, wordSetItem.wordSetId))
+    .innerJoin(
+      fsrsCardState,
+      and(
+        eq(fsrsCardState.studyCardId, studyCard.id),
+        eq(fsrsCardState.userId, input.userId),
+      ),
+    )
+    .where(
+      and(
+        eq(wordSet.userId, input.userId),
+        eq(wordSet.id, input.wordSetId),
+        eligibleStudyCardCondition(),
+        availableStudyCardCondition(input.now),
+        sql`${fsrsCardState.dueAt} > ${input.now}`,
+        sql`${fsrsCardState.state} <> ${FsrsCardState.New}`,
+      ),
+    );
+  return row?.nextDueAt ?? null;
 }
 
 function exerciseRoundOrder() {

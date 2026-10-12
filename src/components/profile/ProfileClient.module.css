@@ -106,7 +106,8 @@
   font-weight: 400;
 }
 .requestForm textarea,
-.preferences select {
+.preferences select,
+.studySettings input {
   width: 100%;
   padding: var(--input-padding);
   border: 1px solid var(--border-color);
@@ -125,6 +126,27 @@
 .reviewMode legend {
   margin-bottom: 0.4rem;
   font-weight: 650;
+}
+.studySettings {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0.5rem 0 0;
+  padding: 1rem 0 0;
+  border: 0;
+  border-top: 1px solid var(--border-color);
+}
+.studySettings legend {
+  padding-top: 1rem;
+  font-weight: 650;
+}
+.timeZoneButton {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
 }
 .reviewMode label {
   display: flex;

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ReviewMode, type ReviewModeValue } from "@/lib/review/model";
+import { isStudyTimeZone } from "@/lib/review/settings";
 import styles from "./ProfileClient.module.css";
 
 type Profile = {
@@ -14,6 +15,8 @@ type Profile = {
   premiumGrantedAt: string | Date | null;
   preferences: {
     reviewMode: ReviewModeValue;
+    newWordsPerDay: number;
+    studyTimeZone: string;
   };
   pendingRequest: {
     id: string;
@@ -27,6 +30,12 @@ export function ProfileClient({ initialProfile }: { initialProfile: Profile }) {
     initialProfile.preferences.reviewMode,
   );
   const [saving, setSaving] = useState(false);
+  const [newWordsPerDay, setNewWordsPerDay] = useState(
+    String(initialProfile.preferences.newWordsPerDay),
+  );
+  const [studyTimeZone, setStudyTimeZone] = useState(
+    initialProfile.preferences.studyTimeZone,
+  );
   const [saved, setSaved] = useState(false);
   const [preferenceError, setPreferenceError] = useState("");
   const [message, setMessage] = useState("");
@@ -38,6 +47,12 @@ export function ProfileClient({ initialProfile }: { initialProfile: Profile }) {
 
   async function savePreferences(event: React.FormEvent) {
     event.preventDefault();
+    if (!isStudyTimeZone(studyTimeZone)) {
+      setPreferenceError(
+        "Choose a valid study time zone, such as Europe/Berlin.",
+      );
+      return;
+    }
     setSaving(true);
     setSaved(false);
     setPreferenceError("");
@@ -47,6 +62,8 @@ export function ProfileClient({ initialProfile }: { initialProfile: Profile }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reviewMode,
+          newWordsPerDay: Number(newWordsPerDay),
+          studyTimeZone,
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -171,9 +188,7 @@ export function ProfileClient({ initialProfile }: { initialProfile: Profile }) {
       <section className={styles.card} aria-labelledby="preferences-heading">
         <p className={styles.eyebrow}>Preferences</p>
         <h2 id="preferences-heading">Learning preferences</h2>
-        <p className={styles.intro}>
-          Choose how you answer while reviewing.
-        </p>
+        <p className={styles.intro}>Choose how you answer while reviewing.</p>
         <form className={styles.preferences} onSubmit={savePreferences}>
           <fieldset className={styles.reviewMode}>
             <legend>Review buttons</legend>
@@ -203,6 +218,58 @@ export function ProfileClient({ initialProfile }: { initialProfile: Profile }) {
                 <small>Use Again, Hard, Good, and Easy.</small>
               </span>
             </label>
+          </fieldset>
+          <fieldset className={styles.studySettings}>
+            <legend>Study set settings</legend>
+            <label htmlFor="new-words-per-day">
+              New words per day per set
+              <input
+                id="new-words-per-day"
+                type="number"
+                min={0}
+                max={1000}
+                step={1}
+                required
+                value={newWordsPerDay}
+                onChange={(event) => {
+                  setNewWordsPerDay(event.target.value);
+                  setSaved(false);
+                }}
+              />
+            </label>
+            <p className={styles.intro}>
+              Each word counts once across its exercises. Due reviews come first
+              and have no daily limit. Set this to 0 to pause new words.
+            </p>
+            <label htmlFor="study-time-zone">
+              Study time zone
+              <input
+                id="study-time-zone"
+                type="text"
+                required
+                value={studyTimeZone}
+                onChange={(event) => {
+                  setStudyTimeZone(event.target.value.trim());
+                  setSaved(false);
+                }}
+              />
+            </label>
+            <button
+              className={styles.timeZoneButton}
+              type="button"
+              onClick={() => {
+                setStudyTimeZone(
+                  Intl.DateTimeFormat().resolvedOptions().timeZone,
+                );
+                setSaved(false);
+              }}
+            >
+              Use my time zone
+            </button>
+            <p className={styles.intro}>
+              Your daily allowance resets at midnight in this time zone. The
+              same settings apply to each study set.
+            </p>
           </fieldset>
           <div className={styles.formFooter}>
             <span className={styles.saved} role="status">

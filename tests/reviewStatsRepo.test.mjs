@@ -72,6 +72,7 @@ function loadRepo(rows) {
         ensureStudyCards: async () => {},
       },
       "@/db/reviewProjectionRepo": { ensureReviewProjections: async () => {} },
+      "@/db/studyAllowance": { studyWordAvailabilityCondition: expression },
     };
     if (!(name in mocks)) throw new Error(`Unexpected dependency ${name}`);
     return mocks[name];

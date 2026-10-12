@@ -14,6 +14,7 @@ import {
 import { formatReviewInterval } from "@/lib/review/formatInterval";
 import type { FsrsCardStateValue, ReviewModeValue } from "@/lib/review/model";
 import { withAutomaticRetries } from "@/lib/review/retry";
+import { mergeReviewQueue, shouldRefillReviewQueue } from "@/lib/review/queue";
 import {
   getStudyCardTemplate,
   type StudyCardTemplateKey,
@@ -44,7 +45,7 @@ type ReviewCard = {
   sampleTranslation: string;
   comments: string;
   tags: string;
-  state: { state: FsrsCardStateValue };
+  state: { state: FsrsCardStateValue; dueAt?: string };
   ratings: RatingPreview[];
 };
 
@@ -56,7 +57,6 @@ type ReviewSubmission = {
   durationMs: number;
 };
 
-const QUEUE_LOW_WATERMARK = 5;
 const MAX_QUEUE_EXCLUSIONS = 100;
 
 export function ReviewSession({
@@ -72,6 +72,7 @@ export function ReviewSession({
   const [cards, setCards] = useState<ReviewCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [nextDueAt, setNextDueAt] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [typedAnswer, setTypedAnswer] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +81,7 @@ export function ReviewSession({
   const pendingReviewsRef = useRef(new Map<string, ReviewSubmission>());
   const failedReviewsRef = useRef<ReviewSubmission[]>([]);
   const ignoredCardIdsRef = useRef(new Set<string>());
+  const scheduledReviewsRef = useRef(new Map<string, string>());
   const loadingQueueRef = useRef(false);
   const revealedCardIdRef = useRef<string | null>(null);
   const audioButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -117,6 +119,7 @@ export function ReviewSession({
       if (exclusions.size > MAX_QUEUE_EXCLUSIONS) return;
 
       loadingQueueRef.current = true;
+      const requestedAt = Date.now();
       if (replace) {
         setLoading(true);
         setError(null);
@@ -141,12 +144,35 @@ export function ReviewSession({
           throw new Error(body.error || "Could not load the next review.");
         }
 
-        const body = (await response.json()) as { cards: ReviewCard[] };
-        const existingIds = new Set(currentCards.map(({ id }) => id));
-        const incoming = body.cards.filter(({ id }) => !existingIds.has(id));
-        const nextCards = replace ? incoming : [...currentCards, ...incoming];
-        const startsNewCard = currentCards.length === 0 && nextCards.length > 0;
+        const body = (await response.json()) as {
+          cards: ReviewCard[];
+          nextDueAt?: string | null;
+        };
+        // Answers can advance the queue while this request is in flight.
+        // Merge against the live queue so they never reappear from a snapshot.
+        const liveCards = replace ? [] : cardsRef.current;
+        const unavailable = new Set([
+          ...Array.from(
+            pendingReviewsRef.current.values(),
+            ({ studyCardId }) => studyCardId,
+          ),
+          ...failedReviewsRef.current.map(({ studyCardId }) => studyCardId),
+          ...ignoredCardIdsRef.current,
+        ]);
+        const incoming = body.cards.filter(({ id }) => !unavailable.has(id));
+        const nextCards = mergeReviewQueue(liveCards, incoming);
+        const startsNewCard = liveCards.length === 0 && nextCards.length > 0;
         updateCards(nextCards);
+        const upcoming = body.nextDueAt ? [body.nextDueAt] : [];
+        for (const [id, dueAt] of scheduledReviewsRef.current) {
+          if (new Date(dueAt).getTime() <= requestedAt) {
+            scheduledReviewsRef.current.delete(id);
+          } else {
+            upcoming.push(dueAt);
+          }
+        }
+        upcoming.sort();
+        setNextDueAt(upcoming[0] ?? null);
 
         if (replace || startsNewCard) {
           setRevealed(false);
@@ -187,6 +213,14 @@ export function ReviewSession({
             const body = await response.json().catch(() => ({}));
             throw new Error(body.error || "Could not save this review.");
           }
+          const body = await response.json();
+          const dueAt = body.state?.dueAt as string | undefined;
+          if (dueAt) {
+            scheduledReviewsRef.current.set(submission.studyCardId, dueAt);
+            setNextDueAt((current) =>
+              !current || new Date(dueAt) < new Date(current) ? dueAt : current,
+            );
+          }
         });
         pendingReviewsRef.current.delete(submission.reviewId);
         void queryClient.invalidateQueries({ queryKey: ["wordSets"] });
@@ -198,7 +232,7 @@ export function ReviewSession({
             : [...current, submission],
         );
       } finally {
-        if (cardsRef.current.length <= QUEUE_LOW_WATERMARK) {
+        if (shouldRefillReviewQueue(cardsRef.current)) {
           void loadCards();
         }
       }
@@ -218,6 +252,32 @@ export function ReviewSession({
     }
     if (status === "unauthenticated") router.replace("/");
   }, [loadCards, router, status]);
+
+  useEffect(() => {
+    if (!nextDueAt || status !== "authenticated") return;
+    const timeout = setTimeout(
+      () => {
+        if (loadingQueueRef.current) {
+          setNextDueAt(new Date(Date.now() + 500).toISOString());
+        } else {
+          void loadCards();
+        }
+      },
+      Math.min(
+        2_147_483_647,
+        Math.max(0, new Date(nextDueAt).getTime() - Date.now()),
+      ),
+    );
+    return () => clearTimeout(timeout);
+  }, [loadCards, nextDueAt, status]);
+
+  useEffect(() => {
+    const refresh = () => {
+      if (status === "authenticated") void loadCards();
+    };
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [loadCards, status]);
 
   const revealAnswer = useCallback(() => {
     if (!card) return;
@@ -248,7 +308,9 @@ export function ReviewSession({
       shownAt.current = performance.now();
       void sendReview(submission);
 
-      if (remainingCards.length <= QUEUE_LOW_WATERMARK) {
+      if (
+        shouldRefillReviewQueue(remainingCards, !isNewState(card.state.state))
+      ) {
         void loadCards();
       }
     },
@@ -267,7 +329,7 @@ export function ReviewSession({
     if (!failed) return;
     ignoredCardIdsRef.current.add(failed.studyCardId);
     updateFailedReviews((current) => current.slice(1));
-    if (cardsRef.current.length <= QUEUE_LOW_WATERMARK) void loadCards();
+    if (shouldRefillReviewQueue(cardsRef.current)) void loadCards();
   }, [loadCards, updateFailedReviews]);
 
   useEffect(() => {
@@ -369,7 +431,16 @@ export function ReviewSession({
           </span>
           <p className={styles.eyebrow}>Session complete</p>
           <h1>You’re caught up</h1>
-          <p>No cards in this set are due right now.</p>
+          <p>
+            No more exercises are available right now within your daily new-word
+            allowance.
+          </p>
+          {nextDueAt && (
+            <p>Next review: {new Date(nextDueAt).toLocaleString()}.</p>
+          )}
+          <Link className={styles.textLink} href="/profile">
+            Study set settings
+          </Link>
           <Link className={styles.primaryButton} href="/anki">
             Back to sets
           </Link>
