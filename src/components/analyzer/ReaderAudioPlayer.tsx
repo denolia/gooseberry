@@ -78,7 +78,6 @@ export function ReaderAudioPlayer({
   const [part, setPart] = useState(0);
   const [partCount, setPartCount] = useState(0);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [voices, setVoices] = useState<VoiceOption[]>([]);
@@ -205,13 +204,7 @@ export function ReaderAudioPlayer({
       previous.hasPremium === hasPremium
     )
       return;
-    const hadPlayback = playbackRef.current.chunks.length > 0;
     clearPlayback(true);
-    setNotice(
-      hadPlayback
-        ? "Playback reset after the text, language, or account changed."
-        : "",
-    );
   }, [text, sourceLanguage, hasPremium, clearPlayback]);
 
   useEffect(() => {
@@ -441,7 +434,6 @@ export function ReaderAudioPlayer({
       return;
     }
     setError("");
-    setNotice("");
     getAudio();
     if (playback.status === "complete") clearPlayback(false);
     if (!playback.chunks.length) {
@@ -472,11 +464,10 @@ export function ReaderAudioPlayer({
     else await playPart(playback.generation);
   }
 
-  function changeSettings(next: Settings, message: string) {
+  function changeSettings(next: Settings) {
     clearPlayback(true);
     settingsRef.current = next;
     setSettings(next);
-    setNotice(`${message} Playback reset; press Listen to full text to start.`);
   }
 
   const languageName =
@@ -505,43 +496,125 @@ export function ReaderAudioPlayer({
         : "";
 
   return (
-    <section className={styles.player} aria-label="Read full text aloud">
-      <div className={styles.controls}>
-        <button
-          type="button"
-          className={styles.listenButton}
-          onClick={listen}
-          disabled={
-            !hasPremium ||
-            !text.trim() ||
-            !sourceLanguage ||
-            !settingsLoaded ||
-            configStatus !== "ready"
-          }
-          aria-label={active ? "Pause reading" : mainLabel}
-        >
-          <span aria-hidden="true">{active ? "Ⅱ" : "▶"}</span>
-          {hasPremium ? mainLabel : "Listen to full text"}
-        </button>
-        {hasPremium && status !== "idle" && status !== "complete" && (
+    <section
+      className={styles.player}
+      aria-label={`Read full text aloud${languageName ? ` in ${languageName}` : ""}`}
+    >
+      <div className={styles.toolbar}>
+        <div className={styles.controls}>
           <button
             type="button"
-            className={styles.stopButton}
-            onClick={() => {
-              clearPlayback(false);
-              setNotice(
-                "Playback stopped. Press Listen to full text to restart.",
-              );
-            }}
+            className={styles.listenButton}
+            onClick={listen}
+            disabled={
+              !hasPremium ||
+              !text.trim() ||
+              !sourceLanguage ||
+              !settingsLoaded ||
+              configStatus !== "ready"
+            }
+            aria-label={active ? "Pause reading" : mainLabel}
           >
-            Stop
+            <span aria-hidden="true">{active ? "Ⅱ" : "▶"}</span>
+            {hasPremium ? mainLabel : "Listen to full text"}
           </button>
+          {hasPremium && status !== "idle" && status !== "complete" && (
+            <button
+              type="button"
+              className={styles.stopButton}
+              onClick={() => clearPlayback(false)}
+            >
+              Stop
+            </button>
+          )}
+        </div>
+        {hasPremium && (
+          <div className={styles.settingsGrid}>
+            <label>
+              Reading speed
+              <select
+                value={settings.speed}
+                onChange={(event) => {
+                  const speed = event.target.value;
+                  if (isReaderSpeed(speed))
+                    changeSettings({ ...settings, speed });
+                }}
+              >
+                {READER_SPEEDS.map((speed) => (
+                  <option key={speed.id} value={speed.id}>
+                    {speed.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Voice tone
+              <select
+                value={settings.style}
+                disabled={configStatus !== "ready"}
+                onChange={(event) => {
+                  const style = event.target.value;
+                  if (!isVoiceStyle(style)) return;
+                  const matching = voices.filter(
+                    (voice) => style === "all" || voice.style === style,
+                  );
+                  const voice =
+                    matching.find((voice) => voice.id === settings.voice) ??
+                    matching[0];
+                  if (voice)
+                    changeSettings({ ...settings, style, voice: voice.id });
+                }}
+              >
+                <option value="all">All tones</option>
+                <option
+                  value="feminine"
+                  disabled={!voices.some((voice) => voice.style === "feminine")}
+                >
+                  Feminine
+                </option>
+                <option
+                  value="masculine"
+                  disabled={
+                    !voices.some((voice) => voice.style === "masculine")
+                  }
+                >
+                  Masculine
+                </option>
+                <option
+                  value="neutral"
+                  disabled={!voices.some((voice) => voice.style === "neutral")}
+                >
+                  Neutral
+                </option>
+              </select>
+            </label>
+            <label>
+              Voice name
+              <select
+                value={settings.voice}
+                disabled={configStatus !== "ready"}
+                onChange={(event) => {
+                  const voice = event.target.value;
+                  if (
+                    isReaderVoice(voice) &&
+                    filteredVoices.some((option) => option.id === voice)
+                  )
+                    changeSettings({ ...settings, voice });
+                }}
+              >
+                {!filteredVoices.length && (
+                  <option value={settings.voice}>Loading voices…</option>
+                )}
+                {filteredVoices.map((voice) => (
+                  <option key={voice.id} value={voice.id}>
+                    {voice.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         )}
-        <span className={styles.disclosure}>
-          AI-generated voice · {languageName || "Source language"}
-        </span>
       </div>
-
       {!hasPremium ? (
         <p className={styles.premiumNotice}>
           Full-text audio and voice settings are available with Premium.{" "}
@@ -550,8 +623,7 @@ export function ReaderAudioPlayer({
       ) : (
         <>
           <p className={styles.progress} role="status" aria-live="polite">
-            {notice ||
-              progress ||
+            {progress ||
               (configStatus === "loading" ? "Loading available voices…" : "")}
           </p>
           {configError && (
@@ -571,107 +643,6 @@ export function ReaderAudioPlayer({
               {error}
             </p>
           )}
-          <details className={styles.settings}>
-            <summary>Voice settings</summary>
-            <div className={styles.settingsGrid}>
-              <label>
-                Reading speed
-                <select
-                  value={settings.speed}
-                  onChange={(event) => {
-                    const speed = event.target.value;
-                    if (isReaderSpeed(speed))
-                      changeSettings(
-                        { ...settings, speed },
-                        "Reading speed changed.",
-                      );
-                  }}
-                >
-                  {READER_SPEEDS.map((speed) => (
-                    <option key={speed.id} value={speed.id}>
-                      {speed.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Voice tone
-                <select
-                  value={settings.style}
-                  disabled={configStatus !== "ready"}
-                  onChange={(event) => {
-                    const style = event.target.value;
-                    if (!isVoiceStyle(style)) return;
-                    const matching = voices.filter(
-                      (voice) => style === "all" || voice.style === style,
-                    );
-                    const voice =
-                      matching.find((voice) => voice.id === settings.voice) ??
-                      matching[0];
-                    if (voice)
-                      changeSettings(
-                        { ...settings, style, voice: voice.id },
-                        "Voice tone changed.",
-                      );
-                  }}
-                >
-                  <option value="all">All tones</option>
-                  <option
-                    value="feminine"
-                    disabled={
-                      !voices.some((voice) => voice.style === "feminine")
-                    }
-                  >
-                    Feminine
-                  </option>
-                  <option
-                    value="masculine"
-                    disabled={
-                      !voices.some((voice) => voice.style === "masculine")
-                    }
-                  >
-                    Masculine
-                  </option>
-                  <option
-                    value="neutral"
-                    disabled={
-                      !voices.some((voice) => voice.style === "neutral")
-                    }
-                  >
-                    Neutral
-                  </option>
-                </select>
-              </label>
-              <label>
-                Voice name
-                <select
-                  value={settings.voice}
-                  disabled={configStatus !== "ready"}
-                  onChange={(event) => {
-                    const voice = event.target.value;
-                    if (
-                      isReaderVoice(voice) &&
-                      filteredVoices.some((option) => option.id === voice)
-                    )
-                      changeSettings({ ...settings, voice }, "Voice changed.");
-                  }}
-                >
-                  {!filteredVoices.length && (
-                    <option value={settings.voice}>Loading voices…</option>
-                  )}
-                  {filteredVoices.map((voice) => (
-                    <option key={voice.id} value={voice.id}>
-                      {voice.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <p className={styles.settingsHint}>
-              Tone labels describe approximate perceived sound. Names are
-              provided by the voice API. Changing a setting restarts playback.
-            </p>
-          </details>
         </>
       )}
     </section>

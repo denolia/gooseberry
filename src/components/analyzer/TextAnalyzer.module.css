@@ -27,9 +27,9 @@
 }
 
 .exampleButton,
+.editButton,
 .translationButton,
-.primaryButton,
-.otherMatches button {
+.primaryButton {
   border: 1px solid var(--border-color);
   border-radius: 0;
   padding: var(--button-padding);
@@ -40,8 +40,8 @@
 }
 
 .exampleButton:hover,
-.translationButton:hover,
-.otherMatches button:hover {
+.editButton:hover,
+.translationButton:hover {
   background: var(--button-secondary-hover);
 }
 
@@ -86,44 +86,6 @@
   margin-right: auto;
 }
 
-.compactComposer {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  min-width: 0;
-  height: 2.85rem;
-  border: 1px solid var(--border-color);
-  background: var(--surface-raised);
-}
-
-.compactComposer span {
-  flex: 1;
-  min-width: 0;
-  padding-left: 0.85rem;
-  overflow: hidden;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.compactComposer button {
-  align-self: stretch;
-  flex-shrink: 0;
-  border: 0;
-  border-left: 1px solid var(--border-color);
-  padding: 0 0.9rem;
-  color: var(--foreground);
-  background: var(--button-secondary-bg);
-  font: inherit;
-  cursor: pointer;
-}
-
-.compactComposer button:hover {
-  background: var(--button-secondary-hover);
-}
-
 .primaryButton {
   border-color: var(--accent);
   color: white;
@@ -141,23 +103,9 @@
   opacity: 0.55;
 }
 
-.workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 34rem);
-  gap: 1rem;
-  width: 100%;
-  min-width: 0;
-  align-items: start;
-}
-
-.reader,
-.loadingCard,
-.emptySelection {
+.reader {
   border: 1px solid var(--border-color);
   background: var(--surface-raised);
-}
-
-.reader {
   width: 100%;
   min-width: 0;
   min-height: 280px;
@@ -235,21 +183,9 @@
   outline-offset: 2px;
 }
 
-.inspector {
-  position: sticky;
-  top: 1rem;
-  min-height: 220px;
-}
-
-.emptySelection,
 .empty {
   color: var(--text-muted);
   line-height: 1.5;
-}
-
-.emptySelection {
-  min-height: 220px;
-  padding: var(--panel-padding);
 }
 
 .candidateList {
@@ -258,14 +194,19 @@
 }
 
 .candidate {
-  border: 1px solid var(--border-color);
-  padding: var(--panel-padding);
-  background: var(--surface-raised);
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.85rem;
+  min-width: 0;
+}
+
+.candidate:first-child {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .bestCandidate {
-  border-color: color-mix(in srgb, var(--accent) 65%, var(--border-color));
-  box-shadow: inset 3px 0 0 var(--accent);
+  border-left: 3px solid var(--accent);
+  padding-left: 0.75rem;
 }
 
 .matchMeta {
@@ -309,11 +250,8 @@
 }
 
 .fullTranslationButton {
-  width: 100%;
-  margin-top: 1.5rem;
   border: 0;
-  border-top: 1px solid var(--border-color);
-  padding: 1rem 0 0;
+  padding: 0.65rem 0;
   color: var(--text-secondary);
   background: transparent;
   font: inherit;
@@ -325,35 +263,27 @@
   color: var(--foreground);
 }
 
-.otherMatches {
-  margin-top: 1.25rem;
-  padding-top: 1rem;
+.readerFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-top: 1.5rem;
+  padding-top: 0.85rem;
   border-top: 1px solid var(--border-color);
 }
 
-.otherMatches > span {
-  display: block;
-  margin-bottom: 0.6rem;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-}
-
-.otherMatches > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.otherMatches button {
-  padding: 0.4rem 0.55rem;
-  font-size: 0.8rem;
+.editButton {
+  min-height: 44px;
+  margin-left: auto;
 }
 
 .loadingCard {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 1rem;
+  padding: 0.35rem 0;
   color: var(--text-secondary);
 }
 
@@ -368,6 +298,11 @@
 .error {
   color: var(--danger);
   font-size: 0.9rem;
+}
+
+.analysisError {
+  display: grid;
+  gap: 0.75rem;
 }
 
 @keyframes pulse {
@@ -389,13 +324,5 @@
   .intro {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .inspector {
-    position: static;
   }
 }

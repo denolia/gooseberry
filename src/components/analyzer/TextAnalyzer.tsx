@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { TranslationCard } from "@/components/anki/TranslationCard";
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/Languages";
 import { useLanguages } from "@/lib/languages/useLanguages";
 import { ReaderAudioPlayer } from "./ReaderAudioPlayer";
+import { AnalyzerPopover } from "./AnalyzerPopover";
 import styles from "./TextAnalyzer.module.css";
 
 const CACHE_KEY = "textAnalyzerState:v2";
@@ -126,8 +127,12 @@ export function TextAnalyzer() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [cacheReady, setCacheReady] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [focusPopover, setFocusPopover] = useState(false);
+  const popoverId = useId();
   const activeRequest = useRef<AbortController | null>(null);
   const readerRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
   const handledTextSelection = useRef(false);
   const touchSelectionTimer = useRef<number | undefined>(undefined);
   const previousLanguagePair = useRef(
@@ -205,6 +210,10 @@ export function TextAnalyzer() {
     if (previousLanguagePair.current === languagePair) return;
     previousLanguagePair.current = languagePair;
     activeRequest.current?.abort();
+    activeRequest.current = null;
+    window.clearTimeout(touchSelectionTimer.current);
+    setPopoverOpen(false);
+    setIsLoading(false);
     setAnalysis(undefined);
     setSelectedTokenIds([]);
     setSelectionPreviewIds([]);
@@ -215,6 +224,10 @@ export function TextAnalyzer() {
     const value = text.trim();
     if (!value) return;
     activeRequest.current?.abort();
+    activeRequest.current = null;
+    window.clearTimeout(touchSelectionTimer.current);
+    setPopoverOpen(false);
+    setIsLoading(false);
     setReaderText(value);
     setText(value);
     setEditorExpanded(false);
@@ -224,11 +237,35 @@ export function TextAnalyzer() {
     setError("");
   }
 
-  async function analyzeSelection(tokenIds: number[]) {
+  function closePopover() {
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    window.clearTimeout(touchSelectionTimer.current);
+    setIsLoading(false);
+    setPopoverOpen(false);
+  }
+
+  function editText() {
+    closePopover();
+    setEditorExpanded(true);
+    window.requestAnimationFrame(() => editorRef.current?.focus());
+  }
+
+  async function analyzeSelection(tokenIds: number[], keyboard = false) {
     const uniqueIds = [...new Set(tokenIds)].sort(
       (left, right) => left - right,
     );
     if (!readerText || !uniqueIds.length) return;
+    window.clearTimeout(touchSelectionTimer.current);
+    setFocusPopover(keyboard);
+    setPopoverOpen(true);
+    if (
+      analysis &&
+      uniqueIds.length === selectedTokenIds.length &&
+      uniqueIds.every((id, index) => id === selectedTokenIds[index])
+    ) {
+      return;
+    }
     activeRequest.current?.abort();
     const controller = new AbortController();
     activeRequest.current = controller;
@@ -250,10 +287,12 @@ export function TextAnalyzer() {
         }),
       });
       const body = await response.json();
+      if (controller.signal.aborted || activeRequest.current !== controller)
+        return;
       if (!response.ok) throw new Error(body.error || "Analysis failed.");
       setAnalysis(SelectionAnalysisSchema.parse(body));
     } catch (caught) {
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted && activeRequest.current === controller) {
         setError(caught instanceof Error ? caught.message : "Analysis failed.");
       }
     } finally {
@@ -308,9 +347,11 @@ export function TextAnalyzer() {
       "[data-token-id]",
     );
     if (element) void analyzeSelection([Number(element.dataset.tokenId)]);
+    else closePopover();
   }
 
   function openTranslation(value: string) {
+    closePopover();
     try {
       localStorage.setItem("translationDraft", value);
     } catch {
@@ -382,16 +423,14 @@ export function TextAnalyzer() {
       <header className={styles.intro}>
         <div>
           <h1>Text analyzer</h1>
-          <p>
-            Open a text, then click a word or select a phrase. Analysis runs
-            only for what you choose.
-          </p>
+          <p>Open a text, then click a word or select a phrase.</p>
         </div>
       </header>
 
-      {editorExpanded || !readerText ? (
+      {(editorExpanded || !readerText) && (
         <div className={styles.composer}>
           <textarea
+            ref={editorRef}
             value={text}
             onChange={(event) => setText(event.target.value)}
             placeholder={`Paste ${currentSourceLanguage} text…`}
@@ -419,26 +458,18 @@ export function TextAnalyzer() {
             </button>
           </div>
         </div>
-      ) : (
-        <div className={styles.compactComposer}>
-          <span>{readerText.replaceAll(/\s+/g, " ")}</span>
-          <button type="button" onClick={() => setEditorExpanded(true)}>
-            Edit text
-          </button>
-        </div>
       )}
 
       {readerText && (
-        <div className={styles.workspace}>
+        <>
+          <ReaderAudioPlayer
+            text={readerText}
+            sourceLanguage={sourceCode}
+            hasPremium={session?.user?.tier === "premium"}
+          />
           <section className={styles.reader} aria-label="Text reader">
-            <ReaderAudioPlayer
-              text={readerText}
-              sourceLanguage={sourceCode}
-              hasPremium={session?.user?.tier === "premium"}
-            />
             <div className={styles.readerHeading}>
               <span>Click a word or select several words</span>
-              {isLoading && <span>Looking for stable expressions…</span>}
             </div>
             <div
               className={styles.tokens}
@@ -452,7 +483,10 @@ export function TextAnalyzer() {
                 ).closest<HTMLElement>("[data-token-id]");
                 if (element && (event.key === "Enter" || event.key === " ")) {
                   event.preventDefault();
-                  void analyzeSelection([Number(element.dataset.tokenId)]);
+                  void analyzeSelection(
+                    [Number(element.dataset.tokenId)],
+                    true,
+                  );
                 }
               }}
             >
@@ -463,6 +497,15 @@ export function TextAnalyzer() {
                     data-token-id={token.id}
                     role="button"
                     tabIndex={0}
+                    aria-haspopup="dialog"
+                    aria-expanded={
+                      popoverOpen && selectedTokenIds.includes(token.id)
+                    }
+                    aria-controls={
+                      popoverOpen && selectedTokenIds.includes(token.id)
+                        ? popoverId
+                        : undefined
+                    }
                     className={`${styles.token} ${highlightedTokenIds.has(token.id) ? styles.selectedToken : ""} ${selectionPreviewIds.includes(token.id) ? styles.selectionPreview : ""} ${isLoading && selectedTokenIds.includes(token.id) ? styles.analyzingToken : ""}`}
                   >
                     {token.text}
@@ -472,75 +515,99 @@ export function TextAnalyzer() {
                 ),
               )}
             </div>
-            {error && <p className={styles.error}>{error}</p>}
-            <button
-              type="button"
-              className={styles.fullTranslationButton}
-              onClick={() => openTranslation(readerText)}
-            >
-              Translate full text →
-            </button>
+            <div className={styles.readerFooter}>
+              <button
+                type="button"
+                className={styles.fullTranslationButton}
+                onClick={() => openTranslation(readerText)}
+              >
+                Translate full text →
+              </button>
+              <button
+                type="button"
+                className={styles.editButton}
+                onClick={editText}
+              >
+                Edit text
+              </button>
+            </div>
           </section>
 
-          <aside className={styles.inspector} aria-live="polite">
-            {isLoading ? (
-              <div className={styles.loadingCard}>
-                <span className={styles.pulse} aria-hidden="true" />
-                Checking the selected words and their context…
-              </div>
-            ) : candidates.length ? (
-              <div className={styles.candidateList}>
-                {candidates.map((candidate) => {
-                  const isBest = candidate.id === winningConstruction?.id;
-                  return (
-                    <section
-                      className={`${styles.candidate} ${isBest ? styles.bestCandidate : ""}`}
-                      key={candidate.id}
-                    >
-                      <div className={styles.matchMeta}>
-                        <span>{candidate.kind.replaceAll("-", " ")}</span>
-                        {isBest && <span>best match</span>}
-                        {isDiscontinuous(candidate.tokenIds, tokens) && (
-                          <span>discontinuous</span>
+          {popoverOpen && (
+            <AnalyzerPopover
+              id={popoverId}
+              readerRef={readerRef}
+              tokenIds={selectedTokenIds}
+              focusOnOpen={focusPopover}
+              onClose={closePopover}
+            >
+              {isLoading ? (
+                <div className={styles.loadingCard} role="status">
+                  <span className={styles.pulse} aria-hidden="true" />
+                  Checking the selected words and their context…
+                </div>
+              ) : error ? (
+                <div className={styles.analysisError}>
+                  <p className={styles.error} role="alert">
+                    {error}
+                  </p>
+                  <button
+                    type="button"
+                    className={styles.translationButton}
+                    onClick={() => void analyzeSelection(selectedTokenIds)}
+                  >
+                    Retry analysis
+                  </button>
+                </div>
+              ) : candidates.length ? (
+                <div className={styles.candidateList}>
+                  {candidates.map((candidate) => {
+                    const isBest = candidate.id === winningConstruction?.id;
+                    return (
+                      <section
+                        className={`${styles.candidate} ${isBest ? styles.bestCandidate : ""}`}
+                        key={candidate.id}
+                      >
+                        <div className={styles.matchMeta}>
+                          <span>{candidate.kind.replaceAll("-", " ")}</span>
+                          {isBest && <span>best match</span>}
+                          {isDiscontinuous(candidate.tokenIds, tokens) && (
+                            <span>discontinuous</span>
+                          )}
+                        </div>
+                        <TranslationCard
+                          response={responseForCandidate(candidate)}
+                          sourceLang={sourceCode}
+                          targetLang={targetCode}
+                          prepareCard={() => prepareCandidateCard(candidate)}
+                        >
+                          <h2 className={styles.expression}>
+                            {candidate.expression}
+                          </h2>
+                          <p className={styles.quickTranslation}>
+                            {candidate.translation}
+                          </p>
+                        </TranslationCard>
+                        {candidate.explanation && (
+                          <p className={styles.explanation}>
+                            {candidate.explanation}
+                          </p>
                         )}
-                      </div>
-                      <TranslationCard
-                        response={responseForCandidate(candidate)}
-                        sourceLang={sourceCode}
-                        targetLang={targetCode}
-                        prepareCard={() => prepareCandidateCard(candidate)}
-                      >
-                        <h2 className={styles.expression}>
-                          {candidate.expression}
-                        </h2>
-                        <p className={styles.quickTranslation}>
-                          {candidate.translation}
-                        </p>
-                      </TranslationCard>
-                      {candidate.explanation && (
-                        <p className={styles.explanation}>
-                          {candidate.explanation}
-                        </p>
-                      )}
-                      <button
-                        type="button"
-                        className={styles.translationButton}
-                        onClick={() => openTranslation(candidate.expression)}
-                      >
-                        Open in Translation →
-                      </button>
-                    </section>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className={styles.emptySelection}>
-                Select something in the text. The selected word and every useful
-                construction found around it will appear here.
-              </div>
-            )}
-          </aside>
-        </div>
+                        <button
+                          type="button"
+                          className={styles.translationButton}
+                          onClick={() => openTranslation(candidate.expression)}
+                        >
+                          Open in Translation →
+                        </button>
+                      </section>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </AnalyzerPopover>
+          )}
+        </>
       )}
     </div>
   );
