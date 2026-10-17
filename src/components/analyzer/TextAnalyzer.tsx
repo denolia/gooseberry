@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { TranslationCard } from "@/components/anki/TranslationCard";
@@ -24,6 +31,7 @@ import {
   TargetLanguage,
 } from "@/components/ui/Languages";
 import { useLanguages } from "@/lib/languages/useLanguages";
+import type { ReaderTextRange } from "@/lib/audio/readerText";
 import { ReaderAudioPlayer } from "./ReaderAudioPlayer";
 import { AnalyzerPopover } from "./AnalyzerPopover";
 import styles from "./TextAnalyzer.module.css";
@@ -129,6 +137,11 @@ export function TextAnalyzer() {
   const [cacheReady, setCacheReady] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [focusPopover, setFocusPopover] = useState(false);
+  const [readingHighlight, setReadingHighlight] = useState<{
+    range: ReaderTextRange;
+    text: string;
+    sourceLanguage: string;
+  } | null>(null);
   const popoverId = useId();
   const activeRequest = useRef<AbortController | null>(null);
   const readerRef = useRef<HTMLDivElement>(null);
@@ -149,6 +162,36 @@ export function TextAnalyzer() {
   const highlightedTokenIds = new Set(
     winningConstruction?.tokenIds ?? selectedTokenIds,
   );
+  const handleReadingRangeChange = useCallback(
+    (range: ReaderTextRange | null) => {
+      setReadingHighlight(
+        range &&
+          range.start >= 0 &&
+          range.end <= readerText.length &&
+          range.start < range.end
+          ? { range, text: readerText, sourceLanguage: sourceCode }
+          : null,
+      );
+    },
+    [readerText, sourceCode],
+  );
+  const speakingTokenIds = new Set<number>();
+  if (
+    readingHighlight?.text === readerText &&
+    readingHighlight.sourceLanguage === sourceCode
+  ) {
+    let offset = 0;
+    for (const token of tokens) {
+      const end = offset + token.text.length;
+      if (
+        offset < readingHighlight.range.end &&
+        end > readingHighlight.range.start
+      ) {
+        speakingTokenIds.add(token.id);
+      }
+      offset = end;
+    }
+  }
 
   useEffect(
     () => () => {
@@ -466,6 +509,7 @@ export function TextAnalyzer() {
             text={readerText}
             sourceLanguage={sourceCode}
             hasPremium={session?.user?.tier === "premium"}
+            onReadingRangeChange={handleReadingRangeChange}
           />
           <section className={styles.reader} aria-label="Text reader">
             <div
@@ -503,12 +547,21 @@ export function TextAnalyzer() {
                         ? popoverId
                         : undefined
                     }
-                    className={`${styles.token} ${highlightedTokenIds.has(token.id) ? styles.selectedToken : ""} ${selectionPreviewIds.includes(token.id) ? styles.selectionPreview : ""} ${isLoading && selectedTokenIds.includes(token.id) ? styles.analyzingToken : ""}`}
+                    className={`${styles.token} ${highlightedTokenIds.has(token.id) ? styles.selectedToken : ""} ${selectionPreviewIds.includes(token.id) ? styles.selectionPreview : ""} ${isLoading && selectedTokenIds.includes(token.id) ? styles.analyzingToken : ""} ${speakingTokenIds.has(token.id) ? styles.spokenText : ""}`}
                   >
                     {token.text}
                   </span>
                 ) : (
-                  <span key={token.id}>{token.text}</span>
+                  <span
+                    key={token.id}
+                    className={
+                      speakingTokenIds.has(token.id)
+                        ? styles.spokenText
+                        : undefined
+                    }
+                  >
+                    {token.text}
+                  </span>
                 ),
               )}
             </div>

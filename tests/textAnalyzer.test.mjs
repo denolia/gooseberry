@@ -94,6 +94,9 @@ function setup(t, { response = async () => Response.json(analysis()) } = {}) {
         hooks[index] = { deps, value: callback() };
       return hooks[index].value;
     },
+    useCallback(callback, deps) {
+      return react.useMemo(() => callback, deps);
+    },
     useEffect(effect, deps) {
       const index = cursor++;
       const previous = hooks[index];
@@ -224,7 +227,10 @@ function setup(t, { response = async () => Response.json(analysis()) } = {}) {
       "@/lib/languages/useLanguages": { useLanguages: () => pair },
       "./ReaderAudioPlayer": { ReaderAudioPlayer: "ReaderAudioPlayer" },
       "./AnalyzerPopover": { AnalyzerPopover: "AnalyzerPopover" },
-      "./TextAnalyzer.module.css": { __esModule: true, default: {} },
+      "./TextAnalyzer.module.css": {
+        __esModule: true,
+        default: new Proxy({}, { get: (_target, name) => name }),
+      },
     };
     assert(name in dependencies, `Unexpected dependency ${name}`);
     return dependencies[name];
@@ -317,6 +323,21 @@ function setup(t, { response = async () => Response.json(analysis()) } = {}) {
         render(),
         (node) => typeof node.props?.onMouseUp === "function",
       )[0];
+    },
+    player() {
+      return nodes(render(), (node) => node.type === "ReaderAudioPlayer")[0];
+    },
+    readRange(range) {
+      this.player().props.onReadingRangeChange(range);
+      return render();
+    },
+    spoken() {
+      return nodes(
+        this.tokens(),
+        (node) =>
+          node.type === "span" &&
+          node.props.className?.split(/\s+/).includes("spokenText"),
+      );
     },
     select(ids) {
       selectedIds = ids;
@@ -462,11 +483,13 @@ test("native phrase selection submits every selected word and suppresses the fol
   });
   await ui.ready();
   await ui.open();
+  ui.readRange({ start: 0, end: SAMPLE.length });
   ui.select([0, 2]);
   ui.tokens().props.onMouseUp();
   await ui.settle();
   assert.deepEqual(ui.requests[0].body.selectedTokenIds, [0, 2]);
   assert.deepEqual(ui.popup().props.tokenIds, [0, 2]);
+  assert.equal(ui.spoken().map(text).join(""), SAMPLE);
   ui.clickWord(0);
   assert.equal(ui.requests.length, 1);
   ui.fireTimers();
@@ -537,4 +560,136 @@ test("reopening the same successful selection reuses its analysis without anothe
   ui.clickWord(0);
   assert.equal(ui.requests.length, 1);
   assert.match(text(ui.popup()), /Translation: Berlin/);
+});
+
+test("sentence highlighting uses exact UTF-16 positions for repeated text, including spaces and punctuation", async (t) => {
+  const ui = setup(t);
+  const value = "🫐 Hallo Welt! Hallo Welt!";
+  await ui.ready();
+  await ui.open(value);
+  const before = nodes(
+    ui.tokens(),
+    (node) => node.props?.["data-token-id"] !== undefined,
+  ).map((node) => ({ id: node.props["data-token-id"], text: text(node) }));
+  const secondStart = value.lastIndexOf("Hallo Welt!");
+  ui.readRange({ start: secondStart, end: value.length });
+  assert.equal(ui.spoken().map(text).join(""), "Hallo Welt!");
+  const highlightedWords = ui
+    .spoken()
+    .filter((node) => node.props["data-token-id"] !== undefined);
+  const words = textAnalysis
+    .tokenizeText(value, "de")
+    .filter((token) => token.isWord);
+  assert.deepEqual(
+    highlightedWords.map((node) => node.props["data-token-id"]),
+    words.slice(2).map((token) => token.id),
+  );
+  assert.deepEqual(
+    ui
+      .spoken()
+      .filter((node) => node.props["data-token-id"] === undefined)
+      .map(text),
+    [" ", "!"],
+  );
+  const after = nodes(
+    ui.tokens(),
+    (node) => node.props?.["data-token-id"] !== undefined,
+  ).map((node) => ({ id: node.props["data-token-id"], text: text(node) }));
+  assert.deepEqual(
+    after,
+    before,
+    "Speech highlighting must not change API token IDs or anchor spans",
+  );
+  assert.equal(text(ui.tokens()), value);
+});
+
+test("reading highlight survives selection rerenders and coexists with the selected word and popover", async (t) => {
+  const pending = deferred();
+  const ui = setup(t, { response: () => pending.promise });
+  const value = "Berlin ist schön. Noch ein Satz.";
+  await ui.ready();
+  await ui.open(value);
+  const callback = ui.player().props.onReadingRangeChange;
+  ui.readRange({ start: 0, end: value.indexOf(" Noch") });
+  ui.clickWord(0);
+  assert.equal(ui.player().props.onReadingRangeChange, callback);
+  assert.equal(
+    ui.spoken().map(text).join(""),
+    "Berlin ist schön.",
+    "An unrelated rerender while paused must preserve the sentence",
+  );
+  const firstWord = nodes(
+    ui.tokens(),
+    (node) => node.props?.["data-token-id"] === 0,
+  )[0];
+  assert(firstWord.props.className.split(/\s+/).includes("selectedToken"));
+  assert(firstWord.props.className.split(/\s+/).includes("spokenText"));
+  assert.deepEqual(ui.popup().props.tokenIds, [0]);
+  assert.deepEqual(ui.requests[0].body.selectedTokenIds, [0]);
+  ui.readRange({ start: value.indexOf("Noch"), end: value.length });
+  assert.equal(ui.spoken().map(text).join(""), "Noch ein Satz.");
+  assert.deepEqual(
+    ui.popup().props.tokenIds,
+    [0],
+    "Advancing speech must not move the translation selection",
+  );
+  ui.readRange(null);
+  assert.equal(ui.spoken().length, 0);
+  assert.deepEqual(
+    ui.popup().props.tokenIds,
+    [0],
+    "Stopping speech must not close word analysis",
+  );
+  pending.resolve(Response.json(analysis()));
+  await ui.settle();
+});
+
+test("changing source language or text immediately ignores sentence ranges from the previous input", async (t) => {
+  const ui = setup(t);
+  await ui.ready();
+  await ui.open();
+  const oldCallback = ui.player().props.onReadingRangeChange;
+  ui.readRange({ start: 0, end: SAMPLE.length });
+  assert.equal(ui.spoken().map(text).join(""), SAMPLE);
+  ui.language("Finnish");
+  assert.equal(ui.spoken().length, 0);
+  oldCallback({ start: 0, end: SAMPLE.length });
+  ui.render();
+  assert.equal(
+    ui.spoken().length,
+    0,
+    "A stale German callback must not highlight Finnish playback",
+  );
+  ui.readRange({ start: 0, end: SAMPLE.length });
+  assert.equal(ui.spoken().map(text).join(""), SAMPLE);
+  const previousTextCallback = ui.player().props.onReadingRangeChange;
+  ui.button("Edit text").props.onClick();
+  ui.render();
+  await ui.open("Ein ganz anderer längerer Text.");
+  assert.equal(ui.spoken().length, 0);
+  previousTextCallback({ start: 0, end: SAMPLE.length });
+  ui.render();
+  assert.equal(
+    ui.spoken().length,
+    0,
+    "A stale range must not paint a replacement text",
+  );
+});
+
+test("null and invalid reading ranges clear sentence highlighting", async (t) => {
+  const ui = setup(t);
+  await ui.ready();
+  await ui.open();
+  for (const range of [
+    null,
+    { start: -1, end: 5 },
+    { start: 5, end: 5 },
+    { start: 9, end: 4 },
+    { start: 0, end: SAMPLE.length + 1 },
+  ]) {
+    ui.readRange({ start: 0, end: SAMPLE.length });
+    assert(ui.spoken().length > 0);
+    ui.readRange(range);
+    assert.equal(ui.spoken().length, 0);
+  }
 });

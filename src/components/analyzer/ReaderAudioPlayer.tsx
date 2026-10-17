@@ -14,7 +14,11 @@ import {
   type ReaderVoice,
   type ReaderVoiceStyle,
 } from "@/lib/audio/readerConfig";
-import { splitReaderText } from "@/lib/audio/readerText";
+import {
+  getReaderSpeechChunks,
+  type ReaderSpeechChunk,
+  type ReaderTextRange,
+} from "@/lib/audio/readerText";
 import styles from "./ReaderAudioPlayer.module.css";
 
 const SETTINGS_KEY = "readerAudioSettings:v1";
@@ -28,15 +32,22 @@ type Settings = {
 };
 type Status =
   "idle" | "loading" | "playing" | "paused" | "gap" | "complete" | "error";
+type AudioRequest = {
+  controller: AbortController;
+  promise: Promise<string>;
+};
 type Playback = {
   generation: number;
   attempt: number;
-  chunks: string[];
+  foregroundAttempt: number;
+  chunks: ReaderSpeechChunk[];
   urls: Map<number, string>;
   index: number;
   wantsPlay: boolean;
   status: Status;
-  request: AbortController | null;
+  requests: Map<number, AudioRequest>;
+  requestErrors: Map<number, Error>;
+  prefetchIndex: number | null;
   gapTimer: ReturnType<typeof setTimeout> | null;
   gapDeadline: number;
   gapRemaining: number;
@@ -69,10 +80,12 @@ export function ReaderAudioPlayer({
   text,
   sourceLanguage,
   hasPremium,
+  onReadingRangeChange,
 }: {
   text: string;
   sourceLanguage: string;
   hasPremium: boolean;
+  onReadingRangeChange?: (range: ReaderTextRange | null) => void;
 }) {
   const [status, setStatus] = useState<Status>("idle");
   const [part, setPart] = useState(0);
@@ -89,16 +102,21 @@ export function ReaderAudioPlayer({
   const settingsRef = useRef(settings);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const mountedRef = useRef(true);
+  const readingCallbackRef = useRef(onReadingRangeChange);
+  const readingRangeRef = useRef<ReaderTextRange | null>(null);
   const previousInputRef = useRef({ text, sourceLanguage, hasPremium });
   const playbackRef = useRef<Playback>({
     generation: 0,
     attempt: 0,
+    foregroundAttempt: 0,
     chunks: [],
     urls: new Map(),
     index: 0,
     wantsPlay: false,
     status: "idle",
-    request: null,
+    requests: new Map(),
+    requestErrors: new Map(),
+    prefetchIndex: null,
     gapTimer: null,
     gapDeadline: 0,
     gapRemaining: 0,
@@ -112,22 +130,40 @@ export function ReaderAudioPlayer({
     if (mountedRef.current) setStatus(next);
   }, []);
 
+  useEffect(() => {
+    readingCallbackRef.current = onReadingRangeChange;
+  }, [onReadingRangeChange]);
+
+  const updateReadingRange = useCallback((range: ReaderTextRange | null) => {
+    const previous = readingRangeRef.current;
+    if (previous?.start === range?.start && previous?.end === range?.end)
+      return;
+    readingRangeRef.current = range;
+    readingCallbackRef.current?.(range);
+  }, []);
+
   // Keep one media element for every part and replay, including on mobile.
   const clearPlayback = useCallback(
     (discardCache: boolean, updateUi = true) => {
       const playback = playbackRef.current;
       playback.generation++;
       playback.attempt++;
+      playback.foregroundAttempt++;
       playback.wantsPlay = false;
-      playback.request?.abort();
-      playback.request = null;
+      for (const request of playback.requests.values())
+        request.controller.abort();
+      playback.requests.clear();
+      playback.requestErrors.clear();
+      playback.prefetchIndex = null;
       cancelGap(playback);
       playback.gapRemaining = 0;
       playback.index = 0;
+      updateReadingRange(null);
       const audio = audioRef.current;
       if (audio) {
         audio.onended = null;
         audio.onerror = null;
+        audio.onplaying = null;
         audio.pause();
         audio.removeAttribute("src");
         audio.load();
@@ -145,7 +181,7 @@ export function ReaderAudioPlayer({
         setError("");
       }
     },
-    [],
+    [updateReadingRange],
   );
 
   useEffect(() => {
@@ -299,8 +335,24 @@ export function ReaderAudioPlayer({
     const audio = getAudio();
     const attempt = ++playback.attempt;
     if (audio.src !== url) audio.src = url;
+    const reportPlaying = () => {
+      if (
+        !isCurrent(generation, index) ||
+        playback.attempt !== attempt ||
+        !playback.wantsPlay
+      )
+        return;
+      const chunk = playback.chunks[index];
+      updateReadingRange({
+        start: chunk.sentenceStart,
+        end: chunk.sentenceEnd,
+      });
+      prefetchNextPart(generation, index);
+    };
+    audio.onplaying = reportPlaying;
     audio.onended = () => {
       if (!isCurrent(generation, index)) return;
+      updateReadingRange(null);
       playback.index++;
       if (playback.index >= playback.chunks.length) {
         playback.wantsPlay = false;
@@ -309,7 +361,11 @@ export function ReaderAudioPlayer({
       }
       setPart(playback.index + 1);
       playback.gapRemaining =
-        playback.speed === "normal-pauses" ? SENTENCE_PAUSE_MS : 0;
+        playback.speed === "normal-pauses" &&
+        playback.chunks[playback.index].sentenceIndex !==
+          playback.chunks[index].sentenceIndex
+          ? SENTENCE_PAUSE_MS
+          : 0;
       if (!playback.wantsPlay) updateStatus("paused");
       else if (playback.gapRemaining) waitBetweenParts(generation);
       else void playPart(generation);
@@ -318,9 +374,12 @@ export function ReaderAudioPlayer({
       if (!isCurrent(generation, index)) return;
       playback.attempt++;
       playback.wantsPlay = false;
+      abortPrefetch();
+      updateReadingRange(null);
       audio.pause();
       audio.onended = null;
       audio.onerror = null;
+      audio.onplaying = null;
       audio.removeAttribute("src");
       audio.load();
       URL.revokeObjectURL(url);
@@ -331,6 +390,8 @@ export function ReaderAudioPlayer({
     updateStatus("playing");
     try {
       await audio.play();
+      // The play promise resolves after media starts, even if an event was missed.
+      reportPlaying();
     } catch (reason) {
       if (
         !isCurrent(generation, index) ||
@@ -339,6 +400,8 @@ export function ReaderAudioPlayer({
       )
         return;
       playback.wantsPlay = false;
+      abortPrefetch();
+      updateReadingRange(null);
       audio.pause();
       if (reason instanceof DOMException && reason.name === "NotAllowedError") {
         setError("Playback needs a tap. Press Resume to continue.");
@@ -350,58 +413,129 @@ export function ReaderAudioPlayer({
     }
   }
 
+  function requestPart(index: number, generation: number): Promise<string> {
+    const playback = playbackRef.current;
+    const cached = playback.urls.get(index);
+    if (cached) return Promise.resolve(cached);
+    const previousError = playback.requestErrors.get(index);
+    if (previousError) return Promise.reject(previousError);
+    const existing = playback.requests.get(index);
+    if (existing) return existing.promise;
+    const controller = new AbortController();
+    const request: AudioRequest = { controller, promise: Promise.resolve("") };
+    playback.requests.set(index, request);
+    request.promise = (async () => {
+      try {
+        const response = await fetch("/api/speech/reader", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: playback.chunks[index].text,
+            sourceLanguage: playback.language,
+            voice: playback.voice,
+            speed: playback.speed,
+          }),
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(
+            body.error || "Could not generate audio. Please try again.",
+          );
+        }
+        const blob = await response.blob();
+        if (
+          controller.signal.aborted ||
+          !mountedRef.current ||
+          playback.generation !== generation
+        ) {
+          throw new DOMException("Audio request cancelled", "AbortError");
+        }
+        const url = URL.createObjectURL(blob);
+        playback.urls.set(index, url);
+        return url;
+      } catch (reason) {
+        if (
+          !controller.signal.aborted &&
+          mountedRef.current &&
+          playback.generation === generation
+        ) {
+          playback.requestErrors.set(
+            index,
+            reason instanceof Error
+              ? reason
+              : new Error("Could not generate audio. Please try again."),
+          );
+        }
+        throw reason;
+      } finally {
+        if (playback.requests.get(index) === request)
+          playback.requests.delete(index);
+      }
+    })();
+    return request.promise;
+  }
+
+  function prefetchNextPart(generation: number, index: number) {
+    const playback = playbackRef.current;
+    if (!isCurrent(generation, index) || !playback.wantsPlay) return;
+    const nextIndex = index + 1;
+    if (
+      nextIndex >= playback.chunks.length ||
+      playback.urls.has(nextIndex) ||
+      playback.requestErrors.has(nextIndex)
+    )
+      return;
+    playback.prefetchIndex = nextIndex;
+    // A failed lookahead is reported only if playback reaches that part.
+    void requestPart(nextIndex, generation).catch(() => {});
+  }
+
+  function abortPrefetch() {
+    const playback = playbackRef.current;
+    const index = playback.prefetchIndex;
+    if (index === null) return;
+    playback.prefetchIndex = null;
+    playback.requests.get(index)?.controller.abort();
+    playback.requests.delete(index);
+    playback.requestErrors.delete(index);
+  }
+
   async function playPart(generation: number) {
     const playback = playbackRef.current;
     const index = playback.index;
     if (!isCurrent(generation, index) || !playback.wantsPlay) return;
-    const cached = playback.urls.get(index);
-    if (cached) {
-      await startAudio(cached, generation, index);
-      return;
-    }
-    if (playback.request) {
+    const foregroundAttempt = ++playback.foregroundAttempt;
+    // The lookahead becomes the foreground request once its part is reached.
+    if (playback.prefetchIndex === index) playback.prefetchIndex = null;
+    if (!playback.urls.has(index)) {
+      updateReadingRange(null);
       updateStatus("loading");
-      return;
     }
-    const request = new AbortController();
-    playback.request = request;
-    updateStatus("loading");
     try {
-      const response = await fetch("/api/speech/reader", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: playback.chunks[index],
-          sourceLanguage: playback.language,
-          voice: playback.voice,
-          speed: playback.speed,
-        }),
-        signal: request.signal,
-      });
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(
-          body.error || "Could not generate audio. Please try again.",
-        );
-      }
-      const blob = await response.blob();
-      if (request.signal.aborted || !isCurrent(generation, index)) return;
-      const url = URL.createObjectURL(blob);
-      playback.urls.set(index, url);
-      if (playback.request === request) playback.request = null;
+      const url = await requestPart(index, generation);
+      if (
+        !isCurrent(generation, index) ||
+        playback.foregroundAttempt !== foregroundAttempt
+      )
+        return;
       if (playback.wantsPlay) await startAudio(url, generation, index);
       else updateStatus("paused");
     } catch (reason) {
-      if (request.signal.aborted || !isCurrent(generation, index)) return;
+      if (
+        !isCurrent(generation, index) ||
+        playback.foregroundAttempt !== foregroundAttempt ||
+        (reason instanceof DOMException && reason.name === "AbortError")
+      )
+        return;
       playback.wantsPlay = false;
+      updateReadingRange(null);
       setError(
         reason instanceof Error
           ? reason.message
           : "Could not generate audio. Please try again.",
       );
       updateStatus("error");
-    } finally {
-      if (playback.request === request) playback.request = null;
     }
   }
 
@@ -409,6 +543,7 @@ export function ReaderAudioPlayer({
     const playback = playbackRef.current;
     playback.wantsPlay = false;
     playback.attempt++;
+    abortPrefetch();
     audioRef.current?.pause();
     if (playback.gapTimer !== null) {
       playback.gapRemaining = Math.max(0, playback.gapDeadline - Date.now());
@@ -432,6 +567,8 @@ export function ReaderAudioPlayer({
       return;
     }
     setError("");
+    if (playback.status === "error")
+      playback.requestErrors.delete(playback.index);
     getAudio();
     if (playback.status === "complete") clearPlayback(false);
     if (!playback.chunks.length) {
@@ -440,12 +577,13 @@ export function ReaderAudioPlayer({
           SourceLanguageSelectOptions.find(
             (option) => option.label === sourceLanguage,
           )?.value ?? sourceLanguage;
-        playback.chunks = splitReaderText(text, language, settings.speed);
+        playback.chunks = getReaderSpeechChunks(text, language);
         playback.voice = settings.voice;
         playback.speed = settings.speed;
         playback.language = sourceLanguage;
         setPartCount(playback.chunks.length);
       } catch (reason) {
+        updateReadingRange(null);
         setError(
           reason instanceof Error
             ? reason.message

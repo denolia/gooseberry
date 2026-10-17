@@ -104,7 +104,6 @@
 }
 
 .reader {
-  border: 1px solid var(--border-color);
   background: var(--surface-raised);
   width: 100%;
   min-width: 0;
@@ -159,6 +158,13 @@
 .selectionPreview {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.spokenText,
+.token.spokenText {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 .analyzingToken {

@@ -4,6 +4,15 @@ import {
   type ReaderSpeed,
 } from "./readerConfig";
 
+export type ReaderTextRange = { start: number; end: number };
+
+export type ReaderSpeechChunk = ReaderTextRange & {
+  text: string;
+  sentenceStart: number;
+  sentenceEnd: number;
+  sentenceIndex: number;
+};
+
 // Keep the original text and punctuation; split only at safe text boundaries.
 function splitLongSentence(sentence: string): string[] {
   const chunks: string[] = [];
@@ -34,11 +43,10 @@ function splitLongSentence(sentence: string): string[] {
   return chunks;
 }
 
-export function splitReaderText(
+export function getReaderSpeechChunks(
   text: string,
   language: string,
-  speed: ReaderSpeed,
-): string[] {
+): ReaderSpeechChunk[] {
   const value = text.trim();
   if (value.length > MAX_READER_CHARACTERS) {
     throw new Error(
@@ -46,6 +54,7 @@ export function splitReaderText(
     );
   }
   if (!value) return [];
+  const leadingOffset = text.length - text.trimStart().length;
 
   let segmenter: Intl.Segmenter;
   try {
@@ -53,29 +62,47 @@ export function splitReaderText(
   } catch {
     segmenter = new Intl.Segmenter(undefined, { granularity: "sentence" });
   }
-  const sentences: string[] = [];
-  for (const { segment } of segmenter.segment(value)) {
+  const sentences: ReaderTextRange[] = [];
+  for (const { segment, index } of segmenter.segment(value)) {
+    const start = leadingOffset + index;
+    const end = start + segment.length;
     if (!segment.trim() && sentences.length) {
-      sentences[sentences.length - 1] += segment;
-    } else {
-      sentences.push(segment);
+      sentences[sentences.length - 1].end = end;
+    } else if (segment.trim()) {
+      sentences.push({ start, end });
     }
   }
-  const chunks: string[] = [];
-  for (const sentence of sentences) {
+  const chunks: ReaderSpeechChunk[] = [];
+  for (const [sentenceIndex, range] of sentences.entries()) {
+    const sentence = text.slice(range.start, range.end);
+    const sentenceStart =
+      range.start + sentence.length - sentence.trimStart().length;
+    const sentenceEnd = range.start + sentence.trimEnd().length;
+    let cursor = range.start;
     for (const piece of splitLongSentence(sentence)) {
-      const lastIndex = chunks.length - 1;
-      if (
-        speed !== "normal-pauses" &&
-        lastIndex >= 0 &&
-        chunks[lastIndex].length + piece.length <= READER_CHUNK_CHARACTERS
-      ) {
-        chunks[lastIndex] += piece;
-      } else {
-        chunks.push(piece);
+      const start = cursor;
+      cursor += piece.length;
+      // Keep offsets advancing through large whitespace runs without spending
+      // an audio request on a chunk that has nothing to pronounce.
+      if (piece.trim()) {
+        chunks.push({
+          text: piece,
+          start,
+          end: cursor,
+          sentenceStart,
+          sentenceEnd,
+          sentenceIndex,
+        });
       }
     }
   }
-  // Large runs of whitespace need no audio request.
-  return chunks.filter((chunk) => chunk.trim());
+  return chunks;
+}
+
+export function splitReaderText(
+  text: string,
+  language: string,
+  _speed?: ReaderSpeed,
+): string[] {
+  return getReaderSpeechChunks(text, language).map((chunk) => chunk.text);
 }
