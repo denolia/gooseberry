@@ -89,8 +89,16 @@ of these sentence actions stops after that whole sentence so the learner can
 pronounce it, continuing through every chunk of an oversized sentence before
 stopping. Next also works before the first Listen. All actions use the same
 Premium source-language reader, selected voice, playback speed, and audio caches.
-Listen in the selection translation popover starts at the sentence containing
-the selected text and continues through the remaining text.
+Clicking a word, selecting a phrase, or activating a word with the keyboard first
+opens a compact action menu with Listen and Translate. Selection itself sends no
+analysis request. Listen closes that menu, starts at the sentence containing the
+selected text, and continues through the remaining text without requesting a
+translation. It requires Premium and ready audio settings. Translate explicitly
+requests analysis and shows loading, errors, or results in the same anchored
+popover; Retry analysis also requires a click. Reselecting text returns to the
+action menu and cancels pending analysis. Previously successful analysis is
+reused only after Translate is selected again. Translation results keep Open in
+Translation in the “…” menu immediately after the Save card control.
 
 All four controls float at the bottom of the screen when the original row has
 scrolled above it, including before playback and after completion. The main

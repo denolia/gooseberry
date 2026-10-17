@@ -243,14 +243,19 @@
   margin-top: 0.25rem;
 }
 
-.readFromButton {
+.selectionActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.selectionAction {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
   width: 100%;
   min-height: 44px;
-  margin-bottom: 0.75rem;
   border: 0;
   padding: 0.5rem 0.65rem;
   color: var(--accent-strong);
@@ -258,30 +263,31 @@
   font: inherit;
   font-size: 0.85rem;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.readFromButton svg {
+.selectionAction svg {
   flex-shrink: 0;
 }
 
-.readFromButton:hover:not(:disabled) {
+.selectionAction:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
 }
 
-.readFromButton:disabled {
+.selectionAction:disabled {
   opacity: 0.55;
   cursor: default;
 }
 
-.readFromNotice {
-  margin: 0 0 0.75rem;
+.selectionNotice {
+  margin-top: 0.6rem;
   color: var(--text-secondary);
   font-size: 0.8rem;
   line-height: 1.5;
 }
 
-.readFromNotice a {
+.selectionNotice a {
   color: var(--accent-strong);
   text-decoration: underline;
 }

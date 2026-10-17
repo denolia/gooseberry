@@ -47,6 +47,42 @@
   display: inline-flex;
   max-width: 100%;
   min-width: 0;
+  flex: 1 1 auto;
+}
+.actionButtons {
+  display: flex;
+  align-items: stretch;
+  gap: 0.3rem;
+  min-width: 0;
+  max-width: 100%;
+}
+.container .actionsTrigger {
+  display: grid;
+  flex: 0 0 44px;
+  place-items: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+.actionsMenu {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  margin-top: 0.4rem;
+  border: 1px solid var(--border-color);
+  background: var(--surface-raised);
+}
+.container .actionsMenu button {
+  min-height: 44px;
+  width: 100%;
+  color: var(--foreground);
+  background: transparent;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.container .actionsMenu button:hover {
+  background: var(--item-hover);
 }
 .container .mainAction {
   min-width: 0;

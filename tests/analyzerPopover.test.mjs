@@ -16,7 +16,10 @@ function nodes(tree, predicate) {
 
 const nextTick = () => new Promise((resolve) => setImmediate(resolve));
 
-function setup(t, { keyboard = false } = {}) {
+function setup(
+  t,
+  { keyboard = false, compact = false, listenDisabled = false } = {},
+) {
   const hooks = [];
   let cursor = 0;
   let dirty = false;
@@ -119,6 +122,16 @@ function setup(t, { keyboard = false } = {}) {
   const content = new FakeNode("content", popup);
   content.scrollHeight = 180;
   const contentInner = new FakeNode("inner", content);
+  const listenButton = new FakeNode("listen", contentInner);
+  const translateButton = new FakeNode("translate", contentInner);
+  contentInner.querySelector = () => {
+    const first = nodes(
+      props.children,
+      (node) => node.type === "button" && !node.props.disabled,
+    )[0];
+    if (!first) return null;
+    return first.props.children === "Listen" ? listenButton : translateButton;
+  };
   const closeButton = new FakeNode("close", popup);
   const fakeDocument = {
     body,
@@ -210,6 +223,7 @@ function setup(t, { keyboard = false } = {}) {
           popover: "popover",
           content: "content",
           closeButton: "close",
+          compact: "compact",
         },
       },
     };
@@ -221,10 +235,19 @@ function setup(t, { keyboard = false } = {}) {
     readerRef: { current: reader },
     tokenIds: [0],
     focusOnOpen: keyboard,
+    compact,
     onClose() {
       closeCount++;
     },
-    children: "Translation result",
+    children: compact
+      ? [
+          {
+            type: "button",
+            props: { children: "Listen", disabled: listenDisabled },
+          },
+          { type: "button", props: { children: "Translate" } },
+        ]
+      : "Translation result",
   };
   const refNodes = {
     popover: popup,
@@ -243,7 +266,8 @@ function setup(t, { keyboard = false } = {}) {
       cursor = 0;
       tree = exports.AnalyzerPopover(props);
       for (const node of nodes(tree, (node) => node.props?.ref))
-        node.props.ref.current = refNodes[node.props.className ?? "inner"];
+        node.props.ref.current =
+          refNodes[node.props.className?.split(" ")[0] ?? "inner"];
       const layouts = layoutEffects;
       layoutEffects = [];
       layouts.forEach((effect) => effect());
@@ -342,6 +366,7 @@ test("popover portals a nonmodal dialog and keyboard activation focuses without 
   const tree = await ui.ready();
   assert(ui.portalTargets.every((root) => root === ui.body));
   assert.equal(tree.props.role, "dialog");
+  assert.equal(tree.props["aria-label"], "Selected text translation");
   assert.equal(tree.props["aria-modal"], undefined);
   assert.equal(tree.props.style.visibility, "visible");
   const closeControl = nodes(tree, (node) => node.type === "button")[0];
@@ -367,6 +392,79 @@ test("popover portals a nonmodal dialog and keyboard activation focuses without 
     name: "anchor",
     options: { preventScroll: true },
   });
+});
+
+test("compact keyboard actions use a smaller anchored popup and focus the first available action", async (t) => {
+  const ui = setup(t, { keyboard: true, compact: true });
+  ui.content.scrollHeight = 68;
+  const tree = await ui.ready();
+  assert.equal(tree.props["aria-label"], "Selected text actions");
+  assert.equal(tree.props.style.width, 256);
+  assert.equal(tree.props.style.top, 324);
+  assert.equal(tree.props.style.visibility, "visible");
+  assert.equal(
+    nodes(tree, (node) => node.props?.["aria-label"] === "Close actions")
+      .length,
+    1,
+  );
+  assert.deepEqual(ui.focuses, [
+    { name: "listen", options: { preventScroll: true } },
+  ]);
+  const escape = ui.dispatchDocument("keydown", { key: "Escape" });
+  assert.equal(escape.defaultPrevented, true);
+  assert.deepEqual(ui.focuses.at(-1), {
+    name: "anchor",
+    options: { preventScroll: true },
+  });
+  assert.equal(ui.closeCount, 1);
+});
+
+test("compact keyboard actions skip a disabled Premium or unavailable Listen action", async (t) => {
+  const ui = setup(t, {
+    keyboard: true,
+    compact: true,
+    listenDisabled: true,
+  });
+  await ui.ready();
+  assert.deepEqual(ui.focuses, [
+    { name: "translate", options: { preventScroll: true } },
+  ]);
+});
+
+test("Translate expands the same word anchor before paint and focuses results once", async (t) => {
+  const ui = setup(t, { keyboard: true, compact: true });
+  ui.viewport.width = 320;
+  ui.viewport.height = 740;
+  ui.content.scrollHeight = 68;
+  const actions = await ui.ready();
+  assert.equal(actions.props.style.width, 256);
+  ui.dispatchWindow("resize");
+  assert.equal(ui.frames.size, 1);
+  ui.content.scrollHeight = 523;
+  const translation = ui.render({
+    compact: false,
+    children: "Loading the requested translation",
+  });
+  assert.equal(translation.props["aria-label"], "Selected text translation");
+  assert.equal(translation.props.style.width, 296);
+  assert.equal(translation.props.style.top, 12);
+  assert.equal(ui.frames.size, 0);
+  assert.equal(ui.closeCount, 0);
+  assert.equal(ui.observers[0].disconnected, true);
+  assert.deepEqual(ui.focuses, [
+    { name: "listen", options: { preventScroll: true } },
+    { name: "close", options: { preventScroll: true } },
+  ]);
+  ui.render({ children: "Translation and examples have arrived" });
+  assert.equal(ui.focuses.length, 2, "Async results must preserve user focus");
+  assert.equal(ui.observers.length, 2);
+});
+
+test("an Escape handled by a nested translation action menu does not dismiss its parent", async (t) => {
+  const ui = setup(t);
+  await ui.ready();
+  ui.dispatchDocument("keydown", { key: "Escape", defaultPrevented: true });
+  assert.equal(ui.closeCount, 0);
 });
 
 test("Escape inside a nested Anki dialog leaves the translation popover open", async (t) => {

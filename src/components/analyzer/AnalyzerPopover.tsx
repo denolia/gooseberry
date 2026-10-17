@@ -22,6 +22,7 @@ type AnalyzerPopoverProps = {
   tokenIds: number[];
   onClose: () => void;
   focusOnOpen?: boolean;
+  compact?: boolean;
   children: ReactNode;
 };
 
@@ -35,6 +36,7 @@ export function AnalyzerPopover({
   tokenIds,
   onClose,
   focusOnOpen = false,
+  compact = false,
   children,
 }: AnalyzerPopoverProps) {
   const portalRoot = useSyncExternalStore(
@@ -42,9 +44,9 @@ export function AnalyzerPopover({
     getDocumentBody,
     getServerDocumentBody,
   );
-  const [position, setPosition] = useState<AnalyzerPopoverPosition | null>(
-    null,
-  );
+  const [position, setPosition] = useState<
+    (AnalyzerPopoverPosition & { compact: boolean }) | null
+  >(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const contentInnerRef = useRef<HTMLDivElement>(null);
@@ -55,6 +57,9 @@ export function AnalyzerPopover({
   const focusedSelectionRef = useRef<string | null>(null);
   const measureRef = useRef<(() => void) | null>(null);
   const selectionKey = tokenIds.join(",");
+  const openingKey = `${compact ? "actions" : "translation"}:${selectionKey}`;
+  const popoverWidth = compact ? 256 : 480;
+  const currentPosition = position?.compact === compact ? position : null;
 
   useLayoutEffect(() => {
     closeCallbackRef.current = onClose;
@@ -92,7 +97,7 @@ export function AnalyzerPopover({
           height: viewport?.height ?? window.innerHeight,
         },
         {
-          width: 480,
+          width: popoverWidth,
           height: content.scrollHeight,
         },
       );
@@ -105,6 +110,7 @@ export function AnalyzerPopover({
       anchorElementRef.current = anchors[next.anchorIndex].element;
       setPosition((previous) =>
         previous &&
+        previous.compact === compact &&
         previous.left === next.left &&
         previous.top === next.top &&
         previous.width === next.width &&
@@ -112,7 +118,7 @@ export function AnalyzerPopover({
         previous.placement === next.placement &&
         previous.anchorIndex === next.anchorIndex
           ? previous
-          : next,
+          : { ...next, compact },
       );
     };
     const scheduleMeasure = () => {
@@ -152,24 +158,29 @@ export function AnalyzerPopover({
       window.visualViewport?.removeEventListener("resize", scheduleMeasure);
       window.visualViewport?.removeEventListener("scroll", scheduleMeasure);
     };
-  }, [portalRoot, readerRef, selectionKey]);
+  }, [portalRoot, readerRef, selectionKey, compact, popoverWidth]);
 
   useLayoutEffect(() => {
     // Results can be taller than the loading message. Position them before paint.
     measureRef.current?.();
-  }, [children]);
+  }, [children, compact]);
 
-  const positioned = position !== null;
+  const positioned = currentPosition !== null;
   useEffect(() => {
     if (!focusOnOpen) {
       focusedSelectionRef.current = null;
       return;
     }
-    if (positioned && focusedSelectionRef.current !== selectionKey) {
-      closeButtonRef.current?.focus({ preventScroll: true });
-      focusedSelectionRef.current = selectionKey;
+    if (positioned && focusedSelectionRef.current !== openingKey) {
+      const firstAction = compact
+        ? contentInnerRef.current?.querySelector<HTMLElement>(
+            'button:not([disabled]), a[href], [tabindex="0"]',
+          )
+        : null;
+      (firstAction ?? closeButtonRef.current)?.focus({ preventScroll: true });
+      focusedSelectionRef.current = openingKey;
     }
-  }, [focusOnOpen, positioned, selectionKey]);
+  }, [focusOnOpen, positioned, openingKey, compact]);
 
   useEffect(() => {
     if (!portalRoot) return;
@@ -231,21 +242,25 @@ export function AnalyzerPopover({
       ref={popupRef}
       id={id}
       role="dialog"
-      aria-label="Selected text translation"
-      className={styles.popover}
-      data-placement={position?.placement}
+      aria-label={
+        compact ? "Selected text actions" : "Selected text translation"
+      }
+      className={`${styles.popover}${compact ? ` ${styles.compact}` : ""}`}
+      data-placement={currentPosition?.placement}
       style={{
-        left: position?.left ?? 12,
-        top: position?.top ?? 12,
-        width: position?.width ?? "min(480px, calc(100vw - 24px))",
-        maxHeight: position?.maxHeight ?? "calc(100dvh - 24px)",
+        left: currentPosition?.left ?? 12,
+        top: currentPosition?.top ?? 12,
+        width:
+          currentPosition?.width ??
+          `min(${popoverWidth}px, calc(100vw - 24px))`,
+        maxHeight: currentPosition?.maxHeight ?? "calc(100dvh - 24px)",
         visibility: positioned ? "visible" : "hidden",
       }}
     >
       <button
         ref={closeButtonRef}
         type="button"
-        aria-label="Close translation"
+        aria-label={compact ? "Close actions" : "Close translation"}
         className={styles.closeButton}
         onClick={() => {
           anchorElementRef.current?.focus({ preventScroll: true });

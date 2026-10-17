@@ -117,6 +117,7 @@ function setup(
   const timers = new Map();
   const rafs = [];
   const requests = [];
+  const navigations = [];
   let timerId = 0;
   let selectedIds = [];
   let tokenElements = [];
@@ -216,7 +217,10 @@ function setup(
     const dependencies = {
       react,
       "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
-      "next/navigation": { useRouter: () => ({ push() {} }) },
+      "next/link": { __esModule: true, default: "a" },
+      "next/navigation": {
+        useRouter: () => ({ push: (href) => navigations.push(href) }),
+      },
       "next-auth/react": {
         useSession: () => ({
           data: { user: { id: "user-1", tier } },
@@ -315,6 +319,8 @@ function setup(
   });
   return {
     requests,
+    navigations,
+    storage,
     readingCalls,
     focusCalls,
     actionEvents,
@@ -410,6 +416,12 @@ function setup(
       this.popup().props.onClose();
       return render();
     },
+    translate() {
+      const button = this.button("Translate");
+      assert(!button.props.disabled);
+      button.props.onClick();
+      return render();
+    },
     language(source, target = "Russian") {
       pair.currentSourceLanguage = source;
       pair.currentTargetLanguage = target;
@@ -470,7 +482,7 @@ test("opened text has one reader, standalone audio above it, and Edit text in th
   assert.equal(ui.editorFocuses, 1);
 });
 
-test("word selection opens anchored loading content and Close cancels an in-flight analysis", async (t) => {
+test("word selection opens actions without analysis and Translate loads in the same anchored popup", async (t) => {
   const pending = deferred();
   const ui = setup(t, { response: () => pending.promise });
   await ui.ready();
@@ -479,6 +491,14 @@ test("word selection opens anchored loading content and Close cancels an in-flig
   assert(ui.popup());
   assert.deepEqual(ui.popup().props.tokenIds, [0]);
   assert.equal(ui.popup().props.focusOnOpen, false);
+  assert.equal(ui.popup().props.compact, true);
+  assert.equal(ui.requests.length, 0);
+  assert(ui.button("Listen"));
+  assert(ui.button("Translate"));
+  const id = ui.popup().props.id;
+  ui.translate();
+  assert.equal(ui.popup().props.id, id);
+  assert.equal(ui.popup().props.compact, false);
   assert.match(text(ui.popup()), /Checking the selected words/);
   assert.deepEqual(ui.requests[0].body.selectedTokenIds, [0]);
   ui.close();
@@ -492,6 +512,12 @@ test("word selection opens anchored loading content and Close cancels an in-flig
     "A late response must not reopen the closed popup",
   );
   ui.clickWord(0);
+  assert.equal(
+    ui.requests.length,
+    1,
+    "Reopening actions must not analyze automatically",
+  );
+  ui.translate();
   assert.equal(
     ui.requests.length,
     2,
@@ -508,18 +534,23 @@ test("a newer word selection cannot be replaced by an older late success", async
   await ui.ready();
   await ui.open();
   ui.clickWord(0);
+  ui.translate();
   ui.clickWord(4);
-  await ui.settle();
   assert.equal(ui.requests[0].options.signal.aborted, true);
-  assert.match(text(ui.popup()), /Translation: schön/);
+  assert.equal(ui.requests.length, 1);
+  assert(ui.button("Translate"));
   older.resolve(Response.json(analysis("Berlin", [0])));
   await ui.settle();
   assert.deepEqual(ui.popup().props.tokenIds, [4]);
+  assert(ui.button("Translate"));
+  assert.doesNotMatch(text(ui.popup()), /Translation: Berlin/);
+  ui.translate();
+  await ui.settle();
   assert.match(text(ui.popup()), /Translation: schön/);
   assert.doesNotMatch(text(ui.popup()), /Translation: Berlin/);
 });
 
-test("native phrase selection submits every selected word and suppresses the following click", async (t) => {
+test("native phrase selection opens actions for every selected word and suppresses the following click", async (t) => {
   const ui = setup(t, {
     response: () => Response.json(analysis("Berlin ist", [0, 2])),
   });
@@ -529,12 +560,38 @@ test("native phrase selection submits every selected word and suppresses the fol
   ui.select([0, 2]);
   ui.tokens().props.onMouseUp();
   await ui.settle();
-  assert.deepEqual(ui.requests[0].body.selectedTokenIds, [0, 2]);
+  assert.equal(ui.requests.length, 0);
   assert.deepEqual(ui.popup().props.tokenIds, [0, 2]);
   assert.equal(ui.spoken().map(text).join(""), SAMPLE);
   ui.clickWord(0);
+  assert.equal(ui.requests.length, 0);
+  assert.deepEqual(ui.popup().props.tokenIds, [0, 2]);
+  ui.translate();
   assert.equal(ui.requests.length, 1);
+  assert.deepEqual(ui.requests[0].body.selectedTokenIds, [0, 2]);
   ui.fireTimers();
+});
+
+test("delayed touch selection opens only actions until Translate is explicitly chosen", async (t) => {
+  const ui = setup(t, {
+    response: () => Response.json(analysis("Berlin ist", [0, 2])),
+  });
+  await ui.ready();
+  await ui.open();
+  ui.select([0, 2]);
+  ui.tokens().props.onTouchEnd();
+  assert.equal(ui.popup(), undefined);
+  assert.equal(ui.requests.length, 0);
+  assert.equal([...ui.timers.values()][0].delay, 450);
+  ui.fireTimers();
+  ui.render();
+  assert.deepEqual(ui.popup().props.tokenIds, [0, 2]);
+  assert.equal(ui.popup().props.compact, true);
+  assert.equal(ui.requests.length, 0);
+  ui.translate();
+  assert.deepEqual(ui.requests[0].body.selectedTokenIds, [0, 2]);
+  await ui.settle();
+  assert.match(text(ui.popup()), /Translation: Berlin ist/);
 });
 
 test("keyboard word activation requests popover focus and exposes dialog relationships", async (t) => {
@@ -542,6 +599,8 @@ test("keyboard word activation requests popover focus and exposes dialog relatio
   await ui.ready();
   await ui.open();
   ui.keyWord(0);
+  assert.equal(ui.requests.length, 0);
+  assert(ui.button("Translate"));
   assert.equal(ui.popup().props.focusOnOpen, true);
   const token = nodes(
     ui.render(),
@@ -558,6 +617,7 @@ test("changing the language pair closes the popup, cancels selection timers, and
   await ui.ready();
   await ui.open();
   ui.clickWord(0);
+  ui.translate();
   ui.tokens().props.onTouchEnd();
   assert.equal(ui.timers.size, 1);
   ui.language("Finnish");
@@ -568,6 +628,8 @@ test("changing the language pair closes the popup, cancels selection timers, and
   await ui.settle();
   assert.equal(ui.popup(), undefined);
   ui.clickWord(0);
+  assert.equal(ui.requests.length, 1);
+  ui.translate();
   assert.equal(ui.requests.at(-1).body.sourceLanguage, "Finnish");
 });
 
@@ -577,6 +639,7 @@ test("Edit text closes analysis and clears delayed touch selection before showin
   await ui.ready();
   await ui.open();
   ui.clickWord(0);
+  ui.translate();
   ui.tokens().props.onTouchEnd();
   ui.button("Edit text").props.onClick();
   ui.render();
@@ -592,14 +655,19 @@ test("Edit text closes analysis and clears delayed touch selection before showin
   assert.equal(ui.popup(), undefined);
 });
 
-test("reopening the same successful selection reuses its analysis without another request", async (t) => {
+test("reopening a successful selection shows actions and reuses analysis only after explicit Translate", async (t) => {
   const ui = setup(t);
   await ui.ready();
   await ui.open();
   ui.clickWord(0);
+  ui.translate();
   await ui.settle();
   ui.close();
   ui.clickWord(0);
+  assert.equal(ui.requests.length, 1);
+  assert(ui.button("Translate"));
+  assert.doesNotMatch(text(ui.popup()), /Translation: Berlin/);
+  ui.translate();
   assert.equal(ui.requests.length, 1);
   assert.match(text(ui.popup()), /Translation: Berlin/);
 });
@@ -667,6 +735,8 @@ test("reading highlight survives selection rerenders and coexists with the selec
   assert(firstWord.props.className.split(/\s+/).includes("selectedToken"));
   assert(firstWord.props.className.split(/\s+/).includes("spokenText"));
   assert.deepEqual(ui.popup().props.tokenIds, [0]);
+  assert.equal(ui.requests.length, 0);
+  ui.translate();
   assert.deepEqual(ui.requests[0].body.selectedTokenIds, [0]);
   ui.readRange({ start: value.indexOf("Noch"), end: value.length });
   assert.equal(ui.spoken().map(text).join(""), "Noch ein Satz.");
@@ -779,9 +849,8 @@ test("reading follow receives exact token offsets and pauses or suspends without
   );
 });
 
-test("read-from-selection waits for audio readiness, then synchronously closes analysis and starts at the earliest selected UTF-16 offset", async (t) => {
-  const pending = deferred();
-  const ui = setup(t, { response: () => pending.promise });
+test("selection Listen waits for audio readiness then closes actions and reads the earliest UTF-16 offset without analysis", async (t) => {
+  const ui = setup(t);
   const value = "🫐 Hallo Welt! Hallo Welt!";
   await ui.ready();
   await ui.open(value);
@@ -796,20 +865,21 @@ test("read-from-selection waits for audio readiness, then synchronously closes a
   ui.select([...selectedIds].reverse());
   ui.tokens().props.onMouseUp();
   ui.render();
-  assert.match(text(ui.popup()), /Checking the selected words/);
-  const unavailable = ui.button("Listen from this sentence");
+  assert.equal(ui.requests.length, 0);
+  assert.equal(ui.popup().props.compact, true);
+  const unavailable = ui.button("Listen");
   assert.equal(unavailable.props.disabled, true);
   assert.match(unavailable.props.title, /Loading audio settings/);
   unavailable.props.onClick();
   assert.deepEqual(ui.readingCalls, []);
-  assert(ui.popup(), "The unavailable action must leave translation open");
+  assert(ui.popup(), "The unavailable action must leave the action menu open");
 
   ui.audioAvailable(true);
-  assert.equal(ui.button("Listen from this sentence").props.disabled, false);
+  assert.equal(ui.button("Listen").props.disabled, false);
   ui.fireTimers();
   ui.tokens().props.onTouchEnd();
   assert(ui.timers.size > 0);
-  ui.button("Listen from this sentence").props.onClick();
+  ui.button("Listen").props.onClick();
   assert.deepEqual(
     ui.readingCalls,
     [secondStart],
@@ -819,16 +889,19 @@ test("read-from-selection waits for audio readiness, then synchronously closes a
   assert.deepEqual(ui.focusCalls, [
     { id: selectedIds[0], options: { preventScroll: true } },
   ]);
-  assert.equal(ui.requests[0].options.signal.aborted, true);
+  assert.equal(
+    ui.requests.length,
+    0,
+    "Listen must never request translation analysis",
+  );
   assert.equal(ui.timers.size, 0);
   assert.equal(ui.popup(), undefined);
   assert.equal(ui.followOptions.suspended, false);
-  pending.resolve(Response.json(analysis("Hallo Welt", selectedIds)));
   await ui.settle();
-  assert.equal(ui.popup(), undefined, "A late translation must stay closed");
+  assert.equal(ui.popup(), undefined);
 });
 
-test("read-from-selection remains available in translation error and results states and reflects revoked audio readiness", async (t) => {
+test("Translate and Retry are explicit, results have only the card translation action, and reselection returns to actions", async (t) => {
   const ui = setup(t, {
     response: (_request, index) =>
       index === 1
@@ -839,20 +912,49 @@ test("read-from-selection remains available in translation error and results sta
   await ui.open();
   ui.audioAvailable(true);
   ui.keyWord(0);
+  assert.equal(ui.requests.length, 0);
+  const id = ui.popup().props.id;
+  ui.translate();
   await ui.settle();
   assert.match(text(ui.popup()), /Analysis unavailable/);
-  assert.equal(ui.button("Listen from this sentence").props.disabled, false);
+  assert.equal(ui.popup().props.id, id);
+  assert.equal(
+    nodes(
+      ui.popup(),
+      (node) => node.type === "button" && text(node) === "Listen",
+    ).length,
+    0,
+  );
+  assert.equal(ui.requests.length, 1);
   ui.button("Retry analysis").props.onClick();
   await ui.settle();
   assert.match(text(ui.popup()), /Translation: Berlin/);
-  assert.equal(ui.button("Listen from this sentence").props.disabled, false);
+  assert.equal(ui.requests.length, 2);
+  assert.equal(ui.popup().props.id, id);
+  assert.equal(
+    nodes(
+      ui.popup(),
+      (node) =>
+        node.type === "button" && /Listen|Open in Translation/.test(text(node)),
+    ).length,
+    0,
+  );
+  const card = nodes(ui.popup(), (node) => node.type === "TranslationCard")[0];
+  assert.equal(typeof card.props.onOpenTranslation, "function");
+  card.props.onOpenTranslation();
+  assert.equal(ui.storage.get("translationDraft"), "Berlin");
+  assert.deepEqual(ui.navigations, ["/"]);
+  ui.clickWord(0);
+  assert.equal(ui.requests.length, 2);
+  assert.equal(ui.popup().props.compact, true);
+  assert.doesNotMatch(text(ui.popup()), /Translation: Berlin/);
   ui.audioAvailable(false);
-  assert.equal(ui.button("Listen from this sentence").props.disabled, true);
-  ui.button("Listen from this sentence").props.onClick();
+  assert.equal(ui.button("Listen").props.disabled, true);
+  ui.button("Listen").props.onClick();
   assert.deepEqual(ui.readingCalls, []);
   assert(ui.popup());
   ui.audioAvailable(true);
-  ui.button("Listen from this sentence").props.onClick();
+  ui.button("Listen").props.onClick();
   assert.deepEqual(ui.readingCalls, [0]);
   assert.equal(ui.popup(), undefined);
 });
@@ -863,9 +965,8 @@ test("free accounts keep translation and a Premium notice but cannot read from t
   await ui.open();
   ui.audioAvailable(true);
   ui.clickWord(0);
-  await ui.settle();
-  assert.match(text(ui.popup()), /Translation: Berlin/);
-  const action = ui.button("Listen from this sentence");
+  assert.equal(ui.requests.length, 0);
+  const action = ui.button("Listen");
   assert.equal(action.props.disabled, true);
   assert.equal(action.props.title, "Available with Premium");
   assert.equal(
@@ -879,4 +980,8 @@ test("free accounts keep translation and a Premium notice but cannot read from t
   assert.deepEqual(ui.readingCalls, []);
   assert.deepEqual(ui.focusCalls, []);
   assert(ui.popup());
+  ui.translate();
+  await ui.settle();
+  assert.equal(ui.requests.length, 1);
+  assert.match(text(ui.popup()), /Translation: Berlin/);
 });

@@ -3,6 +3,7 @@ import { ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { Ellipsis } from "lucide-react";
 import { TranslationResponse } from "@/app/utils/translationSchema";
 import { mapTranslationToWordSetItem } from "@/app/utils/ankiMapper";
 import { CardDraft, fieldsFromDraft } from "@/app/utils/cardDraft";
@@ -20,29 +21,35 @@ export function TranslationCard({
   sourceLang,
   targetLang,
   prepareCard,
+  onOpenTranslation,
   children,
 }: {
   response: TranslationResponse;
   sourceLang?: string;
   targetLang?: string;
   prepareCard?: () => Promise<CardDraft>;
+  onOpenTranslation?: () => void;
   children: ReactNode;
 }) {
   const { data: session } = useSession();
   const client = useQueryClient();
   const editorId = useId();
   const pickerId = useId();
+  const actionsMenuId = useId();
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState("");
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [setSearch, setSetSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const preparedCard = useRef(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const mainActionRef = useRef<HTMLButtonElement>(null);
   const pickerTriggerRef = useRef<HTMLButtonElement>(null);
+  const actionsTriggerRef = useRef<HTMLButtonElement>(null);
+  const translationActionRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const newSetNameRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
@@ -102,6 +109,7 @@ export function TranslationCard({
   }
 
   function openPicker(startCreating = compatible.length === 0) {
+    setActionsOpen(false);
     if (!sourceLang || !targetLang) {
       setEditing(true);
       return;
@@ -111,6 +119,35 @@ export function TranslationCard({
     setSetSearch("");
     setPickerOpen(true);
   }
+
+  function closeActions({ restoreFocus = false } = {}) {
+    setActionsOpen(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() =>
+        actionsTriggerRef.current?.focus({ preventScroll: true }),
+      );
+    }
+  }
+
+  function openActions() {
+    closePicker();
+    setActionsOpen(true);
+  }
+
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const frame = window.requestAnimationFrame(() =>
+      translationActionRef.current?.focus(),
+    );
+    const onPointerDown = (event: PointerEvent) => {
+      if (!pickerRef.current?.contains(event.target as Node)) closeActions();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [actionsOpen]);
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -223,6 +260,7 @@ export function TranslationCard({
     (!(creating || !setId) || !!name.trim());
 
   function primaryAction() {
+    closeActions();
     if (pickerOpen) closePicker();
     if (!sourceLang || !targetLang) {
       setEditing(true);
@@ -328,42 +366,109 @@ export function TranslationCard({
       <div className={styles.resultRow}>
         <div className={styles.meaning}>{children}</div>
         {!editing && (
-          <div className={styles.actionArea} ref={pickerRef}>
-            <div className={styles.splitButton}>
-              <button
-                ref={mainActionRef}
-                type="button"
-                className={`${styles.mainAction} ${hasSavedCard ? styles.editAction : styles.primary}`}
-                disabled={busy || sets.isPending}
-                title={primaryLabel}
-                aria-expanded={hasSavedCard ? editing : undefined}
-                aria-controls={hasSavedCard ? editorId : undefined}
-                onClick={primaryAction}
-              >
-                <span>{primaryLabel}</span>
-              </button>
-              {sourceLang && targetLang && (
+          <div
+            className={styles.actionArea}
+            ref={pickerRef}
+            onKeyDown={(event) => {
+              if (!actionsOpen) return;
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                closeActions({ restoreFocus: true });
+              } else if (event.key === "Tab") {
+                closeActions();
+                actionsTriggerRef.current?.focus({ preventScroll: true });
+              } else if (
+                ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)
+              ) {
+                event.preventDefault();
+                translationActionRef.current?.focus({ preventScroll: true });
+              }
+            }}
+          >
+            <div className={styles.actionButtons}>
+              <div className={styles.splitButton}>
                 <button
-                  ref={pickerTriggerRef}
+                  ref={mainActionRef}
                   type="button"
-                  className={`${styles.pickerTrigger} ${hasSavedCard ? styles.editAction : styles.primary}`}
+                  className={`${styles.mainAction} ${hasSavedCard ? styles.editAction : styles.primary}`}
                   disabled={busy || sets.isPending}
-                  aria-label={
-                    destinationName
-                      ? `Choose Anki set. Current set: ${destinationName}`
-                      : "Choose an Anki set"
-                  }
-                  aria-expanded={pickerOpen}
-                  aria-controls={pickerId}
-                  onClick={() => {
-                    if (pickerOpen) closePicker();
-                    else openPicker();
+                  title={primaryLabel}
+                  aria-expanded={hasSavedCard ? editing : undefined}
+                  aria-controls={hasSavedCard ? editorId : undefined}
+                  onClick={primaryAction}
+                >
+                  <span>{primaryLabel}</span>
+                </button>
+                {sourceLang && targetLang && (
+                  <button
+                    ref={pickerTriggerRef}
+                    type="button"
+                    className={`${styles.pickerTrigger} ${hasSavedCard ? styles.editAction : styles.primary}`}
+                    disabled={busy || sets.isPending}
+                    aria-label={
+                      destinationName
+                        ? `Choose Anki set. Current set: ${destinationName}`
+                        : "Choose an Anki set"
+                    }
+                    aria-expanded={pickerOpen}
+                    aria-controls={pickerId}
+                    onClick={() => {
+                      if (pickerOpen) closePicker();
+                      else openPicker();
+                    }}
+                  >
+                    <span className={styles.chevron} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+              {onOpenTranslation && (
+                <button
+                  ref={actionsTriggerRef}
+                  type="button"
+                  className={styles.actionsTrigger}
+                  aria-label="More translation actions"
+                  title="More translation actions"
+                  aria-haspopup="menu"
+                  aria-expanded={actionsOpen}
+                  aria-controls={actionsMenuId}
+                  disabled={busy}
+                  onClick={() => (actionsOpen ? closeActions() : openActions())}
+                  onKeyDown={(event) => {
+                    if (
+                      !actionsOpen &&
+                      (event.key === "ArrowDown" || event.key === "ArrowUp")
+                    ) {
+                      event.preventDefault();
+                      openActions();
+                    }
                   }}
                 >
-                  <span className={styles.chevron} aria-hidden="true" />
+                  <Ellipsis size={18} aria-hidden="true" focusable="false" />
                 </button>
               )}
             </div>
+            {onOpenTranslation && actionsOpen && (
+              <div
+                id={actionsMenuId}
+                role="menu"
+                aria-label="Translation actions"
+                className={styles.actionsMenu}
+              >
+                <button
+                  ref={translationActionRef}
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    closeActions({ restoreFocus: true });
+                    onOpenTranslation();
+                  }}
+                >
+                  Open in Translation
+                </button>
+              </div>
+            )}
 
             {pickerOpen && (
               <div

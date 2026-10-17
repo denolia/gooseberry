@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { TranslationCard } from "@/components/anki/TranslationCard";
@@ -141,6 +142,9 @@ export function TextAnalyzer() {
   const [error, setError] = useState("");
   const [cacheReady, setCacheReady] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [popoverStage, setPopoverStage] = useState<"actions" | "translation">(
+    "actions",
+  );
   const [focusPopover, setFocusPopover] = useState(false);
   const [playbackActive, setPlaybackActive] = useState(false);
   const [audioAvailable, setAudioAvailable] = useState(false);
@@ -178,7 +182,8 @@ export function TextAnalyzer() {
   const selectedReadingToken = positionedTokens.find(
     (token) => token.isWord && selectedWordIds.has(token.id),
   );
-  const winningConstruction = analysis?.constructions[0];
+  const winningConstruction =
+    popoverStage === "translation" ? analysis?.constructions[0] : undefined;
   const highlightedTokenIds = new Set(
     winningConstruction?.tokenIds ?? selectedTokenIds,
   );
@@ -319,7 +324,7 @@ export function TextAnalyzer() {
     window.requestAnimationFrame(() => editorRef.current?.focus());
   }
 
-  function readFromSelection() {
+  function listenFromSelection() {
     const player = audioPlayerRef.current;
     if (!hasPremium || !audioAvailable || !selectedReadingToken || !player)
       return;
@@ -332,13 +337,35 @@ export function TextAnalyzer() {
     void player.readFrom(selectedReadingToken.start);
   }
 
-  async function analyzeSelection(tokenIds: number[], keyboard = false) {
+  function openSelectionActions(tokenIds: number[], keyboard = false) {
     const uniqueIds = [...new Set(tokenIds)].sort(
       (left, right) => left - right,
     );
     if (!readerText || !uniqueIds.length) return;
     window.clearTimeout(touchSelectionTimer.current);
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    setIsLoading(false);
+    setError("");
     setFocusPopover(keyboard);
+    setPopoverStage("actions");
+    setPopoverOpen(true);
+    const sameSelection =
+      uniqueIds.length === selectedTokenIds.length &&
+      uniqueIds.every((id, index) => id === selectedTokenIds[index]);
+    setSelectedTokenIds(uniqueIds);
+    setSelectionPreviewIds([]);
+    if (!sameSelection) setAnalysis(undefined);
+  }
+
+  async function analyzeSelection(tokenIds: number[]) {
+    const uniqueIds = [...new Set(tokenIds)].sort(
+      (left, right) => left - right,
+    );
+    if (!readerText || !uniqueIds.length) return;
+    window.clearTimeout(touchSelectionTimer.current);
+    setFocusPopover(true);
+    setPopoverStage("translation");
     setPopoverOpen(true);
     if (
       analysis &&
@@ -398,22 +425,22 @@ export function TextAnalyzer() {
       .filter(Number.isInteger);
   }
 
-  function analyzeNativeSelection() {
+  function openNativeSelectionActions() {
     const ids = getNativeSelectedIds();
     if (!ids.length) return false;
     handledTextSelection.current = true;
     window.getSelection()?.removeAllRanges();
-    void analyzeSelection(ids);
+    openSelectionActions(ids);
     window.setTimeout(() => {
       handledTextSelection.current = false;
     }, 0);
     return true;
   }
 
-  function scheduleTouchSelectionAnalysis() {
+  function scheduleTouchSelectionActions() {
     window.clearTimeout(touchSelectionTimer.current);
     touchSelectionTimer.current = window.setTimeout(() => {
-      analyzeNativeSelection();
+      openNativeSelectionActions();
     }, 450);
   }
 
@@ -427,7 +454,7 @@ export function TextAnalyzer() {
     const element = (event.target as HTMLElement).closest<HTMLElement>(
       "[data-token-id]",
     );
-    if (element) void analyzeSelection([Number(element.dataset.tokenId)]);
+    if (element) openSelectionActions([Number(element.dataset.tokenId)]);
     else closePopover();
   }
 
@@ -558,18 +585,15 @@ export function TextAnalyzer() {
               className={styles.tokens}
               ref={readerRef}
               onClick={handleReaderClick}
-              onMouseUp={analyzeNativeSelection}
-              onTouchEnd={scheduleTouchSelectionAnalysis}
+              onMouseUp={openNativeSelectionActions}
+              onTouchEnd={scheduleTouchSelectionActions}
               onKeyDown={(event) => {
                 const element = (
                   event.target as HTMLElement
                 ).closest<HTMLElement>("[data-token-id]");
                 if (element && (event.key === "Enter" || event.key === " ")) {
                   event.preventDefault();
-                  void analyzeSelection(
-                    [Number(element.dataset.tokenId)],
-                    true,
-                  );
+                  openSelectionActions([Number(element.dataset.tokenId)], true);
                 }
               }}
             >
@@ -634,43 +658,56 @@ export function TextAnalyzer() {
               id={popoverId}
               readerRef={readerRef}
               tokenIds={selectedTokenIds}
+              compact={popoverStage === "actions"}
               focusOnOpen={focusPopover}
               onClose={closePopover}
             >
-              <button
-                type="button"
-                className={styles.readFromButton}
-                onClick={readFromSelection}
-                disabled={
-                  !hasPremium || !audioAvailable || !selectedReadingToken
-                }
-                title={
-                  !hasPremium
-                    ? "Available with Premium"
-                    : !audioAvailable
-                      ? "Loading audio settings…"
-                      : undefined
-                }
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  aria-hidden="true"
-                  focusable="false"
-                >
-                  <path d="M6 3.5 16 10 6 16.5z" />
-                </svg>
-                Listen from this sentence
-              </button>
-              {!hasPremium && (
-                <p className={styles.readFromNotice}>
-                  Audio reading is available with <a href="/profile">Premium</a>
-                  .
-                </p>
-              )}
-              {isLoading ? (
+              {popoverStage === "actions" ? (
+                <>
+                  <div className={styles.selectionActions}>
+                    <button
+                      type="button"
+                      className={styles.selectionAction}
+                      onClick={listenFromSelection}
+                      disabled={
+                        !hasPremium || !audioAvailable || !selectedReadingToken
+                      }
+                      title={
+                        !hasPremium
+                          ? "Available with Premium"
+                          : !audioAvailable
+                            ? "Loading audio settings…"
+                            : undefined
+                      }
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        aria-hidden="true"
+                        focusable="false"
+                      >
+                        <path d="M6 3.5 16 10 6 16.5z" />
+                      </svg>
+                      Listen
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.selectionAction}
+                      onClick={() => void analyzeSelection(selectedTokenIds)}
+                    >
+                      Translate
+                    </button>
+                  </div>
+                  {!hasPremium && (
+                    <p className={styles.selectionNotice}>
+                      Audio reading is available with{" "}
+                      <Link href="/profile">Premium</Link>.
+                    </p>
+                  )}
+                </>
+              ) : isLoading ? (
                 <div className={styles.loadingCard} role="status">
                   <span className={styles.pulse} aria-hidden="true" />
                   Checking the selected words and their context…
@@ -709,6 +746,9 @@ export function TextAnalyzer() {
                           sourceLang={sourceCode}
                           targetLang={targetCode}
                           prepareCard={() => prepareCandidateCard(candidate)}
+                          onOpenTranslation={() =>
+                            openTranslation(candidate.expression)
+                          }
                         >
                           <h2 className={styles.expression}>
                             {candidate.expression}
@@ -722,13 +762,6 @@ export function TextAnalyzer() {
                             {candidate.explanation}
                           </p>
                         )}
-                        <button
-                          type="button"
-                          className={styles.translationButton}
-                          onClick={() => openTranslation(candidate.expression)}
-                        >
-                          Open in Translation →
-                        </button>
                       </section>
                     );
                   })}
