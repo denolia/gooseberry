@@ -121,6 +121,12 @@ function setup(
   popup.querySelectorAll = () => nestedDialogs;
   const content = new FakeNode("content", popup);
   content.scrollHeight = 180;
+  Object.defineProperties(popup, {
+    clientHeight: { get: () => content.scrollHeight },
+    offsetHeight: {
+      get: () => content.scrollHeight + (props.compact ? 0 : 4),
+    },
+  });
   const contentInner = new FakeNode("inner", content);
   const listenButton = new FakeNode("listen", contentInner);
   const translateButton = new FakeNode("translate", contentInner);
@@ -504,7 +510,8 @@ test("loading results reposition taller content before an animation frame can pa
   ui.viewport.height = 740;
   ui.content.scrollHeight = 56;
   const loading = await ui.ready();
-  assert.equal(loading.props.style.top, 336);
+  assert.equal(loading.props.style.top, 332);
+  assert.equal(loading.props.style.top + ui.popup.offsetHeight, 392);
   ui.content.scrollHeight = 523;
   const result = ui.render({ children: "Loaded translation and card actions" });
   assert.equal(

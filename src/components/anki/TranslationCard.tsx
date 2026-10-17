@@ -10,7 +10,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { Ellipsis } from "lucide-react";
+import { EllipsisVertical } from "lucide-react";
 import { TranslationResponse } from "@/app/utils/translationSchema";
 import { mapTranslationToWordSetItem } from "@/app/utils/ankiMapper";
 import { CardDraft, fieldsFromDraft } from "@/app/utils/cardDraft";
@@ -506,7 +506,11 @@ export function TranslationCard({
                     }
                   }}
                 >
-                  <Ellipsis size={18} aria-hidden="true" focusable="false" />
+                  <EllipsisVertical
+                    size={18}
+                    aria-hidden="true"
+                    focusable="false"
+                  />
                 </button>
               )}
             </div>

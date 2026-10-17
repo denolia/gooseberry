@@ -63,6 +63,11 @@
   width: 44px;
   min-height: 44px;
   padding: 0;
+  background: transparent;
+}
+.container .actionsTrigger:hover,
+.container .actionsTrigger[aria-expanded="true"] {
+  background: var(--button-secondary-hover);
 }
 .actionsMenu {
   position: fixed;

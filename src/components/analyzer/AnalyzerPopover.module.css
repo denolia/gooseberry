@@ -6,19 +6,18 @@
   min-width: 0;
   max-width: 480px;
   overflow: hidden;
-  border: 0;
+  border: 2px solid var(--accent);
   border-radius: 0;
   color: var(--foreground);
   background: var(--surface-raised);
-  box-shadow:
-    0 0 8px 2px color-mix(in srgb, var(--accent) 26%, transparent),
-    0 8px 18px rgb(83 166 255 / 28%);
+  box-shadow: none;
   text-align: left;
 }
 
 .compact {
   max-width: 224px;
   overflow: visible;
+  border: 0;
   background: transparent;
   box-shadow: none;
 }

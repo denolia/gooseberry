@@ -361,8 +361,8 @@
   list-style: none;
   place-items: center;
   border: 1px solid transparent;
+  background: transparent;
   color: var(--text-secondary);
-  font-size: 1.3rem;
   line-height: 1;
 }
 

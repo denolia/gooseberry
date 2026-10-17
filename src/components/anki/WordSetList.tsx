@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
+import { EllipsisVertical } from "lucide-react";
 import styles from "./WordSetList.module.css";
 import {
   getLanguageCode,
@@ -309,7 +310,11 @@ export function WordSetList() {
                     </Link>
                     <details className={styles.moreMenu}>
                       <summary aria-label={`More actions for ${set.name}`}>
-                        ⋯
+                        <EllipsisVertical
+                          size={18}
+                          aria-hidden="true"
+                          focusable="false"
+                        />
                       </summary>
                       <div className={styles.moreMenuContent}>
                         <button

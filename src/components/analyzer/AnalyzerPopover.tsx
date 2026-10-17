@@ -98,7 +98,8 @@ export function AnalyzerPopover({
         },
         {
           width: popoverWidth,
-          height: content.scrollHeight,
+          height:
+            content.scrollHeight + popup.offsetHeight - popup.clientHeight,
         },
       );
       if (!next) {
