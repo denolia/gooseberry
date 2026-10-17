@@ -1,29 +1,21 @@
 export const READER_CHUNK_CHARACTERS = 1000;
 export const MAX_READER_CHARACTERS = 20000;
 
-export type ReaderVoiceStyle = "feminine" | "masculine" | "neutral";
-
-// OpenAI names these voices without assigning genders. Styles describe their
-// perceived sound and are only a browsing aid in the voice selector.
 export const READER_VOICES = [
-  { id: "alloy", name: "Alloy", style: "neutral" },
-  { id: "ash", name: "Ash", style: "masculine" },
-  { id: "ballad", name: "Ballad", style: "masculine" },
-  { id: "coral", name: "Coral", style: "feminine" },
-  { id: "echo", name: "Echo", style: "masculine" },
-  { id: "fable", name: "Fable", style: "masculine" },
-  { id: "nova", name: "Nova", style: "feminine" },
-  { id: "onyx", name: "Onyx", style: "masculine" },
-  { id: "sage", name: "Sage", style: "feminine" },
-  { id: "shimmer", name: "Shimmer", style: "feminine" },
-  { id: "verse", name: "Verse", style: "masculine" },
-  { id: "marin", name: "Marin", style: "feminine" },
-  { id: "cedar", name: "Cedar", style: "masculine" },
-] as const satisfies ReadonlyArray<{
-  id: string;
-  name: string;
-  style: ReaderVoiceStyle;
-}>;
+  { id: "alloy", name: "Alloy" },
+  { id: "ash", name: "Ash" },
+  { id: "ballad", name: "Ballad" },
+  { id: "coral", name: "Coral" },
+  { id: "echo", name: "Echo" },
+  { id: "fable", name: "Fable" },
+  { id: "nova", name: "Nova" },
+  { id: "onyx", name: "Onyx" },
+  { id: "sage", name: "Sage" },
+  { id: "shimmer", name: "Shimmer" },
+  { id: "verse", name: "Verse" },
+  { id: "marin", name: "Marin" },
+  { id: "cedar", name: "Cedar" },
+] as const;
 
 export type ReaderVoice = (typeof READER_VOICES)[number]["id"];
 

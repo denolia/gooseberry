@@ -21,8 +21,9 @@
 
 .floatingDock {
   position: fixed;
-  right: calc(0.75rem + env(safe-area-inset-right, 0px));
+  left: 50%;
   bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
   z-index: 50;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -31,9 +32,6 @@
     100vw - 1.5rem - env(safe-area-inset-left, 0px) -
       env(safe-area-inset-right, 0px)
   );
-  padding: 0.35rem;
-  background: var(--surface-raised);
-  box-shadow: 0 4px 18px rgb(0 0 0 / 14%);
 }
 
 .listenButton,
@@ -58,6 +56,13 @@
 .listenButton {
   color: var(--accent-strong);
   background: color-mix(in srgb, var(--accent) 6%, var(--surface-raised));
+}
+
+.playbackIcon {
+  display: block;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
 }
 
 .listenButton:hover:not(:disabled) {
@@ -119,7 +124,7 @@
 
 .settingsGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
@@ -234,10 +239,6 @@
   }
 
   .settingsGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .settingsGrid .speedField {
-    grid-column: 1 / -1;
+    grid-template-columns: 1fr;
   }
 }

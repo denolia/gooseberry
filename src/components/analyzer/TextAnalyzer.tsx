@@ -480,7 +480,7 @@ export function TextAnalyzer() {
     <div className={styles.container}>
       <header className={styles.intro}>
         <div>
-          <h1>Text analyzer</h1>
+          <h1>Reader</h1>
           <p>Open a text, then click a word or select a phrase.</p>
         </div>
       </header>

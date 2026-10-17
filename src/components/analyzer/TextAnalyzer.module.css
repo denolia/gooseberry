@@ -265,6 +265,7 @@
   gap: 0.5rem 1rem;
   margin-top: 1.5rem;
   padding-top: 0.85rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--border-color);
 }
 

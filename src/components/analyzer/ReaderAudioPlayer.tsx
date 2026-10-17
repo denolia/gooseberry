@@ -16,7 +16,6 @@ import {
   isReaderVoice,
   type ReaderSpeed,
   type ReaderVoice,
-  type ReaderVoiceStyle,
 } from "@/lib/audio/readerConfig";
 import {
   getReaderSpeechChunks,
@@ -31,7 +30,6 @@ type VoiceOption = (typeof READER_VOICES)[number];
 type Settings = {
   voice: ReaderVoice;
   speed: ReaderSpeed;
-  style: ReaderVoiceStyle | "all";
 };
 type Status = "idle" | "loading" | "playing" | "paused" | "complete" | "error";
 type AudioRequest = {
@@ -57,17 +55,7 @@ type Playback = {
 const DEFAULT_SETTINGS: Settings = {
   voice: DEFAULT_READER_VOICE,
   speed: DEFAULT_READER_SPEED,
-  style: "all",
 };
-
-function isVoiceStyle(value: unknown): value is Settings["style"] {
-  return (
-    value === "all" ||
-    value === "feminine" ||
-    value === "masculine" ||
-    value === "neutral"
-  );
-}
 
 function applyPlaybackSpeed(audio: HTMLAudioElement, speed: ReaderSpeed) {
   const rate = READER_SPEEDS.find((preset) => preset.id === speed)?.speed ?? 1;
@@ -271,7 +259,6 @@ export function ReaderAudioPlayer({
             speed: isReaderSpeed(stored.speed)
               ? stored.speed
               : DEFAULT_READER_SPEED,
-            style: isVoiceStyle(stored.style) ? stored.style : "all",
           };
           settingsRef.current = restored;
           setSettings(restored);
@@ -343,19 +330,11 @@ export function ReaderAudioPlayer({
         if (request.signal.aborted) return;
         setVoices(available);
         const current = settingsRef.current;
-        let style = current.style;
-        let matching = available.filter(
-          (voice) => style === "all" || voice.style === style,
-        );
-        if (!matching.length) {
-          style = "all";
-          matching = available;
-        }
         const voice =
-          matching.find((voice) => voice.id === current.voice) ??
-          matching.find((voice) => voice.id === body.defaultVoice) ??
-          matching[0];
-        const next = { ...current, voice: voice.id, style };
+          available.find((voice) => voice.id === current.voice) ??
+          available.find((voice) => voice.id === body.defaultVoice) ??
+          available[0];
+        const next = { ...current, voice: voice.id };
         settingsRef.current = next;
         setSettings(next);
         setConfigStatus("ready");
@@ -694,9 +673,6 @@ export function ReaderAudioPlayer({
     SourceLanguageSelectOptions.find(
       (option) => option.value === sourceLanguage,
     )?.label ?? sourceLanguage;
-  const filteredVoices = voices.filter(
-    (voice) => settings.style === "all" || voice.style === settings.style,
-  );
   const active = status === "loading" || status === "playing";
   const canListen =
     hasPremium &&
@@ -737,6 +713,21 @@ export function ReaderAudioPlayer({
       : partCount > 0 && status !== "idle"
         ? `Part ${part} of ${partCount}${status === "loading" ? " · Generating audio…" : status === "paused" ? " · Paused" : ""}`
         : "";
+  const playbackIcon = (
+    <svg
+      className={styles.playbackIcon}
+      width="16"
+      height="16"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d={active ? "M5 4h3v12H5zM12 4h3v12h-3z" : "M6 3.5 16 10 6 16.5z"}
+      />
+    </svg>
+  );
 
   return (
     <section
@@ -752,13 +743,13 @@ export function ReaderAudioPlayer({
             disabled={!canListen}
             aria-label={mainAction}
           >
-            <span aria-hidden="true">{active ? "Ⅱ" : "▶"}</span>
+            {playbackIcon}
             {mainLabel}
           </button>
         </div>
         {hasPremium && (
           <div className={styles.settingsGrid}>
-            <label className={styles.speedField}>
+            <label>
               <span>Reading speed</span>
               <span className={styles.speedControl}>
                 <input
@@ -797,47 +788,6 @@ export function ReaderAudioPlayer({
               </span>
             </label>
             <label>
-              Voice tone
-              <select
-                value={settings.style}
-                disabled={configStatus !== "ready"}
-                onChange={(event) => {
-                  const style = event.target.value;
-                  if (!isVoiceStyle(style)) return;
-                  const matching = voices.filter(
-                    (voice) => style === "all" || voice.style === style,
-                  );
-                  const voice =
-                    matching.find((voice) => voice.id === settings.voice) ??
-                    matching[0];
-                  if (voice)
-                    changeSettings({ ...settings, style, voice: voice.id });
-                }}
-              >
-                <option value="all">All tones</option>
-                <option
-                  value="feminine"
-                  disabled={!voices.some((voice) => voice.style === "feminine")}
-                >
-                  Feminine
-                </option>
-                <option
-                  value="masculine"
-                  disabled={
-                    !voices.some((voice) => voice.style === "masculine")
-                  }
-                >
-                  Masculine
-                </option>
-                <option
-                  value="neutral"
-                  disabled={!voices.some((voice) => voice.style === "neutral")}
-                >
-                  Neutral
-                </option>
-              </select>
-            </label>
-            <label>
               Voice name
               <select
                 value={settings.voice}
@@ -846,15 +796,15 @@ export function ReaderAudioPlayer({
                   const voice = event.target.value;
                   if (
                     isReaderVoice(voice) &&
-                    filteredVoices.some((option) => option.id === voice)
+                    voices.some((option) => option.id === voice)
                   )
                     changeSettings({ ...settings, voice });
                 }}
               >
-                {!filteredVoices.length && (
+                {!voices.length && (
                   <option value={settings.voice}>Loading voices…</option>
                 )}
-                {filteredVoices.map((voice) => (
+                {voices.map((voice) => (
                   <option key={voice.id} value={voice.id}>
                     {voice.name}
                   </option>
@@ -907,7 +857,7 @@ export function ReaderAudioPlayer({
             disabled={!canListen}
             aria-label={mainAction}
           >
-            <span aria-hidden="true">{active ? "Ⅱ" : "▶"}</span>
+            {playbackIcon}
             {mainLabel}
           </button>
         </div>

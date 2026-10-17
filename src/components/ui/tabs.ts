@@ -1,6 +1,6 @@
 export const tabs = [
   { id: "translation", label: "Translation" },
-  { id: "analyzer", label: "Text analyzer" },
+  { id: "analyzer", label: "Reader" },
   { id: "anki", label: "Study Sets" },
 ] as const;
 

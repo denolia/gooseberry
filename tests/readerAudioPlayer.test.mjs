@@ -695,7 +695,6 @@ test("changing the actual voice resets audio while changing speed only sets the 
   const player = setup(t);
   await player.ready();
   await player.click("Listen");
-  player.select("Voice tone", "masculine");
   player.select("Voice name", "cedar");
   player.setSpeed(0);
   assert.equal(player.readingRange, null);
@@ -895,38 +894,39 @@ test("live speed keeps lookahead in flight and applies to subsequent sources and
   assert.equal(player.audios.length, 1);
 });
 
-test("a voice-tone filter that keeps the same named voice preserves playback", async (t) => {
-  const player = setup(t);
-  await player.ready();
-  await player.click("Listen");
-  const audio = player.audios[0];
-  audio.currentTime = 5;
-  const before = {
-    url: audio.src,
-    plays: audio.plays,
-    pauses: audio.pauses,
-    loads: audio.loads,
-    range: player.readingRange,
-  };
-  player.select("Voice tone", "feminine");
-  player.select("Voice tone", "all");
-  assert.deepEqual(
-    {
-      url: audio.src,
-      plays: audio.plays,
-      pauses: audio.pauses,
-      loads: audio.loads,
-      range: player.readingRange,
+test("all named voices remain available and stored tone metadata does not change the selected voice", async (t) => {
+  const player = setup(t, {
+    storedSettings: {
+      version: 1,
+      voice: "cedar",
+      speed: "normal",
+      style: "feminine",
     },
-    before,
+  });
+  await player.ready();
+  const label = nodes(player.render(), (node) => node.type === "label").find(
+    (node) => text(node).startsWith("Voice name"),
   );
-  assert.equal(audio.currentTime, 5);
-  assert.equal(player.playbackActive, true);
-  assert.equal(player.requests.length, 1);
-  assert.deepEqual(player.revoked, []);
+  const select = nodes(label, (node) => node.type === "select")[0];
+  assert.equal(select.props.value, "cedar");
+  assert.deepEqual(
+    nodes(select, (node) => node.type === "option").map(
+      (node) => node.props.value,
+    ),
+    config.READER_VOICES.map((voice) => voice.id),
+  );
+  await player.click("Listen");
+  assert.equal(player.requests[0].body.voice, "cedar");
+  assert.equal(
+    "style" in JSON.parse(player.storage.get("readerAudioSettings:v1")),
+    false,
+  );
+  player.select("Voice name", "marin");
+  await player.click("Listen");
+  assert.equal(player.requests[1].body.voice, "marin");
 });
 
-test("returning to edited text reuses its Blob across whitespace, speed, tone filter and language aliases with a fresh URL", async (t) => {
+test("returning to edited text reuses its Blob across whitespace, speed and language aliases with a fresh URL", async (t) => {
   const player = setup(t);
   await player.ready();
   await player.click("Listen");
@@ -935,7 +935,6 @@ test("returning to edited text reuses its Blob across whitespace, speed, tone fi
   await player.click("Listen");
   assert.equal(player.requests.length, 2);
   player.setSpeed(4);
-  player.select("Voice tone", "feminine");
   player.render({ text: "  Guten Morgen.  ", sourceLanguage: "German" });
   await player.click("Listen");
   assert.equal(player.requests.length, 2);
@@ -1060,7 +1059,6 @@ test("saved Slower speed restores .7 playback without creating audio before List
       version: 1,
       voice: "marin",
       speed: "Slower",
-      style: "all",
     },
   });
   await player.ready();

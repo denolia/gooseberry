@@ -23,10 +23,7 @@ test("reader cache keys are versioned and contain every generation setting while
     }),
     key,
   );
-  assert.equal(
-    cache.readerSpeechCacheKey({ ...input, speed: 0.3, style: "feminine" }),
-    key,
-  );
+  assert.equal(cache.readerSpeechCacheKey({ ...input, speed: 0.3 }), key);
   for (const change of [
     { text: "Anderer Text." },
     { language: "English" },

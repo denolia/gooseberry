@@ -74,7 +74,7 @@ any sentence already being prepared.
 The server also stores base-speed reader MP3s in the existing
 `speech_audio_cache` table. A versioned reader-specific SHA-256 key includes
 trimmed sentence text, source language, voice, model, and generation instructions;
-playback speed and the voice selector's style group do not affect it. Repeating
+playback speed does not affect it. Repeating
 the same sentence and audio settings reuses the stored MP3 across page reloads
 and reading sessions without another provider generation. After a reload the
 browser downloads that stored audio again. Current Premium access is checked
@@ -96,8 +96,8 @@ Texts up to the analyzer's 20,000-character limit
 are split into chunks of at most 1,000 characters. `/api/speech` remains the
 authenticated individual-pronunciation endpoint. The reader uses
 `OPENAI_TTS_MODEL` and offers only that model's supported built-in voices;
-`OPENAI_TTS_VOICE` is the default when supported. Voice-style groups describe
-perceived tone, since OpenAI publishes voice names without assigning genders.
+`OPENAI_TTS_VOICE` is the default when supported. All available voices are shown
+together by name in a single selector.
 
 ## Manual verification
 
