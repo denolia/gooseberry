@@ -299,6 +299,10 @@ function setup(
     react,
     "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
     "next/link": { __esModule: true, default: "a" },
+    "lucide-react": new Proxy(
+      {},
+      { get: (_target, name) => `lucide:${String(name)}` },
+    ),
     "./ReaderAudioPlayer.module.css": { default: {} },
     "@/lib/audio/readerConfig": config,
     "@/lib/audio/readerText": readerText,
@@ -507,6 +511,9 @@ test("free accounts see the Premium banner and cannot start full-text audio", as
   const player = setup(t, { props: { hasPremium: false } });
   await player.ready();
   assert.equal(player.button("Listen").props.disabled, true);
+  assert.equal(player.button("Repeat").props.disabled, true);
+  assert.equal(player.buttonByLabel("Previous sentence").props.disabled, true);
+  assert.equal(player.buttonByLabel("Next sentence").props.disabled, true);
   assert.match(text(player.render()), /available with Premium/);
   assert.equal(
     nodes(player.render(), (node) => node.type === "a")[0].props.href,
@@ -516,13 +523,14 @@ test("free accounts see the Premium banner and cannot start full-text audio", as
   assert.equal(player.audios.length, 0);
 });
 
-test("sentence practice waits at boundaries, repeats cached audio, and navigates whole sentences with correct bounds", async (t) => {
+test("one unified control row repeats and navigates whole sentences with correct bounds", async (t) => {
   const player = setup(t, { props: { text: "Eins. Zwei. Drei." } });
   await player.ready();
-  await player.click("Sentence practice");
   assert.equal(player.requests.length, 0);
   assert.equal(player.audios.length, 0);
-  assert.equal(player.button("Sentence practice").props["aria-pressed"], true);
+  assert.doesNotMatch(text(player.render()), /Full text|Sentence practice/);
+  assert(player.button("Listen"));
+  assert(player.button("Repeat"));
   assert.equal(player.buttonByLabel("Previous sentence").props.disabled, true);
   assert.equal(player.buttonByLabel("Next sentence").props.disabled, false);
   assert.match(text(player.render()), /Sentence 1 of 3/);
@@ -560,7 +568,27 @@ test("sentence practice waits at boundaries, repeats cached audio, and navigates
   assert.equal(player.audios.length, 1);
 });
 
-test("practice automatically plays every oversized piece of its sentence and repeats them without fetching the following sentence", async (t) => {
+test("Next works before the first Listen and stops after only the selected sentence", async (t) => {
+  const player = setup(t, { props: { text: "Eins. Zwei. Drei." } });
+  await player.ready();
+  assert.equal(player.requests.length, 0);
+  assert.equal(player.audios.length, 0);
+  await player.clickByLabel("Next sentence");
+  assert.deepEqual(
+    player.requests.map(({ body }) => body.text.trim()),
+    ["Zwei."],
+  );
+  assert.deepEqual(player.readingRange, { start: 6, end: 11 });
+  player.audios[0].onended();
+  await player.settle();
+  assert.equal(player.playbackActive, false);
+  assert.deepEqual(player.readingRange, { start: 6, end: 11 });
+  assert(player.button("Listen"));
+  assert(player.button("Repeat"));
+  assert.equal(player.requests.length, 1);
+});
+
+test("Repeat plays every oversized piece of its sentence without fetching the following sentence", async (t) => {
   const sentence = `${Array.from({ length: 430 }, (_, index) => `Wort${index}`).join(" ")}.`;
   const fullText = `${sentence} Danach.`;
   const chunks = readerText.getReaderSpeechChunks(fullText, "de");
@@ -568,7 +596,6 @@ test("practice automatically plays every oversized piece of its sentence and rep
   assert(count > 1);
   const player = setup(t, { props: { text: fullText } });
   await player.ready();
-  await player.click("Sentence practice");
   await player.click("Repeat");
   for (let index = 0; index < count; index++) {
     assert.deepEqual(player.readingRange, { start: 0, end: sentence.length });
@@ -591,7 +618,7 @@ test("practice automatically plays every oversized piece of its sentence and rep
   assert.deepEqual(player.readingRange, { start: 0, end: sentence.length });
 });
 
-test("imperative readFrom starts the containing sentence and full-text mode continues to the end", async (t) => {
+test("popover Listen starts the containing sentence and continues to the end", async (t) => {
   const player = setup(t, { props: { text: "  Eins. Zwei. Drei.  " } });
   await player.ready();
   await player.readFrom(10);
@@ -605,7 +632,7 @@ test("imperative readFrom starts the containing sentence and full-text mode cont
   assert.deepEqual(player.readingRange, { start: 14, end: 19 });
   player.audios[0].onended();
   await player.settle();
-  assert(player.button("Replay"));
+  assert(player.button("Listen"));
   const plays = player.audios[0].plays;
   await player.readFrom(-1);
   await player.readFrom(Number.NaN);
@@ -613,7 +640,7 @@ test("imperative readFrom starts the containing sentence and full-text mode cont
   assert.equal(player.audios[0].plays, plays);
 });
 
-test("practice readFrom inside an oversized sentence starts its first piece and retains practice mode", async (t) => {
+test("popover Listen after a one-sentence action starts the whole containing sentence and continues", async (t) => {
   const sentence = `${Array.from({ length: 430 }, (_, index) => `Wort${index}`).join(" ")}.`;
   const fullText = `Intro. ${sentence} Danach.`;
   const chunks = readerText.getReaderSpeechChunks(fullText, "de");
@@ -623,23 +650,30 @@ test("practice readFrom inside an oversized sentence starts its first piece and 
   );
   const player = setup(t, { props: { text: fullText } });
   await player.ready();
-  await player.click("Sentence practice");
+  await player.click("Repeat");
+  player.audios[0].onended();
+  await player.settle();
   await player.readFrom(laterPiece.start + 5);
-  assert.equal(player.requests[0].body.text, target.text);
+  assert.equal(player.requests[1].body.text, target.text);
   assert.deepEqual(player.readingRange, {
     start: target.sentenceStart,
     end: target.sentenceEnd,
   });
   assert.match(text(player.render()), /Sentence 2 of 3/);
-  assert.equal(player.button("Sentence practice").props["aria-pressed"], true);
-  assert(
-    player.requests.every(
-      ({ body }) => !["Intro.", "Danach."].includes(body.text.trim()),
-    ),
-  );
+  const pieces = chunks.filter((chunk) => chunk.sentenceIndex === 1);
+  for (let index = 0; index < pieces.length; index++) {
+    player.audios[0].onended();
+    await player.settle();
+  }
+  assert.equal(player.requests.at(-1).body.text.trim(), "Danach.");
+  assert.deepEqual(player.readingRange, {
+    start: fullText.indexOf("Danach."),
+    end: fullText.length,
+  });
+  assert.equal(player.playbackActive, true);
 });
 
-test("entering practice cancels full-text lookahead, retains the current sentence, and does not play until Repeat", async (t) => {
+test("Repeat cancels continuous lookahead and Listen then returns to continuous playback", async (t) => {
   const pendingNext = deferred();
   const player = setup(t, {
     props: { text: "Eins. Zwei. Drei." },
@@ -650,25 +684,27 @@ test("entering practice cancels full-text lookahead, retains the current sentenc
   await player.readFrom(8);
   assert.deepEqual(player.readingRange, { start: 6, end: 11 });
   const plays = player.audios[0].plays;
-  await player.click("Sentence practice");
+  await player.click("Repeat");
   assert.equal(player.requests[1].options.signal.aborted, true);
-  assert.equal(player.audios[0].plays, plays);
-  assert.equal(player.playbackActive, false);
+  assert.equal(player.audios[0].plays, plays + 1);
+  assert.equal(player.playbackActive, true);
   assert.deepEqual(player.readingRange, { start: 6, end: 11 });
   assert.match(text(player.render()), /Sentence 2 of 3/);
   pendingNext.resolve(new Response("stale full-text lookahead"));
   await player.settle();
-  await player.click("Repeat");
   assert.equal(player.requests.length, 2);
   assert.equal(player.audios[0].plays, plays + 1);
   player.audios[0].onended();
   await player.settle();
-  await player.click("Full text");
   assert.equal(player.playbackActive, false);
   assert(player.button("Listen"));
   await player.click("Listen");
   assert.equal(player.requests.length, 3);
   assert.equal(player.requests[2].body.text.trim(), "Drei.");
+  player.audios[0].onended();
+  await player.settle();
+  assert.deepEqual(player.readingRange, { start: 12, end: 17 });
+  assert.equal(player.playbackActive, true);
 });
 
 test("rapid practice navigation ignores old playing, ended, error and rejected-play callbacks", async (t) => {
@@ -682,7 +718,6 @@ test("rapid practice navigation ignores old playing, ended, error and rejected-p
     },
   });
   await player.ready();
-  await player.click("Sentence practice");
   const starting = player.button("Repeat").props.onClick();
   await player.settle();
   const oldPlaying = player.audios[0].onplaying;
@@ -712,7 +747,6 @@ test("practice navigation aborts an earlier foreground fetch and ignores its lat
       index === 1 ? pendingFirst.promise : new Response("mp3"),
   });
   await player.ready();
-  await player.click("Sentence practice");
   const starting = player.button("Repeat").props.onClick();
   await player.settle();
   await player.clickByLabel("Next sentence");
@@ -725,30 +759,36 @@ test("practice navigation aborts an earlier foreground fetch and ignores its lat
   assert(player.button("Pause"));
 });
 
-test("practice floating controls share Repeat, Pause, Resume and sentence navigation at the live playback rate", async (t) => {
+test("floating unified controls share sentence actions and continuous Listen at the live rate", async (t) => {
   const player = setup(t, { geometry: true, props: { text: "Eins. Zwei." } });
   await player.ready();
-  await player.click("Sentence practice");
+  await player.click("Repeat");
   player.scrollControlsTo(-10);
   assert(player.dock());
-  await player.clickDock("Repeat");
   player.audios[0].currentTime = 3;
   await player.clickDock("Pause");
   player.setSpeed(4);
   assert.equal(player.audios[0].currentTime, 3);
   assert.equal(player.playbackActive, false);
-  await player.clickDock("Resume");
+  await player.clickDock("Listen");
   assert.equal(player.audios[0].playbackRate, 1.5);
   player.audios[0].onended();
   await player.settle();
-  assert(player.dock());
-  const next = nodes(
-    player.dock(),
-    (node) => node.props?.["aria-label"] === "Next sentence",
-  )[0];
-  await next.props.onClick();
-  await player.settle();
   assert.deepEqual(player.readingRange, { start: 6, end: 11 });
+  assert.equal(player.playbackActive, true);
+  await player.clickDock("Repeat");
+  assert.equal(player.audios[0].currentTime, 0);
+  player.audios[0].onended();
+  await player.settle();
+  assert.equal(player.playbackActive, false);
+  assert(player.dock());
+  const previous = nodes(
+    player.dock(),
+    (node) => node.props?.["aria-label"] === "Previous sentence",
+  )[0];
+  await previous.props.onClick();
+  await player.settle();
+  assert.deepEqual(player.readingRange, { start: 0, end: 5 });
   assert.equal(player.audios[0].playbackRate, 1.5);
   assert.equal(player.requests.length, 2);
   assert.equal(player.audios.length, 1);
@@ -814,7 +854,7 @@ test("full text plays every bounded part in the source language using one audio 
   assert.equal(player.audios.length, 1);
   assert.equal(player.audios[0].plays, 100);
   assert.match(text(player.render()), /Finished reading/);
-  assert(player.button("Replay"));
+  assert(player.button("Listen"));
   assert.equal(player.readingRange, null);
 });
 
@@ -828,7 +868,7 @@ test("pause and resume preserve the current audio position without another reque
   await player.click("Pause");
   assert.deepEqual(player.readingRange, readingRange);
   assert.match(text(player.render()), /Paused/);
-  await player.click("Resume");
+  await player.click("Listen");
   assert.deepEqual(player.readingRange, readingRange);
   assert.equal(player.audios[0].currentTime, 12.5);
   assert.equal(player.audios[0].plays, 2);
@@ -842,7 +882,7 @@ test("a completed text replays from the beginning using its generated audio", as
   player.audios[0].currentTime = 30;
   player.audios[0].onended();
   await player.settle();
-  await player.click("Replay");
+  await player.click("Listen");
   assert.equal(player.audios[0].currentTime, 0);
   assert.equal(player.audios[0].plays, 2);
   assert.equal(player.requests.length, 1);
@@ -857,7 +897,7 @@ test("a media failure discards the broken part and Retry generates fresh audio",
   await player.settle();
   assert.deepEqual(player.revoked, ["blob:reader-1"]);
   assert.equal(player.readingRange, null);
-  await player.click("Retry");
+  await player.click("Listen");
   assert.equal(player.requests.length, 2);
   assert.equal(player.audios[0].src, "blob:reader-2");
   assert.equal(player.audios[0].plays, 2);
@@ -877,7 +917,7 @@ test("pause while generating retains the result without playing until Resume", a
   assert.equal(player.audios[0].plays, 0);
   assert.equal(player.readingRange, null);
   assert.equal(player.requests[0].options.signal.aborted, false);
-  await player.click("Resume");
+  await player.click("Listen");
   assert.equal(player.requests.length, 1);
   assert.equal(player.audios[0].plays, 1);
 });
@@ -889,7 +929,7 @@ test("Pause and Resume before the current request finishes start its shared audi
   const starting = player.button("Listen").props.onClick();
   await player.settle();
   await player.click("Pause");
-  const resuming = player.button("Resume").props.onClick();
+  const resuming = player.button("Listen").props.onClick();
   await player.settle();
   assert.equal(player.requests.length, 1);
   assert.equal(player.requests[0].options.signal.aborted, false);
@@ -929,7 +969,7 @@ test("blocked autoplay retains the generated part for a direct Resume tap", asyn
   await player.click("Listen");
   assert.match(text(player.render()), /Playback needs a tap/);
   assert.equal(player.readingRange, null);
-  await player.click("Resume");
+  await player.click("Listen");
   assert.equal(player.requests.length, 1);
   assert.equal(attempts, 2);
   assert.equal(player.audios.length, 1);
@@ -946,7 +986,7 @@ test("an interrupted pending play cannot overwrite a successful resume", async (
   const starting = player.button("Listen").props.onClick();
   await player.settle();
   await player.click("Pause");
-  await player.click("Resume");
+  await player.click("Listen");
   const pauses = player.audios[0].pauses;
   firstPlay.reject(new DOMException("Interrupted", "AbortError"));
   await starting;
@@ -1104,8 +1144,8 @@ test("changing speed while paused preserves position, highlight, URL and pause u
   );
   assert.equal(player.playbackActive, false);
   assert.equal(player.requests.length, 1);
-  assert(player.button("Resume"));
-  await player.click("Resume");
+  assert(player.button("Listen"));
+  await player.click("Listen");
   assert.equal(audio.currentTime, 7.25);
   assert.equal(audio.playbackRate, 1.5);
   assert.equal(audio.plays, before.plays + 1);
@@ -1137,8 +1177,8 @@ test("speed changes during generation preserve the pending request and use the l
   assert.equal(player.readingRange, null);
   assert.equal(player.playbackActive, false);
   assert.equal(player.requests[0].options.signal.aborted, false);
-  assert(player.button("Resume"));
-  await player.click("Resume");
+  assert(player.button("Listen"));
+  await player.click("Listen");
   assert.equal(audio.playbackRate, 1.5);
   assert.equal(audio.defaultPlaybackRate, 1.5);
   assert.equal(player.requests.length, 1);
@@ -1192,9 +1232,9 @@ test("live speed keeps lookahead in flight and applies to subsequent sources and
   await player.settle();
   const completedPlays = audio.plays;
   player.setSpeed(1);
-  assert(player.button("Replay"));
+  assert(player.button("Listen"));
   assert.equal(audio.plays, completedPlays);
-  await player.click("Replay");
+  await player.click("Listen");
   assert.equal(audio.src, "blob:reader-1");
   assert.equal(audio.currentTime, 0);
   assert.equal(audio.playbackRate, 0.5);
@@ -1298,7 +1338,7 @@ test("a media failure evicts the shared Blob and every duplicate-sentence URL be
   await player.settle();
   assert.deepEqual(player.revoked, ["blob:reader-1", "blob:reader-2"]);
   assert.equal(player.audioCaches[0].size, 0);
-  await player.click("Retry");
+  await player.click("Listen");
   assert.equal(player.requests.length, 2);
   assert.equal(player.audios[0].src, "blob:reader-3");
   assert.equal(player.audioCaches[0].size, 1);
@@ -1445,12 +1485,12 @@ test("repeated sentences reuse audio, highlight their original offsets, and repl
   await player.settle();
   assert.deepEqual(player.readingRange, { start: 9, end: 15 });
   await player.click("Pause");
-  await player.click("Resume");
+  await player.click("Listen");
   assert.deepEqual(player.readingRange, { start: 9, end: 15 });
   player.audios[0].onended();
   await player.settle();
   assert.equal(player.readingRange, null);
-  await player.click("Replay");
+  await player.click("Listen");
   assert.deepEqual(player.readingRange, { start: 2, end: 8 });
   assert.equal(player.requests.length, 1);
 });
@@ -1573,11 +1613,22 @@ test("lookahead waits for actual playback and native onset plus play-promise res
   assert.deepEqual(player.activeChanges, [true]);
 });
 
-test("floating controls appear only above the visual viewport while playback is available", async (t) => {
+test("all floating controls remain available above the visual viewport before and after playback", async (t) => {
   const player = setup(t, { geometry: true });
   await player.ready();
   player.scrollControlsTo(-10);
-  assert.equal(player.dock(), undefined);
+  assert(player.dock());
+  assert.deepEqual(
+    nodes(player.dock(), (node) => node.type === "button").map(
+      (node) => node.props["aria-label"],
+    ),
+    [
+      "Previous sentence",
+      "Listen to full text",
+      "Repeat sentence",
+      "Next sentence",
+    ],
+  );
   await player.click("Listen");
   assert(player.dock());
   player.scrollControlsTo(100);
@@ -1595,7 +1646,7 @@ test("floating controls appear only above the visual viewport while playback is 
   player.scrollControlsTo(-10);
   player.audios[0].onended();
   await player.settle();
-  assert.equal(player.dock(), undefined);
+  assert(player.dock());
 });
 
 test("floating Pause and Resume reuse the main player's audio and requests with a scroll fallback", async (t) => {
@@ -1608,13 +1659,13 @@ test("floating Pause and Resume reuse the main player's audio and requests with 
   await player.clickDock("Pause");
   assert.equal(player.playbackActive, false);
   assert.deepEqual(player.readingRange, originalRange);
-  await player.clickDock("Resume");
+  await player.clickDock("Listen");
   assert.equal(player.playbackActive, true);
   assert.equal(player.audios[0].plays, 2);
   assert.equal(player.audios.length, 1);
   assert.equal(player.requests.length, 1);
   player.render({ text: "Neuer Text." });
-  assert.equal(player.dock(), undefined);
+  assert(player.dock());
   assert.equal(player.readingRange, null);
   assert.equal(player.playbackActive, false);
   assert(player.button("Listen"));
@@ -1638,7 +1689,7 @@ test("floating controls support a loading pause and a foreground error retry", a
   await starting;
   await player.settle();
   assert.equal(player.playbackActive, false);
-  await player.clickDock("Retry");
+  await player.clickDock("Listen");
   assert.equal(player.playbackActive, true);
   assert.equal(player.audios.length, 1);
   assert.equal(player.requests.length, 2);
@@ -1667,7 +1718,7 @@ test("playback-active callback uses the latest handler and turns false on pause 
     onPlaybackActiveChange: (active) => latestChanges.push(active),
   });
   await player.click("Pause");
-  await player.click("Resume");
+  await player.click("Listen");
   player.unmount();
   assert.deepEqual(player.activeChanges, [true]);
   assert.deepEqual(latestChanges, [false, true, false]);
@@ -1694,7 +1745,7 @@ test("advancing into an unfinished lookahead shares its request and Pause retain
   pendingNext.resolve(new Response("next mp3"));
   await player.settle();
   assert.equal(player.readingRange, null);
-  await player.click("Resume");
+  await player.click("Listen");
   assert.equal(player.requests.length, 2);
   assert.deepEqual(player.readingRange, { start: 6, end: 11 });
 });
@@ -1718,7 +1769,7 @@ test("Pause aborts lookahead, Resume restarts it, and a late aborted result cann
   assert.equal(player.requests[0].options.signal.aborted, false);
   assert.equal(player.requests[1].options.signal.aborted, true);
   assert.deepEqual(player.readingRange, { start: 0, end: 5 });
-  await player.click("Resume");
+  await player.click("Listen");
   assert.equal(player.requests.length, 3);
   oldPrefetch.resolve(new Response("stale lookahead"));
   await player.settle();
@@ -1751,7 +1802,7 @@ test("failed prefetch does not interrupt the current sentence and becomes retrya
   assert.match(text(player.render()), /Next sentence failed/);
   assert.equal(player.readingRange, null);
   assert.equal(player.requests.length, 2);
-  await player.click("Retry");
+  await player.click("Listen");
   assert.equal(player.requests.length, 3);
   assert.deepEqual(player.readingRange, { start: 6, end: 11 });
 });

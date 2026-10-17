@@ -82,17 +82,20 @@ before any cache lookup.
 Cache storage failures fall back to generation or return audio already produced
 without repeating synthesis.
 
-Sentence practice uses the same Premium reader, source language, selected voice,
-playback speed, and audio caches. In practice mode playback stops after the whole
-current sentence so the learner can pronounce it; oversized sentences continue
-through all their chunks before stopping. Repeat replays that sentence, and
-Previous/Next move to the first chunk of the neighbouring sentence. The selection
-translation popover also offers Read from this sentence, which starts at the
-sentence containing the selected text and follows the current reading or
-practice mode.
+The player always shows Previous, Listen/Pause, Repeat, and Next in one control
+row. Listen plays continuously and resumes paused audio; Repeat restarts the
+current sentence, while Previous/Next restart the neighbouring sentence. Each
+of these sentence actions stops after that whole sentence so the learner can
+pronounce it, continuing through every chunk of an oversized sentence before
+stopping. Next also works before the first Listen. All actions use the same
+Premium source-language reader, selected voice, playback speed, and audio caches.
+Listen in the selection translation popover starts at the sentence containing
+the selected text and continues through the remaining text.
 
-During a playback session, Pause/Resume floats at the bottom of the screen once
-the original control has scrolled above it. Reading follows the highlighted
+All four controls float at the bottom of the screen when the original row has
+scrolled above it, including before playback and after completion. The main
+button reads Listen when inactive and Pause while loading or playing.
+Reading follows the highlighted
 sentence when it approaches a screen edge, leaving room for the next lines and
 the floating control. Manual scrolling takes priority and
 following resumes after roughly 2.5 seconds of inactivity. Paused playback,

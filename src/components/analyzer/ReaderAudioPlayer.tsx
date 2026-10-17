@@ -4,11 +4,13 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
   type Ref,
 } from "react";
 import Link from "next/link";
+import { Pause, Play, RotateCcw, SkipBack, SkipForward } from "lucide-react";
 import { SourceLanguageSelectOptions } from "@/components/ui/Languages";
 import {
   ReaderAudioCache,
@@ -42,7 +44,7 @@ type Settings = {
 };
 type Status =
   "idle" | "loading" | "playing" | "paused" | "waiting" | "complete" | "error";
-type ReadingMode = "full" | "practice";
+type PlaybackIntent = "continuous" | "sentence";
 export type ReaderAudioPlayerHandle = {
   readFrom(offset: number): Promise<void>;
 };
@@ -99,8 +101,6 @@ export function ReaderAudioPlayer({
   ref?: Ref<ReaderAudioPlayerHandle>;
 }) {
   const [status, setStatus] = useState<Status>("idle");
-  const [part, setPart] = useState(0);
-  const [partCount, setPartCount] = useState(0);
   const [error, setError] = useState("");
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -111,11 +111,10 @@ export function ReaderAudioPlayer({
   const [configError, setConfigError] = useState("");
   const [configRetry, setConfigRetry] = useState(0);
   const [controlsAboveViewport, setControlsAboveViewport] = useState(false);
-  const [mode, setMode] = useState<ReadingMode>("full");
   const [sentenceNavigation, setSentenceNavigation] = useState(() =>
     getReaderSentenceNavigation([], 0),
   );
-  const modeRef = useRef<ReadingMode>("full");
+  const playbackIntentRef = useRef<PlaybackIntent>("continuous");
   const settingsRef = useRef(settings);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const contentCacheRef = useRef<ReaderAudioCache | null>(null);
@@ -258,14 +257,13 @@ export function ReaderAudioPlayer({
         for (const url of playback.urls.values()) URL.revokeObjectURL(url);
         playback.urls.clear();
         playback.chunks = [];
+        playbackIntentRef.current = "continuous";
         if (updateUi && mountedRef.current)
           setSentenceNavigation(getReaderSentenceNavigation([], 0));
       }
       playback.status = "idle";
       if (updateUi && mountedRef.current) {
         setStatus("idle");
-        setPart(0);
-        if (discardCache) setPartCount(0);
         setError("");
       }
     },
@@ -430,13 +428,12 @@ export function ReaderAudioPlayer({
       const chunk = playback.chunks[index];
       const nextChunk = playback.chunks[index + 1];
       if (
-        modeRef.current === "practice" &&
+        playbackIntentRef.current === "sentence" &&
         (!nextChunk || nextChunk.sentenceIndex !== chunk.sentenceIndex)
       ) {
         playback.wantsPlay = false;
         const navigation = getReaderSentenceNavigation(playback.chunks, index);
         playback.index = navigation.firstChunkIndex;
-        setPart(playback.index + 1);
         setSentenceNavigation(navigation);
         updateReadingRange({
           start: chunk.sentenceStart,
@@ -452,7 +449,6 @@ export function ReaderAudioPlayer({
         updateStatus("complete");
         return;
       }
-      setPart(playback.index + 1);
       setSentenceNavigation(
         getReaderSentenceNavigation(playback.chunks, playback.index),
       );
@@ -489,7 +485,7 @@ export function ReaderAudioPlayer({
           playback.urls.delete(cachedIndex);
         }
       }
-      setError("Could not play this part. Press Retry to try again.");
+      setError("Could not play this part. Press Listen to try again.");
       updateStatus("error");
     };
     updateStatus("playing");
@@ -509,10 +505,10 @@ export function ReaderAudioPlayer({
       updateReadingRange(null);
       audio.pause();
       if (reason instanceof DOMException && reason.name === "NotAllowedError") {
-        setError("Playback needs a tap. Press Resume to continue.");
+        setError("Playback needs a tap. Press Listen to continue.");
         updateStatus("paused");
       } else {
-        setError("Could not start playback. Press Retry to try again.");
+        setError("Could not start playback. Press Listen to try again.");
         updateStatus("error");
       }
     }
@@ -602,7 +598,7 @@ export function ReaderAudioPlayer({
     const nextIndex = index + 1;
     if (
       nextIndex >= playback.chunks.length ||
-      (modeRef.current === "practice" &&
+      (playbackIntentRef.current === "sentence" &&
         playback.chunks[nextIndex].sentenceIndex !==
           playback.chunks[index].sentenceIndex) ||
       playback.urls.has(nextIndex) ||
@@ -685,21 +681,22 @@ export function ReaderAudioPlayer({
       pause();
       return;
     }
+    playbackIntentRef.current = "continuous";
     setError("");
     if (playback.status === "error")
       playback.requestErrors.delete(playback.index);
     getAudio();
-    if (modeRef.current === "practice" && playback.status === "waiting") {
+    if (playback.status === "waiting") {
       await startAtChunk(
         getReaderSentenceNavigation(playback.chunks, playback.index)
           .firstChunkIndex,
+        "continuous",
       );
       return;
     }
     if (playback.status === "complete") clearPlayback(false);
     if (!prepareChunks()) return;
     playback.wantsPlay = true;
-    setPart(playback.index + 1);
     setSentenceNavigation(
       getReaderSentenceNavigation(playback.chunks, playback.index),
     );
@@ -715,7 +712,6 @@ export function ReaderAudioPlayer({
             (option) => option.label === sourceLanguage,
           )?.value ?? sourceLanguage;
         playback.chunks = getReaderSpeechChunks(text, language);
-        setPartCount(playback.chunks.length);
       }
       playback.voice = settingsRef.current.voice;
       playback.language = sourceLanguage;
@@ -730,16 +726,16 @@ export function ReaderAudioPlayer({
     }
   }
 
-  async function startAtChunk(index: number) {
+  async function startAtChunk(index: number, intent: PlaybackIntent) {
     if (!canListen || index < 0 || index >= playbackRef.current.chunks.length)
       return;
     getAudio();
     clearPlayback(false);
+    playbackIntentRef.current = intent;
     const playback = playbackRef.current;
     playback.index = index;
     playback.wantsPlay = true;
     updateStatus("loading");
-    setPart(index + 1);
     setSentenceNavigation(getReaderSentenceNavigation(playback.chunks, index));
     await playPart(playback.generation);
   }
@@ -750,35 +746,20 @@ export function ReaderAudioPlayer({
       playbackRef.current.chunks,
       offset,
     );
-    if (index >= 0) await startAtChunk(index);
+    if (index >= 0) await startAtChunk(index, "continuous");
   }
 
   useImperativeHandle(ref, () => ({ readFrom }));
 
-  function changeMode(next: ReadingMode) {
-    if (next === modeRef.current) return;
-    const prepared = prepareChunks();
+  async function playSentence(target?: number) {
+    if (!canListen || !prepareChunks()) return;
     const playback = playbackRef.current;
     const currentIndex = Math.min(playback.index, playback.chunks.length - 1);
     const navigation = getReaderSentenceNavigation(
       playback.chunks,
       currentIndex,
     );
-    clearPlayback(false);
-    modeRef.current = next;
-    setMode(next);
-    if (!prepared || navigation.firstChunkIndex < 0) return;
-    playback.index = navigation.firstChunkIndex;
-    setPart(playback.index + 1);
-    setSentenceNavigation(navigation);
-    if (next === "practice") {
-      const chunk = playback.chunks[playback.index];
-      updateReadingRange({
-        start: chunk.sentenceStart,
-        end: chunk.sentenceEnd,
-      });
-      updateStatus("waiting");
-    }
+    await startAtChunk(target ?? navigation.firstChunkIndex, "sentence");
   }
 
   function changeSettings(next: Settings) {
@@ -802,148 +783,109 @@ export function ReaderAudioPlayer({
   useEffect(() => {
     availabilityCallbackRef.current?.(canListen);
   }, [canListen, onAvailabilityChange]);
-  const showFloatingControls =
-    hasPremium &&
-    controlsAboveViewport &&
-    status !== "idle" &&
-    status !== "complete";
-  const mainAction = active
-    ? "Pause reading"
-    : status === "paused"
-      ? "Resume reading"
-      : status === "complete"
-        ? "Listen to full text again"
-        : status === "waiting" || (mode === "practice" && status === "idle")
-          ? "Repeat sentence"
-          : status === "error"
-            ? "Retry playback"
-            : "Listen to full text";
-  const mainLabel = active
-    ? "Pause"
-    : status === "paused"
-      ? "Resume"
-      : status === "complete"
-        ? "Replay"
-        : status === "waiting" || (mode === "practice" && status === "idle")
-          ? "Repeat"
-          : status === "error"
-            ? "Retry"
-            : "Listen";
+  const initialNavigation = useMemo(() => {
+    try {
+      const language =
+        SourceLanguageSelectOptions.find(
+          (option) => option.label === sourceLanguage,
+        )?.value ?? sourceLanguage;
+      return getReaderSentenceNavigation(
+        getReaderSpeechChunks(text, language),
+        0,
+      );
+    } catch {
+      return getReaderSentenceNavigation([], 0);
+    }
+  }, [text, sourceLanguage]);
+  const navigation =
+    sentenceNavigation.firstChunkIndex >= 0
+      ? sentenceNavigation
+      : initialNavigation;
+  const showFloatingControls = canListen && controlsAboveViewport;
+  const mainAction = active ? "Pause reading" : "Listen to full text";
+  const mainLabel = active ? "Pause" : "Listen";
   const speedIndex = READER_SPEEDS.findIndex(
     (speed) => speed.id === settings.speed,
   );
   const selectedSpeed = READER_SPEEDS[speedIndex];
   const progress =
-    mode === "practice" && sentenceNavigation.sentenceCount > 0
-      ? `Sentence ${sentenceNavigation.sentenceIndex + 1} of ${sentenceNavigation.sentenceCount}${status === "loading" ? " · Generating audio…" : status === "paused" ? " · Paused" : ""}`
-      : status === "complete"
-        ? "Finished reading"
-        : partCount > 0 && status !== "idle"
-          ? `Part ${part} of ${partCount}${status === "loading" ? " · Generating audio…" : status === "paused" ? " · Paused" : ""}`
-          : "";
-  const playbackIcon = (
-    <svg
-      className={styles.playbackIcon}
-      width="16"
-      height="16"
-      viewBox="0 0 20 20"
-      fill="currentColor"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path
-        d={
-          active
-            ? "M5 4h3v12H5zM12 4h3v12h-3z"
-            : mode === "practice" && status !== "paused"
-              ? "M15.5 6A6 6 0 1 0 16 13h-2a4 4 0 1 1-.5-5H11V6h6v6h-2V8"
-              : "M6 3.5 16 10 6 16.5z"
-        }
-      />
-    </svg>
-  );
-  const practiceNavigationButton = (direction: "previous" | "next") => {
+    status === "complete"
+      ? "Finished reading"
+      : navigation.sentenceCount > 0
+        ? `Sentence ${navigation.sentenceIndex + 1} of ${navigation.sentenceCount}${status === "loading" ? " · Generating audio…" : status === "paused" ? " · Paused" : ""}`
+        : "";
+  const PlaybackIcon = active ? Pause : Play;
+  const navigationButton = (direction: "previous" | "next") => {
     const target =
       direction === "previous"
-        ? sentenceNavigation.previousChunkIndex
-        : sentenceNavigation.nextChunkIndex;
+        ? navigation.previousChunkIndex
+        : navigation.nextChunkIndex;
     const label =
       direction === "previous" ? "Previous sentence" : "Next sentence";
+    const Icon = direction === "previous" ? SkipBack : SkipForward;
     return (
       <button
         type="button"
-        className={styles.navigationButton}
+        className={`${styles.controlButton} ${styles.navigationButton}`}
         aria-label={label}
         title={label}
         disabled={!canListen || target < 0}
-        onClick={() => startAtChunk(target)}
+        onClick={() => playSentence(target)}
       >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 20 20"
-          fill="currentColor"
+        <Icon
+          className={styles.playbackIcon}
+          size={16}
           aria-hidden="true"
           focusable="false"
-        >
-          <path
-            d={
-              direction === "previous"
-                ? "M14 4v12L5 10zM3 4h2v12H3z"
-                : "M6 4v12l9-6zM15 4h2v12h-2z"
-            }
-          />
-        </svg>
+        />
       </button>
     );
   };
+  const playbackControls = (
+    <>
+      {navigationButton("previous")}
+      <button
+        type="button"
+        className={styles.controlButton}
+        onClick={listen}
+        disabled={!canListen}
+        aria-label={mainAction}
+      >
+        <PlaybackIcon
+          className={styles.playbackIcon}
+          size={16}
+          aria-hidden="true"
+          focusable="false"
+        />
+        {mainLabel}
+      </button>
+      <button
+        type="button"
+        className={styles.controlButton}
+        onClick={() => playSentence()}
+        disabled={!canListen}
+        aria-label="Repeat sentence"
+      >
+        <RotateCcw
+          className={styles.playbackIcon}
+          size={16}
+          aria-hidden="true"
+          focusable="false"
+        />
+        Repeat
+      </button>
+      {navigationButton("next")}
+    </>
+  );
 
   return (
     <section
       className={styles.player}
-      aria-label={`Read full text aloud${languageName ? ` in ${languageName}` : ""}`}
+      aria-label={`Listen to full text${languageName ? ` in ${languageName}` : ""}`}
     >
-      {hasPremium && (
-        <div
-          className={styles.modeChoice}
-          role="group"
-          aria-label="Reading mode"
-        >
-          <button
-            type="button"
-            aria-pressed={mode === "full"}
-            onClick={() => changeMode("full")}
-          >
-            Full text
-          </button>
-          <button
-            type="button"
-            aria-pressed={mode === "practice"}
-            onClick={() => changeMode("practice")}
-          >
-            Sentence practice
-          </button>
-        </div>
-      )}
-      <div
-        className={`${styles.toolbar} ${mode === "practice" ? styles.practiceToolbar : ""}`}
-      >
-        <div
-          className={`${styles.controls} ${mode === "practice" ? styles.practiceControls : ""}`}
-          ref={controlsRef}
-        >
-          {mode === "practice" && practiceNavigationButton("previous")}
-          <button
-            type="button"
-            className={styles.listenButton}
-            onClick={listen}
-            disabled={!canListen}
-            aria-label={mainAction}
-          >
-            {playbackIcon}
-            {mainLabel}
-          </button>
-          {mode === "practice" && practiceNavigationButton("next")}
+      <div className={styles.toolbar}>
+        <div className={styles.controls} ref={controlsRef}>
+          {playbackControls}
         </div>
         {hasPremium && (
           <div className={styles.settingsGrid}>
@@ -1044,22 +986,11 @@ export function ReaderAudioPlayer({
       )}
       {showFloatingControls && (
         <div
-          className={`${styles.floatingDock} ${mode === "practice" ? styles.practiceDock : ""}`}
+          className={styles.floatingDock}
           role="group"
           aria-label="Floating playback controls"
         >
-          {mode === "practice" && practiceNavigationButton("previous")}
-          <button
-            type="button"
-            className={styles.listenButton}
-            onClick={listen}
-            disabled={!canListen}
-            aria-label={mainAction}
-          >
-            {playbackIcon}
-            {mainLabel}
-          </button>
-          {mode === "practice" && practiceNavigationButton("next")}
+          {playbackControls}
         </div>
       )}
     </section>

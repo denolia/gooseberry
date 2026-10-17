@@ -662,7 +662,7 @@ export function TextAnalyzer() {
                 >
                   <path d="M6 3.5 16 10 6 16.5z" />
                 </svg>
-                Read from this sentence
+                Listen from this sentence
               </button>
               {!hasPremium && (
                 <p className={styles.readFromNotice}>

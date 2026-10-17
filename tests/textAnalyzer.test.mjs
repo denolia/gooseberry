@@ -797,7 +797,7 @@ test("read-from-selection waits for audio readiness, then synchronously closes a
   ui.tokens().props.onMouseUp();
   ui.render();
   assert.match(text(ui.popup()), /Checking the selected words/);
-  const unavailable = ui.button("Read from this sentence");
+  const unavailable = ui.button("Listen from this sentence");
   assert.equal(unavailable.props.disabled, true);
   assert.match(unavailable.props.title, /Loading audio settings/);
   unavailable.props.onClick();
@@ -805,11 +805,11 @@ test("read-from-selection waits for audio readiness, then synchronously closes a
   assert(ui.popup(), "The unavailable action must leave translation open");
 
   ui.audioAvailable(true);
-  assert.equal(ui.button("Read from this sentence").props.disabled, false);
+  assert.equal(ui.button("Listen from this sentence").props.disabled, false);
   ui.fireTimers();
   ui.tokens().props.onTouchEnd();
   assert(ui.timers.size > 0);
-  ui.button("Read from this sentence").props.onClick();
+  ui.button("Listen from this sentence").props.onClick();
   assert.deepEqual(
     ui.readingCalls,
     [secondStart],
@@ -841,18 +841,18 @@ test("read-from-selection remains available in translation error and results sta
   ui.keyWord(0);
   await ui.settle();
   assert.match(text(ui.popup()), /Analysis unavailable/);
-  assert.equal(ui.button("Read from this sentence").props.disabled, false);
+  assert.equal(ui.button("Listen from this sentence").props.disabled, false);
   ui.button("Retry analysis").props.onClick();
   await ui.settle();
   assert.match(text(ui.popup()), /Translation: Berlin/);
-  assert.equal(ui.button("Read from this sentence").props.disabled, false);
+  assert.equal(ui.button("Listen from this sentence").props.disabled, false);
   ui.audioAvailable(false);
-  assert.equal(ui.button("Read from this sentence").props.disabled, true);
-  ui.button("Read from this sentence").props.onClick();
+  assert.equal(ui.button("Listen from this sentence").props.disabled, true);
+  ui.button("Listen from this sentence").props.onClick();
   assert.deepEqual(ui.readingCalls, []);
   assert(ui.popup());
   ui.audioAvailable(true);
-  ui.button("Read from this sentence").props.onClick();
+  ui.button("Listen from this sentence").props.onClick();
   assert.deepEqual(ui.readingCalls, [0]);
   assert.equal(ui.popup(), undefined);
 });
@@ -865,7 +865,7 @@ test("free accounts keep translation and a Premium notice but cannot read from t
   ui.clickWord(0);
   await ui.settle();
   assert.match(text(ui.popup()), /Translation: Berlin/);
-  const action = ui.button("Read from this sentence");
+  const action = ui.button("Listen from this sentence");
   assert.equal(action.props.disabled, true);
   assert.equal(action.props.title, "Available with Premium");
   assert.equal(
