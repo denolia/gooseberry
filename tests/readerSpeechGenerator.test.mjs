@@ -48,6 +48,10 @@ function loadSpeech({ model = "gpt-4o-mini-tts", voice = "marin" } = {}) {
 test("reader generator maps every speed preset and forwards the selected voice and signal", async () => {
   const { speech, calls } = loadSpeech();
   const controller = new AbortController();
+  assert.deepEqual(
+    readerConfig.READER_SPEEDS.map((preset) => preset.speed),
+    [0.3, 0.5, 0.7, 1, 1.5],
+  );
   for (const preset of readerConfig.READER_SPEEDS) {
     const audio = await speech.generateReaderSpeechMp3(
       "  Der Text bleibt auf Deutsch.  ",
@@ -80,7 +84,7 @@ test("reader supports legacy models without sending unsupported instructions or 
       speed: "normal-pauses",
     });
     assert.equal("instructions" in calls[0].input, false);
-    assert.equal(calls[0].input.speed, 1);
+    assert.equal(calls[0].input.speed, 0.7);
     await assert.rejects(
       speech.generateReaderSpeechMp3("Hallo.", "German", {
         voice: "marin",

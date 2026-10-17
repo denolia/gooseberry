@@ -28,11 +28,11 @@ export const READER_VOICES = [
 export type ReaderVoice = (typeof READER_VOICES)[number]["id"];
 
 export const READER_SPEEDS = [
-  { id: "very-slow", label: "Very slow", speed: 0.65 },
-  { id: "slow", label: "Slow", speed: 0.8 },
-  { id: "normal-pauses", label: "Normal with pauses", speed: 1 },
+  { id: "very-slow", label: "Very slow", speed: 0.3 },
+  { id: "slow", label: "Slow", speed: 0.5 },
+  { id: "normal-pauses", label: "Normal with pauses", speed: 0.7 },
   { id: "normal", label: "Normal", speed: 1 },
-  { id: "fast", label: "Fast", speed: 1.2 },
+  { id: "fast", label: "Fast", speed: 1.5 },
 ] as const;
 
 export type ReaderSpeed = (typeof READER_SPEEDS)[number]["id"];

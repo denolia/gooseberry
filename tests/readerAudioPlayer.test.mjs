@@ -270,6 +270,16 @@ function setup(t, { props = {}, response, play = async () => {} } = {}) {
       timers.clear();
       pending.forEach(({ callback }) => callback());
     },
+    speed() {
+      return nodes(
+        render(),
+        (node) => node.type === "input" && node.props.type === "range",
+      )[0];
+    },
+    setSpeed(index) {
+      this.speed().props.onChange({ target: { value: String(index) } });
+      render();
+    },
     select(label, value) {
       const labels = nodes(render(), (node) => node.type === "label");
       const wrapper = labels.find((node) => text(node).startsWith(label));
@@ -284,7 +294,7 @@ function setup(t, { props = {}, response, play = async () => {} } = {}) {
 test("free accounts see the Premium banner and cannot start full-text audio", async (t) => {
   const player = setup(t, { props: { hasPremium: false } });
   await player.ready();
-  assert.equal(player.button("Listen to full text").props.disabled, true);
+  assert.equal(player.button("Listen").props.disabled, true);
   assert.match(text(player.render()), /available with Premium/);
   assert.equal(
     nodes(player.render(), (node) => node.type === "a")[0].props.href,
@@ -298,7 +308,7 @@ test("full text plays every bounded part in the source language using one audio 
   const fullText = "Ein ganzer deutscher Satz. ".repeat(100).trim();
   const player = setup(t, { props: { text: fullText, sourceLanguage: "de" } });
   await player.ready();
-  await player.click("Listen to full text");
+  await player.click("Listen");
   for (
     let index = 0;
     index < 10 && text(player.render()).includes("Pause");
@@ -326,13 +336,13 @@ test("full text plays every bounded part in the source language using one audio 
   assert.equal(player.audios.length, 1);
   assert.equal(player.audios[0].plays, player.requests.length);
   assert.match(text(player.render()), /Finished reading/);
-  assert(player.button("Listen again"));
+  assert(player.button("Replay"));
 });
 
 test("pause and resume preserve the current audio position without another request", async (t) => {
   const player = setup(t);
   await player.ready();
-  await player.click("Listen to full text");
+  await player.click("Listen");
   player.audios[0].currentTime = 12.5;
   await player.click("Pause");
   assert.match(text(player.render()), /Paused/);
@@ -345,11 +355,11 @@ test("pause and resume preserve the current audio position without another reque
 test("a completed text replays from the beginning using its generated audio", async (t) => {
   const player = setup(t);
   await player.ready();
-  await player.click("Listen to full text");
+  await player.click("Listen");
   player.audios[0].currentTime = 30;
   player.audios[0].onended();
   await player.settle();
-  await player.click("Listen again");
+  await player.click("Replay");
   assert.equal(player.audios[0].currentTime, 0);
   assert.equal(player.audios[0].plays, 2);
   assert.equal(player.requests.length, 1);
@@ -359,11 +369,11 @@ test("a completed text replays from the beginning using its generated audio", as
 test("a media failure discards the broken part and Retry generates fresh audio", async (t) => {
   const player = setup(t);
   await player.ready();
-  await player.click("Listen to full text");
+  await player.click("Listen");
   player.audios[0].onerror();
   await player.settle();
   assert.deepEqual(player.revoked, ["blob:reader-1"]);
-  await player.click("Retry playback");
+  await player.click("Retry");
   assert.equal(player.requests.length, 2);
   assert.equal(player.audios[0].src, "blob:reader-2");
   assert.equal(player.audios[0].plays, 2);
@@ -373,7 +383,7 @@ test("pause while generating retains the result without playing until Resume", a
   const pending = deferred();
   const player = setup(t, { response: () => pending.promise });
   await player.ready();
-  const starting = player.button("Listen to full text").props.onClick();
+  const starting = player.button("Listen").props.onClick();
   await player.settle();
   await player.click("Pause");
   pending.resolve(new Response("mp3"));
@@ -390,7 +400,7 @@ test("Stop aborts generation and ignores its late result", async (t) => {
   const pending = deferred();
   const player = setup(t, { response: () => pending.promise });
   await player.ready();
-  const starting = player.button("Listen to full text").props.onClick();
+  const starting = player.button("Listen").props.onClick();
   await player.settle();
   await player.click("Stop");
   assert.equal(player.requests[0].options.signal.aborted, true);
@@ -399,7 +409,7 @@ test("Stop aborts generation and ignores its late result", async (t) => {
   await player.settle();
   assert.equal(player.created.length, 0);
   assert.equal(player.audios[0].plays, 0);
-  assert(player.button("Listen to full text"));
+  assert(player.button("Listen"));
 });
 
 test("blocked autoplay retains the generated part for a direct Resume tap", async (t) => {
@@ -411,7 +421,7 @@ test("blocked autoplay retains the generated part for a direct Resume tap", asyn
     },
   });
   await player.ready();
-  await player.click("Listen to full text");
+  await player.click("Listen");
   assert.match(text(player.render()), /Playback needs a tap/);
   await player.click("Resume");
   assert.equal(player.requests.length, 1);
@@ -427,7 +437,7 @@ test("an interrupted pending play cannot overwrite a successful resume", async (
     play: () => (++attempts === 1 ? firstPlay.promise : Promise.resolve()),
   });
   await player.ready();
-  const starting = player.button("Listen to full text").props.onClick();
+  const starting = player.button("Listen").props.onClick();
   await player.settle();
   await player.click("Pause");
   await player.click("Resume");
@@ -445,8 +455,8 @@ test("sentence pauses can be paused and resumed and Stop cancels their timer", a
     props: { text: "Erster Satz. Zweiter Satz. Dritter Satz." },
   });
   await player.ready();
-  player.select("Reading speed", "normal-pauses");
-  await player.click("Listen to full text");
+  player.setSpeed(2);
+  await player.click("Listen");
   player.audios[0].onended();
   await player.settle();
   assert.equal(player.timers.size, 1);
@@ -476,19 +486,19 @@ test("sentence pauses can be paused and resumed and Stop cancels their timer", a
 test("changing text, source language, or Premium entitlement stops and discards audio", async (t) => {
   const player = setup(t);
   await player.ready();
-  await player.click("Listen to full text");
+  await player.click("Listen");
   player.render({ text: "Ein neuer Text." });
   assert.equal(player.audios[0].src, "");
   assert.deepEqual(player.revoked, ["blob:reader-1"]);
-  await player.click("Listen to full text");
+  await player.click("Listen");
   player.render({ sourceLanguage: "fi" });
   assert.equal(player.audios[0].src, "");
   assert.deepEqual(player.revoked, ["blob:reader-1", "blob:reader-2"]);
-  await player.click("Listen to full text");
+  await player.click("Listen");
   assert.equal(player.requests.at(-1).body.sourceLanguage, "fi");
   player.render({ hasPremium: false });
   assert.equal(player.audios[0].src, "");
-  assert.equal(player.button("Listen to full text").props.disabled, true);
+  assert.equal(player.button("Listen").props.disabled, true);
   assert.deepEqual(player.revoked, [
     "blob:reader-1",
     "blob:reader-2",
@@ -499,15 +509,47 @@ test("changing text, source language, or Premium entitlement stops and discards 
 test("changing voice and speed resets playback and sends the new choices", async (t) => {
   const player = setup(t);
   await player.ready();
-  await player.click("Listen to full text");
+  await player.click("Listen");
   player.select("Voice tone", "masculine");
   player.select("Voice name", "cedar");
-  player.select("Reading speed", "very-slow");
+  player.setSpeed(0);
   assert.equal(player.audios[0].src, "");
   assert.deepEqual(player.revoked, ["blob:reader-1"]);
-  await player.click("Listen to full text");
+  await player.click("Listen");
   assert.equal(player.requests.at(-1).body.voice, "cedar");
   assert.equal(player.requests.at(-1).body.speed, "very-slow");
+});
+
+test("the native five-position speed slider maps its indices to the advertised reader rates", async (t) => {
+  const player = setup(t);
+  await player.ready();
+  assert.deepEqual(
+    config.READER_SPEEDS.map((speed) => speed.speed),
+    [0.3, 0.5, 0.7, 1, 1.5],
+  );
+  const initial = player.speed().props;
+  assert.equal(initial.min, 0);
+  assert.equal(initial.max, 4);
+  assert.equal(initial.step, 1);
+  assert.equal(initial.value, 3);
+  assert.equal(initial["aria-label"], "Reading speed");
+  assert.equal(initial["aria-valuetext"], "1× — Normal");
+  assert.equal(player.button("Stop").props.disabled, true);
+  assert.equal(
+    player.button("Listen").props["aria-label"],
+    "Listen to full text",
+  );
+  for (const [index, speed] of config.READER_SPEEDS.entries()) {
+    player.setSpeed(index);
+    assert.equal(player.speed().props.value, index);
+    assert.equal(
+      player.speed().props["aria-valuetext"],
+      `${speed.speed}× — ${speed.label}`,
+    );
+    await player.click("Listen");
+    assert.equal(player.requests.at(-1).body.speed, speed.id);
+    assert.equal(player.button("Stop").props.disabled, false);
+  }
 });
 
 test("unmount aborts pending audio and releases already generated object URLs", async (t) => {
@@ -518,8 +560,8 @@ test("unmount aborts pending audio and releases already generated object URLs", 
       index === 1 ? new Response("mp3") : pending.promise,
   });
   await player.ready();
-  player.select("Reading speed", "normal-pauses");
-  await player.click("Listen to full text");
+  player.setSpeed(2);
+  await player.click("Listen");
   player.audios[0].onended();
   player.fireTimers();
   await player.settle();

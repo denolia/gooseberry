@@ -1,22 +1,20 @@
 .player {
   min-width: 0;
-  border: 1px solid var(--border-color);
-  padding: 0.65rem;
-  background: var(--surface-subtle);
+  padding: 0;
 }
 
 .toolbar {
-  display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr);
+  align-items: end;
   gap: 0.65rem;
   min-width: 0;
 }
 
 .controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4rem;
   align-items: center;
-  flex-wrap: wrap;
   gap: 0.5rem;
   min-width: 0;
 }
@@ -37,6 +35,7 @@
   font: inherit;
   font-size: 0.88rem;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -50,7 +49,7 @@
   background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
 }
 
-.stopButton:hover,
+.stopButton:hover:not(:disabled),
 .retryButton:hover {
   background: var(--button-secondary-hover);
 }
@@ -62,6 +61,7 @@
 }
 
 .player button:focus-visible,
+.player input:focus-visible,
 .player select:focus-visible,
 .player a:focus-visible {
   outline: 2px solid var(--accent);
@@ -89,8 +89,8 @@
   text-underline-offset: 0.15em;
 }
 
-.progress:empty {
-  display: none;
+.progress {
+  min-height: 1.2rem;
 }
 
 .error {
@@ -105,8 +105,7 @@
 
 .settingsGrid {
   display: grid;
-  flex: 1 1 340px;
-  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
@@ -131,25 +130,100 @@
   font-size: 0.82rem;
 }
 
-@media (max-width: 600px) {
-  .toolbar,
+.speedControl {
+  position: relative;
+  display: grid;
+  grid-template-rows: 28px 16px;
+  height: 44px;
+  min-width: 0;
+}
+
+.speedRange {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.speedMarks {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.15rem;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  line-height: 16px;
+}
+
+.speedMark {
+  position: relative;
+  min-width: 1.1rem;
+  text-align: center;
+  cursor: help;
+}
+
+.speedTooltip,
+.speedMark::after {
+  position: absolute;
+  z-index: 2;
+  display: none;
+  width: max-content;
+  max-width: min(15rem, calc(100vw - 2rem));
+  border: 1px solid var(--border-color);
+  padding: 0.3rem 0.4rem;
+  color: var(--foreground);
+  background: var(--surface-raised);
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1.35;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.speedTooltip {
+  bottom: calc(100% + 0.2rem);
+  left: 0;
+}
+
+.speedMark::after {
+  bottom: calc(100% + 1.8rem);
+  left: 50%;
+  content: attr(data-label);
+  transform: translateX(-50%);
+}
+
+.speedMark:first-child::after {
+  left: 0;
+  transform: none;
+}
+
+.speedMark:last-child::after {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
+.speedRange:focus-visible ~ .speedTooltip,
+.speedMark:hover::after {
+  display: block;
+}
+
+@media (max-width: 700px) {
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+
   .controls {
     width: 100%;
   }
 
-  .listenButton {
-    flex: 1;
-  }
-
   .settingsGrid {
-    flex-basis: 100%;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .settingsGrid label:first-child {
+  .settingsGrid .speedField {
     grid-column: 1 / -1;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: 0.5rem;
   }
 }

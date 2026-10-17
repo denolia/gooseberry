@@ -325,7 +325,7 @@ export function ReaderAudioPlayer({
       audio.load();
       URL.revokeObjectURL(url);
       playback.urls.delete(index);
-      setError("Could not play this part. Press Retry playback to try again.");
+      setError("Could not play this part. Press Retry to try again.");
       updateStatus("error");
     };
     updateStatus("playing");
@@ -344,9 +344,7 @@ export function ReaderAudioPlayer({
         setError("Playback needs a tap. Press Resume to continue.");
         updateStatus("paused");
       } else {
-        setError(
-          "Could not start playback. Press Retry playback to try again.",
-        );
+        setError("Could not start playback. Press Retry to try again.");
         updateStatus("error");
       }
     }
@@ -479,15 +477,28 @@ export function ReaderAudioPlayer({
   );
   const active =
     status === "loading" || status === "playing" || status === "gap";
+  const mainAction = active
+    ? "Pause reading"
+    : status === "paused"
+      ? "Resume reading"
+      : status === "complete"
+        ? "Listen to full text again"
+        : status === "error"
+          ? "Retry playback"
+          : "Listen to full text";
   const mainLabel = active
     ? "Pause"
     : status === "paused"
       ? "Resume"
       : status === "complete"
-        ? "Listen again"
+        ? "Replay"
         : status === "error"
-          ? "Retry playback"
-          : "Listen to full text";
+          ? "Retry"
+          : "Listen";
+  const speedIndex = READER_SPEEDS.findIndex(
+    (speed) => speed.id === settings.speed,
+  );
+  const selectedSpeed = READER_SPEEDS[speedIndex];
   const progress =
     status === "complete"
       ? "Finished reading"
@@ -513,39 +524,59 @@ export function ReaderAudioPlayer({
               !settingsLoaded ||
               configStatus !== "ready"
             }
-            aria-label={active ? "Pause reading" : mainLabel}
+            aria-label={mainAction}
           >
             <span aria-hidden="true">{active ? "Ⅱ" : "▶"}</span>
-            {hasPremium ? mainLabel : "Listen to full text"}
+            {mainLabel}
           </button>
-          {hasPremium && status !== "idle" && status !== "complete" && (
-            <button
-              type="button"
-              className={styles.stopButton}
-              onClick={() => clearPlayback(false)}
-            >
-              Stop
-            </button>
-          )}
+          <button
+            type="button"
+            className={styles.stopButton}
+            onClick={() => clearPlayback(false)}
+            disabled={!hasPremium || status === "idle" || status === "complete"}
+          >
+            Stop
+          </button>
         </div>
         {hasPremium && (
           <div className={styles.settingsGrid}>
-            <label>
-              Reading speed
-              <select
-                value={settings.speed}
-                onChange={(event) => {
-                  const speed = event.target.value;
-                  if (isReaderSpeed(speed))
-                    changeSettings({ ...settings, speed });
-                }}
-              >
-                {READER_SPEEDS.map((speed) => (
-                  <option key={speed.id} value={speed.id}>
-                    {speed.label}
-                  </option>
-                ))}
-              </select>
+            <label className={styles.speedField}>
+              <span>Reading speed</span>
+              <span className={styles.speedControl}>
+                <input
+                  type="range"
+                  className={styles.speedRange}
+                  min={0}
+                  max={READER_SPEEDS.length - 1}
+                  step={1}
+                  value={speedIndex}
+                  aria-label="Reading speed"
+                  aria-valuetext={`${selectedSpeed.speed}× — ${selectedSpeed.label}`}
+                  title={selectedSpeed.label}
+                  onChange={(event) => {
+                    const index = Number(event.target.value);
+                    const speed = Number.isInteger(index)
+                      ? READER_SPEEDS[index]
+                      : undefined;
+                    if (speed) changeSettings({ ...settings, speed: speed.id });
+                  }}
+                />
+                <span className={styles.speedMarks} aria-hidden="true">
+                  {READER_SPEEDS.map((speed) => (
+                    <span
+                      key={speed.id}
+                      className={styles.speedMark}
+                      title={speed.label}
+                      data-label={speed.label}
+                    >
+                      {speed.speed}
+                    </span>
+                  ))}
+                </span>
+                <span className={styles.speedTooltip} aria-hidden="true">
+                  {selectedSpeed.label}
+                </span>
+              </span>
             </label>
             <label>
               Voice tone

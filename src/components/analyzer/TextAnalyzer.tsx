@@ -468,9 +468,6 @@ export function TextAnalyzer() {
             hasPremium={session?.user?.tier === "premium"}
           />
           <section className={styles.reader} aria-label="Text reader">
-            <div className={styles.readerHeading}>
-              <span>Click a word or select several words</span>
-            </div>
             <div
               className={styles.tokens}
               ref={readerRef}

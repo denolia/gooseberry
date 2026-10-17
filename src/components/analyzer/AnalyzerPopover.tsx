@@ -46,7 +46,6 @@ export function AnalyzerPopover({
     null,
   );
   const popupRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const contentInnerRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -68,8 +67,7 @@ export function AnalyzerPopover({
     const popup = popupRef.current;
     const content = contentRef.current;
     const contentInner = contentInnerRef.current;
-    const header = headerRef.current;
-    if (!reader || !popup || !content || !contentInner || !header) return;
+    if (!reader || !popup || !content || !contentInner) return;
 
     let frame = 0;
     let dismissed = false;
@@ -95,7 +93,7 @@ export function AnalyzerPopover({
         },
         {
           width: 480,
-          height: header.offsetHeight + content.scrollHeight + 2,
+          height: content.scrollHeight,
         },
       );
       if (!next) {
@@ -244,20 +242,32 @@ export function AnalyzerPopover({
         visibility: positioned ? "visible" : "hidden",
       }}
     >
-      <div ref={headerRef} className={styles.header}>
-        <strong>Selected text</strong>
-        <button
-          ref={closeButtonRef}
-          type="button"
-          className={styles.closeButton}
-          onClick={() => {
-            anchorElementRef.current?.focus({ preventScroll: true });
-            closeCallbackRef.current();
-          }}
+      <button
+        ref={closeButtonRef}
+        type="button"
+        aria-label="Close translation"
+        className={styles.closeButton}
+        onClick={() => {
+          anchorElementRef.current?.focus({ preventScroll: true });
+          closeCallbackRef.current();
+        }}
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+          focusable="false"
         >
-          Close translation
-        </button>
-      </div>
+          <path
+            d="m6 6 12 12M18 6 6 18"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
       <div ref={contentRef} className={styles.content}>
         <div ref={contentInnerRef}>{children}</div>
       </div>

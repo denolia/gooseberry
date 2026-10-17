@@ -53,7 +53,8 @@ and language from repeatedly consuming speech-generation credits.
 Full-text reading in the text analyzer is also Premium-only. The player sits
 above the reader on desktop and mobile, with voice settings always visible,
 reads in the selected source language, and supports pause, resume, stop, and
-five reading speeds. Normal with pauses
+five reading speeds on a slider (0.3, 0.5, 0.7, 1, and 1.5 times normal speed).
+Normal with pauses
 reads sentence by sentence with a short pause between requests. Voice settings
 are saved in this browser; audio stays in memory for replay and is discarded
 when the text, source language, voice, or speed changes.

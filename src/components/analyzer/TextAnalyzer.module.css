@@ -112,18 +112,6 @@
   padding: var(--panel-padding);
 }
 
-.readerHeading {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
 .tokens {
   user-select: text;
   white-space: pre-wrap;

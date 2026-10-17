@@ -116,12 +116,10 @@ function setup(t, { keyboard = false } = {}) {
   reader.querySelectorAll = () => [anchor, secondAnchor];
   const popup = new FakeNode("popup", body);
   popup.querySelectorAll = () => nestedDialogs;
-  const header = new FakeNode("header", popup);
-  header.offsetHeight = 48;
   const content = new FakeNode("content", popup);
   content.scrollHeight = 180;
   const contentInner = new FakeNode("inner", content);
-  const closeButton = new FakeNode("close", header);
+  const closeButton = new FakeNode("close", popup);
   const fakeDocument = {
     body,
     activeElement: body,
@@ -210,7 +208,6 @@ function setup(t, { keyboard = false } = {}) {
         __esModule: true,
         default: {
           popover: "popover",
-          header: "header",
           content: "content",
           closeButton: "close",
         },
@@ -231,7 +228,6 @@ function setup(t, { keyboard = false } = {}) {
   };
   const refNodes = {
     popover: popup,
-    header,
     content,
     inner: contentInner,
     close: closeButton,
@@ -348,6 +344,10 @@ test("popover portals a nonmodal dialog and keyboard activation focuses without 
   assert.equal(tree.props.role, "dialog");
   assert.equal(tree.props["aria-modal"], undefined);
   assert.equal(tree.props.style.visibility, "visible");
+  const closeControl = nodes(tree, (node) => node.type === "button")[0];
+  assert.equal(closeControl.props["aria-label"], "Close translation");
+  assert.equal(closeControl.props.children.type, "svg");
+  assert.equal(nodes(tree, (node) => node.type === "strong").length, 0);
   assert.deepEqual(ui.focuses, [
     { name: "close", options: { preventScroll: true } },
   ]);
@@ -398,9 +398,9 @@ test("loading results reposition taller content before an animation frame can pa
   const ui = setup(t);
   ui.viewport.width = 320;
   ui.viewport.height = 740;
-  ui.content.scrollHeight = 40;
+  ui.content.scrollHeight = 56;
   const loading = await ui.ready();
-  assert.equal(loading.props.style.top, 302);
+  assert.equal(loading.props.style.top, 336);
   ui.content.scrollHeight = 523;
   const result = ui.render({ children: "Loaded translation and card actions" });
   assert.equal(
