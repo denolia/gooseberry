@@ -60,7 +60,12 @@ const nextTick = () => new Promise((resolve) => setImmediate(resolve));
 // Run dependency-aware effects so prop changes exercise the real cleanup path.
 function setup(
   t,
-  { props = {}, response, play = async (audio) => audio.onplaying?.() } = {},
+  {
+    props = {},
+    response,
+    play = async (audio) => audio.onplaying?.(),
+    geometry = false,
+  } = {},
 ) {
   const hooks = [];
   let cursor = 0;
@@ -68,11 +73,13 @@ function setup(
   let dirty = false;
   let mounted = true;
   const readingRanges = [];
+  const activeChanges = [];
   const currentProps = {
     text: "Guten Morgen.",
     sourceLanguage: "de",
     hasPremium: true,
     onReadingRangeChange: (range) => readingRanges.push(range),
+    onPlaybackActiveChange: (active) => activeChanges.push(active),
     ...props,
   };
   const sameDeps = (left, right) =>
@@ -136,6 +143,57 @@ function setup(
   const timers = new Map();
   let timerId = 0;
   const storage = new Map();
+  let controlsBottom = 100;
+  const frames = new Map();
+  let frameId = 0;
+  const observers = [];
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const originalObserver = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "IntersectionObserver",
+  );
+  const viewport = Object.assign(new EventTarget(), { offsetTop: 0 });
+  const browser = Object.assign(new EventTarget(), {
+    visualViewport: viewport,
+    requestAnimationFrame(callback) {
+      const id = ++frameId;
+      frames.set(id, callback);
+      return id;
+    },
+    cancelAnimationFrame(id) {
+      frames.delete(id);
+    },
+  });
+  const controlsElement = {
+    getBoundingClientRect: () => ({
+      top: controlsBottom - 44,
+      bottom: controlsBottom,
+    }),
+  };
+  if (geometry) {
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: browser,
+    });
+    Object.defineProperty(globalThis, "IntersectionObserver", {
+      configurable: true,
+      value:
+        geometry === "fallback"
+          ? undefined
+          : class {
+              constructor(callback) {
+                this.callback = callback;
+                observers.push(this);
+              }
+              observe(element) {
+                this.element = element;
+              }
+              disconnect() {
+                this.disconnected = true;
+              }
+            },
+    });
+  }
   const originalStorage = Object.getOwnPropertyDescriptor(
     globalThis,
     "localStorage",
@@ -218,6 +276,13 @@ function setup(
       dirty = false;
       cursor = 0;
       tree = component.ReaderAudioPlayer(currentProps);
+      if (geometry) {
+        for (const node of nodes(
+          tree,
+          (node) => node.type === "div" && node.props?.ref,
+        ))
+          node.props.ref.current = controlsElement;
+      }
       const pending = effects;
       effects = [];
       pending.forEach((effect) => effect());
@@ -236,6 +301,18 @@ function setup(
     else delete globalThis.localStorage;
     if (originalAudio === undefined) delete globalThis.Audio;
     else globalThis.Audio = originalAudio;
+    if (geometry) {
+      if (originalWindow)
+        Object.defineProperty(globalThis, "window", originalWindow);
+      else delete globalThis.window;
+      if (originalObserver)
+        Object.defineProperty(
+          globalThis,
+          "IntersectionObserver",
+          originalObserver,
+        );
+      else delete globalThis.IntersectionObserver;
+    }
   });
   return {
     audios,
@@ -244,13 +321,65 @@ function setup(
     created,
     timers,
     readingRanges,
+    activeChanges,
+    get playbackActive() {
+      return activeChanges.at(-1) ?? false;
+    },
     get readingRange() {
       return readingRanges.at(-1) ?? null;
     },
     render,
     unmount,
+    dock() {
+      return nodes(
+        render(),
+        (node) => node.props?.["aria-label"] === "Floating playback controls",
+      )[0];
+    },
+    async clickDock(label) {
+      const button = nodes(
+        this.dock(),
+        (node) => node.type === "button" && text(node) === label,
+      )[0];
+      assert(
+        button && !button.props.disabled,
+        `Missing enabled dock button ${label}`,
+      );
+      const pending = button.props.onClick();
+      await nextTick();
+      render();
+      return pending;
+    },
+    flushFrames() {
+      const callbacks = [...frames.values()];
+      frames.clear();
+      callbacks.forEach((callback) => callback());
+      return render();
+    },
+    scrollControlsTo(bottom) {
+      controlsBottom = bottom;
+      browser.dispatchEvent(new Event("scroll"));
+      return this.flushFrames();
+    },
+    intersectControlsAt(bottom) {
+      controlsBottom = bottom;
+      observers.at(-1).callback([]);
+      return this.flushFrames();
+    },
+    shiftVisualViewport(offsetTop) {
+      viewport.offsetTop = offsetTop;
+      viewport.dispatchEvent(new Event("resize"));
+      return this.flushFrames();
+    },
+    get pendingFrames() {
+      return frames.size;
+    },
+    get observedControlsDisconnected() {
+      return observers.every((observer) => observer.disconnected);
+    },
     async ready() {
       render();
+      if (geometry) this.flushFrames();
       await nextTick();
       render();
     },
@@ -433,13 +562,13 @@ test("Pause and Resume before the current request finishes start its shared audi
   assert.deepEqual(player.readingRange, { start: 0, end: 13 });
 });
 
-test("Stop aborts generation and ignores its late result", async (t) => {
+test("replacing text aborts generation and ignores its late result", async (t) => {
   const pending = deferred();
   const player = setup(t, { response: () => pending.promise });
   await player.ready();
   const starting = player.button("Listen").props.onClick();
   await player.settle();
-  await player.click("Stop");
+  player.render({ text: "Neuer Text." });
   assert.equal(player.requests[0].options.signal.aborted, true);
   pending.resolve(new Response("late mp3"));
   await starting;
@@ -488,7 +617,7 @@ test("an interrupted pending play cannot overwrite a successful resume", async (
   assert(player.button("Pause"));
 });
 
-test("sentence pauses can be paused and resumed and Stop cancels their timer", async (t) => {
+test("sentence pauses can be paused and resumed and replacing text cancels their timer", async (t) => {
   const player = setup(t, {
     props: { text: "Erster Satz. Zweiter Satz. Dritter Satz." },
   });
@@ -499,6 +628,7 @@ test("sentence pauses can be paused and resumed and Stop cancels their timer", a
   await player.settle();
   assert.equal(player.timers.size, 1);
   assert.equal(player.readingRange, null);
+  assert.equal(player.playbackActive, false);
   assert.match(text(player.render()), /Sentence pause/);
   await player.click("Pause");
   assert.equal(player.timers.size, 0);
@@ -509,13 +639,14 @@ test("sentence pauses can be paused and resumed and Stop cancels their timer", a
   player.fireTimers();
   await player.settle();
   assert.equal(player.requests.length, 3);
+  assert.equal(player.playbackActive, true);
   assert(
     player.requests.every((request) => request.body.speed === "normal-pauses"),
   );
   player.audios[0].onended();
   await player.settle();
   assert.equal(player.timers.size, 1);
-  await player.click("Stop");
+  player.render({ text: "Neuer Text." });
   assert.equal(player.timers.size, 0);
   player.fireTimers();
   await player.settle();
@@ -577,7 +708,6 @@ test("the native five-position speed slider maps its indices to the advertised r
   assert.equal(initial.value, 3);
   assert.equal(initial["aria-label"], "Reading speed");
   assert.equal(initial["aria-valuetext"], "1× — Normal");
-  assert.equal(player.button("Stop").props.disabled, true);
   assert.equal(
     player.button("Listen").props["aria-label"],
     "Listen to full text",
@@ -592,11 +722,11 @@ test("the native five-position speed slider maps its indices to the advertised r
     await player.click("Listen");
     assert.equal(player.requests.at(-1).body.speed, speed.id);
     assert.equal(player.requests.at(-1).body.text, "Guten Morgen.");
-    assert.equal(player.button("Stop").props.disabled, false);
+    assert.equal(player.button("Pause").props["aria-label"], "Pause reading");
   }
 });
 
-test("highlight waits for actual playback and late media events cannot restore it after Stop", async (t) => {
+test("highlight waits for actual playback and late media events cannot restore it after replacing text", async (t) => {
   const pendingPlay = deferred();
   const player = setup(t, {
     props: { text: "  Hallo.  " },
@@ -606,14 +736,18 @@ test("highlight waits for actual playback and late media events cannot restore i
   const starting = player.button("Listen").props.onClick();
   await player.settle();
   assert.equal(player.readingRange, null);
+  assert.equal(player.playbackActive, false);
   const onplaying = player.audios[0].onplaying;
   const onerror = player.audios[0].onerror;
   onplaying();
+  assert.equal(player.playbackActive, true);
   assert.deepEqual(player.readingRange, { start: 2, end: 8 });
   await player.click("Pause");
+  assert.equal(player.playbackActive, false);
   assert.deepEqual(player.readingRange, { start: 2, end: 8 });
-  await player.click("Stop");
+  player.render({ text: "Neuer Text." });
   assert.equal(player.readingRange, null);
+  assert.equal(player.playbackActive, false);
   onplaying();
   onerror();
   pendingPlay.resolve();
@@ -621,6 +755,7 @@ test("highlight waits for actual playback and late media events cannot restore i
   await player.settle();
   assert.equal(player.readingRange, null);
   assert.equal(player.audios[0].onplaying, null);
+  assert.equal(player.playbackActive, false);
   assert(player.button("Listen"));
 });
 
@@ -637,6 +772,7 @@ test("repeated sentences highlight their original offsets, clear while loading, 
   player.audios[0].onended();
   await player.settle();
   assert.equal(player.readingRange, null);
+  assert.equal(player.playbackActive, false);
   await player.click("Pause");
   nextSentence.resolve(new Response("second sentence mp3"));
   await player.settle();
@@ -752,6 +888,7 @@ test("lookahead waits for actual playback and native onset plus play-promise res
   await player.settle();
   assert.equal(player.requests.length, 1);
   assert.equal(player.readingRange, null);
+  assert.equal(player.playbackActive, false);
   player.audios[0].onplaying();
   player.audios[0].onplaying();
   await player.settle();
@@ -766,6 +903,108 @@ test("lookahead waits for actual playback and native onset plus play-promise res
   assert.equal(player.requests.length, 2);
   assert.equal(player.created.length, 2);
   assert.equal(player.audios[0].plays, 1);
+  assert.deepEqual(player.activeChanges, [true]);
+});
+
+test("floating controls appear only above the visual viewport while playback is available", async (t) => {
+  const player = setup(t, { geometry: true });
+  await player.ready();
+  player.scrollControlsTo(-10);
+  assert.equal(player.dock(), undefined);
+  await player.click("Listen");
+  assert(player.dock());
+  player.scrollControlsTo(100);
+  assert.equal(player.dock(), undefined);
+  player.scrollControlsTo(900);
+  assert.equal(player.dock(), undefined);
+  player.intersectControlsAt(8);
+  assert(player.dock());
+  player.intersectControlsAt(8.1);
+  assert.equal(player.dock(), undefined);
+  player.shiftVisualViewport(40);
+  assert(player.dock());
+  player.shiftVisualViewport(0);
+  assert.equal(player.dock(), undefined);
+  player.scrollControlsTo(-10);
+  player.audios[0].onended();
+  await player.settle();
+  assert.equal(player.dock(), undefined);
+});
+
+test("floating Pause and Resume reuse the main player's audio and requests with a scroll fallback", async (t) => {
+  const player = setup(t, { geometry: "fallback" });
+  await player.ready();
+  await player.click("Listen");
+  player.scrollControlsTo(-5);
+  assert(player.dock());
+  const originalRange = player.readingRange;
+  await player.clickDock("Pause");
+  assert.equal(player.playbackActive, false);
+  assert.deepEqual(player.readingRange, originalRange);
+  await player.clickDock("Resume");
+  assert.equal(player.playbackActive, true);
+  assert.equal(player.audios[0].plays, 2);
+  assert.equal(player.audios.length, 1);
+  assert.equal(player.requests.length, 1);
+  player.render({ text: "Neuer Text." });
+  assert.equal(player.dock(), undefined);
+  assert.equal(player.readingRange, null);
+  assert.equal(player.playbackActive, false);
+  assert(player.button("Listen"));
+});
+
+test("floating controls support a loading pause and a foreground error retry", async (t) => {
+  const firstResponse = deferred();
+  const player = setup(t, {
+    geometry: true,
+    response: (_request, index) =>
+      index === 1 ? firstResponse.promise : new Response("mp3"),
+  });
+  await player.ready();
+  player.scrollControlsTo(-10);
+  const starting = player.button("Listen").props.onClick();
+  await player.settle();
+  await player.clickDock("Pause");
+  firstResponse.resolve(
+    Response.json({ error: "Try the audio again" }, { status: 502 }),
+  );
+  await starting;
+  await player.settle();
+  assert.equal(player.playbackActive, false);
+  await player.clickDock("Retry");
+  assert.equal(player.playbackActive, true);
+  assert.equal(player.audios.length, 1);
+  assert.equal(player.requests.length, 2);
+});
+
+test("floating-control geometry observers clean up and revoked Premium removes the dock", async (t) => {
+  const player = setup(t, { geometry: true });
+  await player.ready();
+  await player.click("Listen");
+  player.scrollControlsTo(-10);
+  assert(player.dock());
+  player.render({ hasPremium: false });
+  assert.equal(player.dock(), undefined);
+  assert.equal(player.playbackActive, false);
+  assert.equal(player.observedControlsDisconnected, true);
+  assert.equal(player.pendingFrames, 0);
+});
+
+test("playback-active callback uses the latest handler and turns false on pause and unmount", async (t) => {
+  const player = setup(t);
+  const latestChanges = [];
+  await player.ready();
+  await player.click("Listen");
+  assert.deepEqual(player.activeChanges, [true]);
+  player.render({
+    onPlaybackActiveChange: (active) => latestChanges.push(active),
+  });
+  await player.click("Pause");
+  await player.click("Resume");
+  player.unmount();
+  assert.deepEqual(player.activeChanges, [true]);
+  assert.deepEqual(latestChanges, [false, true, false]);
+  assert.equal(player.requests.length, 1);
 });
 
 test("advancing into an unfinished lookahead shares its request and Pause retains the promoted foreground request", async (t) => {
@@ -817,7 +1056,7 @@ test("Pause aborts lookahead, Resume restarts it, and a late aborted result cann
   oldPrefetch.resolve(new Response("stale lookahead"));
   await player.settle();
   assert.deepEqual(player.created, ["blob:reader-1"]);
-  await player.click("Stop");
+  player.render({ text: "Neuer Text." });
   assert.equal(player.requests[2].options.signal.aborted, true);
   resumedPrefetch.resolve(new Response("also cancelled lookahead"));
   await player.settle();
@@ -849,7 +1088,7 @@ test("failed prefetch does not interrupt the current sentence and becomes retrya
   assert.deepEqual(player.readingRange, { start: 6, end: 11 });
 });
 
-for (const action of ["Stop", "replace text", "unmount"]) {
+for (const action of ["replace text", "unmount"]) {
   test(`${action} aborts unfinished lookahead and ignores its late audio`, async (t) => {
     const pendingNext = deferred();
     const player = setup(t, {
@@ -860,9 +1099,7 @@ for (const action of ["Stop", "replace text", "unmount"]) {
     await player.ready();
     await player.click("Listen");
     assert.equal(player.requests.length, 2);
-    if (action === "Stop") await player.click("Stop");
-    else if (action === "replace text")
-      player.render({ text: "Anderer Text." });
+    if (action === "replace text") player.render({ text: "Anderer Text." });
     else player.unmount();
     assert.equal(player.requests[1].options.signal.aborted, true);
     pendingNext.resolve(new Response("late lookahead"));

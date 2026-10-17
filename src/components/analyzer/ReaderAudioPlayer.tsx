@@ -81,11 +81,13 @@ export function ReaderAudioPlayer({
   sourceLanguage,
   hasPremium,
   onReadingRangeChange,
+  onPlaybackActiveChange,
 }: {
   text: string;
   sourceLanguage: string;
   hasPremium: boolean;
   onReadingRangeChange?: (range: ReaderTextRange | null) => void;
+  onPlaybackActiveChange?: (active: boolean) => void;
 }) {
   const [status, setStatus] = useState<Status>("idle");
   const [part, setPart] = useState(0);
@@ -99,11 +101,15 @@ export function ReaderAudioPlayer({
   >("loading");
   const [configError, setConfigError] = useState("");
   const [configRetry, setConfigRetry] = useState(0);
+  const [controlsAboveViewport, setControlsAboveViewport] = useState(false);
   const settingsRef = useRef(settings);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const controlsRef = useRef<HTMLDivElement | null>(null);
   const mountedRef = useRef(true);
   const readingCallbackRef = useRef(onReadingRangeChange);
   const readingRangeRef = useRef<ReaderTextRange | null>(null);
+  const activeCallbackRef = useRef(onPlaybackActiveChange);
+  const playbackActiveRef = useRef(false);
   const previousInputRef = useRef({ text, sourceLanguage, hasPremium });
   const playbackRef = useRef<Playback>({
     generation: 0,
@@ -125,14 +131,72 @@ export function ReaderAudioPlayer({
     language: sourceLanguage,
   });
 
-  const updateStatus = useCallback((next: Status) => {
-    playbackRef.current.status = next;
-    if (mountedRef.current) setStatus(next);
+  const updatePlaybackActive = useCallback((active: boolean) => {
+    if (playbackActiveRef.current === active) return;
+    playbackActiveRef.current = active;
+    activeCallbackRef.current?.(active);
   }, []);
+
+  const updateStatus = useCallback(
+    (next: Status) => {
+      playbackRef.current.status = next;
+      if (next !== "playing") updatePlaybackActive(false);
+      if (mountedRef.current) setStatus(next);
+    },
+    [updatePlaybackActive],
+  );
 
   useEffect(() => {
     readingCallbackRef.current = onReadingRangeChange;
   }, [onReadingRangeChange]);
+
+  useEffect(() => {
+    activeCallbackRef.current = onPlaybackActiveChange;
+  }, [onPlaybackActiveChange]);
+
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (!hasPremium || !controls || typeof window === "undefined") return;
+    let frame: number | null = null;
+    let disposed = false;
+    const viewport = window.visualViewport;
+    const measure = () => {
+      frame = null;
+      if (disposed) return;
+      setControlsAboveViewport(
+        controls.getBoundingClientRect().bottom <=
+          (viewport?.offsetTop ?? 0) + 8,
+      );
+    };
+    const scheduleMeasure = () => {
+      if (frame === null) frame = window.requestAnimationFrame(measure);
+    };
+    const observer =
+      typeof IntersectionObserver === "undefined"
+        ? null
+        : new IntersectionObserver(scheduleMeasure, {
+            threshold: [0, 1],
+            rootMargin: "-8px 0px 0px 0px",
+          });
+    observer?.observe(controls);
+    window.addEventListener("scroll", scheduleMeasure, {
+      passive: true,
+      capture: true,
+    });
+    window.addEventListener("resize", scheduleMeasure);
+    viewport?.addEventListener("scroll", scheduleMeasure, { passive: true });
+    viewport?.addEventListener("resize", scheduleMeasure);
+    scheduleMeasure();
+    return () => {
+      disposed = true;
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener("scroll", scheduleMeasure, true);
+      window.removeEventListener("resize", scheduleMeasure);
+      viewport?.removeEventListener("scroll", scheduleMeasure);
+      viewport?.removeEventListener("resize", scheduleMeasure);
+    };
+  }, [hasPremium]);
 
   const updateReadingRange = useCallback((range: ReaderTextRange | null) => {
     const previous = readingRangeRef.current;
@@ -158,6 +222,7 @@ export function ReaderAudioPlayer({
       cancelGap(playback);
       playback.gapRemaining = 0;
       playback.index = 0;
+      updatePlaybackActive(false);
       updateReadingRange(null);
       const audio = audioRef.current;
       if (audio) {
@@ -181,7 +246,7 @@ export function ReaderAudioPlayer({
         setError("");
       }
     },
-    [updateReadingRange],
+    [updateReadingRange, updatePlaybackActive],
   );
 
   useEffect(() => {
@@ -343,6 +408,7 @@ export function ReaderAudioPlayer({
       )
         return;
       const chunk = playback.chunks[index];
+      updatePlaybackActive(true);
       updateReadingRange({
         start: chunk.sentenceStart,
         end: chunk.sentenceEnd,
@@ -352,6 +418,7 @@ export function ReaderAudioPlayer({
     audio.onplaying = reportPlaying;
     audio.onended = () => {
       if (!isCurrent(generation, index)) return;
+      updatePlaybackActive(false);
       updateReadingRange(null);
       playback.index++;
       if (playback.index >= playback.chunks.length) {
@@ -615,6 +682,17 @@ export function ReaderAudioPlayer({
   );
   const active =
     status === "loading" || status === "playing" || status === "gap";
+  const canListen =
+    hasPremium &&
+    Boolean(text.trim()) &&
+    Boolean(sourceLanguage) &&
+    settingsLoaded &&
+    configStatus === "ready";
+  const showFloatingControls =
+    hasPremium &&
+    controlsAboveViewport &&
+    status !== "idle" &&
+    status !== "complete";
   const mainAction = active
     ? "Pause reading"
     : status === "paused"
@@ -650,30 +728,16 @@ export function ReaderAudioPlayer({
       aria-label={`Read full text aloud${languageName ? ` in ${languageName}` : ""}`}
     >
       <div className={styles.toolbar}>
-        <div className={styles.controls}>
+        <div className={styles.controls} ref={controlsRef}>
           <button
             type="button"
             className={styles.listenButton}
             onClick={listen}
-            disabled={
-              !hasPremium ||
-              !text.trim() ||
-              !sourceLanguage ||
-              !settingsLoaded ||
-              configStatus !== "ready"
-            }
+            disabled={!canListen}
             aria-label={mainAction}
           >
             <span aria-hidden="true">{active ? "Ⅱ" : "▶"}</span>
             {mainLabel}
-          </button>
-          <button
-            type="button"
-            className={styles.stopButton}
-            onClick={() => clearPlayback(false)}
-            disabled={!hasPremium || status === "idle" || status === "complete"}
-          >
-            Stop
           </button>
         </div>
         {hasPremium && (
@@ -813,6 +877,24 @@ export function ReaderAudioPlayer({
             </p>
           )}
         </>
+      )}
+      {showFloatingControls && (
+        <div
+          className={styles.floatingDock}
+          role="group"
+          aria-label="Floating playback controls"
+        >
+          <button
+            type="button"
+            className={styles.listenButton}
+            onClick={listen}
+            disabled={!canListen}
+            aria-label={mainAction}
+          >
+            <span aria-hidden="true">{active ? "Ⅱ" : "▶"}</span>
+            {mainLabel}
+          </button>
+        </div>
       )}
     </section>
   );

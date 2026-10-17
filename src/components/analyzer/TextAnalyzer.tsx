@@ -34,6 +34,7 @@ import { useLanguages } from "@/lib/languages/useLanguages";
 import type { ReaderTextRange } from "@/lib/audio/readerText";
 import { ReaderAudioPlayer } from "./ReaderAudioPlayer";
 import { AnalyzerPopover } from "./AnalyzerPopover";
+import { useReadingFollow } from "./useReadingFollow";
 import styles from "./TextAnalyzer.module.css";
 
 const CACHE_KEY = "textAnalyzerState:v2";
@@ -137,6 +138,7 @@ export function TextAnalyzer() {
   const [cacheReady, setCacheReady] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [focusPopover, setFocusPopover] = useState(false);
+  const [playbackActive, setPlaybackActive] = useState(false);
   const [readingHighlight, setReadingHighlight] = useState<{
     range: ReaderTextRange;
     text: string;
@@ -158,6 +160,14 @@ export function TextAnalyzer() {
     () => tokenizeText(readerText, sourceCode),
     [readerText, sourceCode],
   );
+  const positionedTokens = useMemo(() => {
+    let offset = 0;
+    return tokens.map((token) => {
+      const start = offset;
+      offset += token.text.length;
+      return { ...token, start, end: offset };
+    });
+  }, [tokens]);
   const winningConstruction = analysis?.constructions[0];
   const highlightedTokenIds = new Set(
     winningConstruction?.tokenIds ?? selectedTokenIds,
@@ -175,23 +185,28 @@ export function TextAnalyzer() {
     },
     [readerText, sourceCode],
   );
-  const speakingTokenIds = new Set<number>();
-  if (
+  const currentReadingRange =
     readingHighlight?.text === readerText &&
     readingHighlight.sourceLanguage === sourceCode
-  ) {
-    let offset = 0;
-    for (const token of tokens) {
-      const end = offset + token.text.length;
+      ? readingHighlight.range
+      : null;
+  const speakingTokenIds = new Set<number>();
+  if (currentReadingRange) {
+    for (const token of positionedTokens) {
       if (
-        offset < readingHighlight.range.end &&
-        end > readingHighlight.range.start
+        token.start < currentReadingRange.end &&
+        token.end > currentReadingRange.start
       ) {
         speakingTokenIds.add(token.id);
       }
-      offset = end;
     }
   }
+  useReadingFollow({
+    readerRef,
+    range: currentReadingRange,
+    active: playbackActive,
+    suspended: popoverOpen || editorExpanded || status !== "authenticated",
+  });
 
   useEffect(
     () => () => {
@@ -510,6 +525,7 @@ export function TextAnalyzer() {
             sourceLanguage={sourceCode}
             hasPremium={session?.user?.tier === "premium"}
             onReadingRangeChange={handleReadingRangeChange}
+            onPlaybackActiveChange={setPlaybackActive}
           />
           <section className={styles.reader} aria-label="Text reader">
             <div
@@ -531,11 +547,13 @@ export function TextAnalyzer() {
                 }
               }}
             >
-              {tokens.map((token) =>
+              {positionedTokens.map((token) =>
                 token.isWord ? (
                   <span
                     key={token.id}
                     data-token-id={token.id}
+                    data-text-start={token.start}
+                    data-text-end={token.end}
                     role="button"
                     tabIndex={0}
                     aria-haspopup="dialog"
@@ -554,6 +572,8 @@ export function TextAnalyzer() {
                 ) : (
                   <span
                     key={token.id}
+                    data-text-start={token.start}
+                    data-text-end={token.end}
                     className={
                       speakingTokenIds.has(token.id)
                         ? styles.spokenText

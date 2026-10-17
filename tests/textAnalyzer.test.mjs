@@ -53,6 +53,7 @@ function setup(t, { response = async () => Response.json(analysis()) } = {}) {
   let effects = [];
   let dirty = false;
   let mounted = true;
+  let followOptions;
   const pair = {
     currentSourceLanguage: "German",
     currentTargetLanguage: "Russian",
@@ -227,6 +228,11 @@ function setup(t, { response = async () => Response.json(analysis()) } = {}) {
       "@/lib/languages/useLanguages": { useLanguages: () => pair },
       "./ReaderAudioPlayer": { ReaderAudioPlayer: "ReaderAudioPlayer" },
       "./AnalyzerPopover": { AnalyzerPopover: "AnalyzerPopover" },
+      "./useReadingFollow": {
+        useReadingFollow(options) {
+          followOptions = options;
+        },
+      },
       "./TextAnalyzer.module.css": {
         __esModule: true,
         default: new Proxy({}, { get: (_target, name) => name }),
@@ -291,6 +297,9 @@ function setup(t, { response = async () => Response.json(analysis()) } = {}) {
     timers,
     listeners,
     render,
+    get followOptions() {
+      return followOptions;
+    },
     get editorFocuses() {
       return editorFocuses;
     },
@@ -329,6 +338,10 @@ function setup(t, { response = async () => Response.json(analysis()) } = {}) {
     },
     readRange(range) {
       this.player().props.onReadingRangeChange(range);
+      return render();
+    },
+    playbackActive(active) {
+      this.player().props.onPlaybackActiveChange(active);
       return render();
     },
     spoken() {
@@ -692,4 +705,47 @@ test("null and invalid reading ranges clear sentence highlighting", async (t) =>
     ui.readRange(range);
     assert.equal(ui.spoken().length, 0);
   }
+});
+
+test("reading follow receives exact token offsets and pauses or suspends without clearing the blue sentence", async (t) => {
+  const ui = setup(t);
+  const value = "🫐 Hallo Welt! Noch ein Satz.";
+  await ui.ready();
+  assert.equal(ui.followOptions.suspended, true);
+  await ui.open(value);
+  const spans = nodes(ui.tokens(), (node) => node.type === "span");
+  let offset = 0;
+  for (const span of spans) {
+    assert.equal(span.props["data-text-start"], offset);
+    offset += text(span).length;
+    assert.equal(span.props["data-text-end"], offset);
+  }
+  assert.equal(offset, value.length);
+  assert.equal(ui.followOptions.suspended, false);
+  const range = { start: 0, end: value.indexOf(" Noch") };
+  ui.readRange(range);
+  ui.playbackActive(true);
+  assert.deepEqual(ui.followOptions.range, range);
+  assert.equal(ui.followOptions.active, true);
+  ui.playbackActive(false);
+  assert.equal(ui.followOptions.active, false);
+  assert.equal(ui.spoken().map(text).join(""), "🫐 Hallo Welt!");
+  const wordId = spans.find((span) => text(span) === "Hallo").props[
+    "data-token-id"
+  ];
+  ui.clickWord(wordId);
+  assert.equal(ui.followOptions.suspended, true);
+  assert.deepEqual(ui.followOptions.range, range);
+  ui.close();
+  assert.equal(ui.followOptions.suspended, false);
+  ui.button("Edit text").props.onClick();
+  ui.render();
+  assert.equal(ui.followOptions.suspended, true);
+  assert.equal(ui.spoken().map(text).join(""), "🫐 Hallo Welt!");
+  ui.language("Finnish");
+  assert.equal(
+    ui.followOptions.range,
+    null,
+    "An old source-language range must not drive automatic scrolling",
+  );
 });

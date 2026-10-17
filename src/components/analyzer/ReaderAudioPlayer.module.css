@@ -5,7 +5,7 @@
 
 .toolbar {
   display: grid;
-  grid-template-columns: 13rem minmax(0, 1fr);
+  grid-template-columns: 8.5rem minmax(0, 1fr);
   align-items: end;
   gap: 0.65rem;
   min-width: 0;
@@ -13,21 +13,37 @@
 
 .controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 4rem;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
 }
 
+.floatingDock {
+  position: fixed;
+  right: calc(0.75rem + env(safe-area-inset-right, 0px));
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 7rem;
+  max-width: calc(
+    100vw - 1.5rem - env(safe-area-inset-left, 0px) -
+      env(safe-area-inset-right, 0px)
+  );
+  padding: 0.35rem;
+  background: var(--surface-raised);
+  box-shadow: 0 4px 18px rgb(0 0 0 / 14%);
+}
+
 .listenButton,
-.stopButton,
 .retryButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
   min-height: 44px;
-  border: 1px solid var(--border-color);
+  border: 0;
   border-radius: 0;
   padding: 0.5rem 0.75rem;
   color: var(--foreground);
@@ -40,7 +56,6 @@
 }
 
 .listenButton {
-  border-color: var(--accent);
   color: var(--accent-strong);
   background: color-mix(in srgb, var(--accent) 6%, var(--surface-raised));
 }
@@ -49,7 +64,6 @@
   background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
 }
 
-.stopButton:hover:not(:disabled),
 .retryButton:hover {
   background: var(--button-secondary-hover);
 }
