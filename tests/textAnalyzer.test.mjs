@@ -21,6 +21,7 @@ function nodes(tree, predicate) {
 function text(tree) {
   if (Array.isArray(tree)) return tree.map(text).join("");
   if (typeof tree === "string" || typeof tree === "number") return String(tree);
+  if (tree?.props?.["aria-hidden"]) return "";
   return tree && typeof tree === "object" ? text(tree.props?.children) : "";
 }
 
@@ -218,6 +219,12 @@ function setup(
       react,
       "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
       "next/link": { __esModule: true, default: "a" },
+      "lucide-react": new Proxy(
+        {},
+        {
+          get: (_target, name) => `lucide:${String(name)}`,
+        },
+      ),
       "next/navigation": {
         useRouter: () => ({ push: (href) => navigations.push(href) }),
       },

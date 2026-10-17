@@ -317,6 +317,12 @@ function setup(
     outside() {
       return new FakeNode("outside", body);
     },
+    blankReader() {
+      return new FakeNode("blank-reader-space", reader);
+    },
+    nativeMenu() {
+      return new FakeNode("native-top-layer-menu", popup);
+    },
     dispatchDocument(type, details = {}) {
       const event = {
         target: body,
@@ -396,16 +402,16 @@ test("popover portals a nonmodal dialog and keyboard activation focuses without 
 
 test("compact keyboard actions use a smaller anchored popup and focus the first available action", async (t) => {
   const ui = setup(t, { keyboard: true, compact: true });
-  ui.content.scrollHeight = 68;
+  ui.content.scrollHeight = 44;
   const tree = await ui.ready();
   assert.equal(tree.props["aria-label"], "Selected text actions");
-  assert.equal(tree.props.style.width, 256);
-  assert.equal(tree.props.style.top, 324);
+  assert.equal(tree.props.style.width, 224);
+  assert.equal(tree.props.style.top, 348);
   assert.equal(tree.props.style.visibility, "visible");
   assert.equal(
-    nodes(tree, (node) => node.props?.["aria-label"] === "Close actions")
-      .length,
-    1,
+    nodes(tree, (node) => node.type === "button").length,
+    2,
+    "Compact actions must contain only the two requested action buttons",
   );
   assert.deepEqual(ui.focuses, [
     { name: "listen", options: { preventScroll: true } },
@@ -435,9 +441,9 @@ test("Translate expands the same word anchor before paint and focuses results on
   const ui = setup(t, { keyboard: true, compact: true });
   ui.viewport.width = 320;
   ui.viewport.height = 740;
-  ui.content.scrollHeight = 68;
+  ui.content.scrollHeight = 44;
   const actions = await ui.ready();
-  assert.equal(actions.props.style.width, 256);
+  assert.equal(actions.props.style.width, 224);
   ui.dispatchWindow("resize");
   assert.equal(ui.frames.size, 1);
   ui.content.scrollHeight = 523;
@@ -555,6 +561,46 @@ test("outside dismissal preserves reader selection gestures and popup interactio
     pointerType: "mouse",
   });
   assert.equal(ui.closeCount, 1);
+});
+
+test("compact actions dismiss on blank reader space while preserving word and native selection gestures", async (t) => {
+  const ui = setup(t, { compact: true });
+  await ui.ready();
+  ui.dispatchDocument("pointerdown", {
+    target: ui.content,
+    pointerType: "mouse",
+  });
+  ui.dispatchDocument("pointerdown", {
+    target: ui.anchor,
+    pointerType: "mouse",
+  });
+  assert.equal(ui.closeCount, 0);
+  ui.dispatchDocument("pointerdown", {
+    target: ui.blankReader(),
+    pointerType: "mouse",
+  });
+  assert.equal(ui.closeCount, 1);
+  ui.selectNative();
+  ui.dispatchDocument("pointerdown", {
+    target: ui.outside(),
+    pointerType: "touch",
+  });
+  assert.equal(ui.closeCount, 1, "Touch selection handles must remain usable");
+  ui.dispatchDocument("pointerdown", {
+    target: ui.outside(),
+    pointerType: "mouse",
+  });
+  assert.equal(ui.closeCount, 2);
+});
+
+test("a native top-layer translation menu keeps parent DOM containment and does not dismiss the results popup", async (t) => {
+  const ui = setup(t);
+  await ui.ready();
+  ui.dispatchDocument("pointerdown", {
+    target: ui.nativeMenu(),
+    pointerType: "mouse",
+  });
+  assert.equal(ui.closeCount, 0);
 });
 
 test("reader scrolling updates the anchor while popup scrolling does not, and offscreen selection closes", async (t) => {

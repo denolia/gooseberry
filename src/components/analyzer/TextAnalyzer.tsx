@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
+import { Languages as TranslateIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { TranslationCard } from "@/components/anki/TranslationCard";
@@ -697,6 +698,11 @@ export function TextAnalyzer() {
                       className={styles.selectionAction}
                       onClick={() => void analyzeSelection(selectedTokenIds)}
                     >
+                      <TranslateIcon
+                        size={16}
+                        aria-hidden="true"
+                        focusable="false"
+                      />
                       Translate
                     </button>
                   </div>

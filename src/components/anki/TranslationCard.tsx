@@ -1,5 +1,12 @@
 "use client";
-import { ReactNode, useEffect, useId, useRef, useState } from "react";
+import {
+  ReactNode,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -49,6 +56,7 @@ export function TranslationCard({
   const mainActionRef = useRef<HTMLButtonElement>(null);
   const pickerTriggerRef = useRef<HTMLButtonElement>(null);
   const actionsTriggerRef = useRef<HTMLButtonElement>(null);
+  const actionsMenuRef = useRef<HTMLDivElement>(null);
   const translationActionRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const newSetNameRef = useRef<HTMLInputElement>(null);
@@ -134,18 +142,72 @@ export function TranslationCard({
     setActionsOpen(true);
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!actionsOpen) return;
-    const frame = window.requestAnimationFrame(() =>
-      translationActionRef.current?.focus(),
-    );
+    const menu = actionsMenuRef.current;
+    const trigger = actionsTriggerRef.current;
+    if (!menu || !trigger) return;
+
+    // The top layer escapes the translation popup's scrolling viewport while
+    // keeping the menu inside the card for outside-click and keyboard handling.
+    menu.showPopover?.();
+    const viewport = window.visualViewport;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportWidth = viewport?.width ?? window.innerWidth;
+    const viewportHeight = viewport?.height ?? window.innerHeight;
+    const edge = 8;
+    const gap = 6;
+    menu.style.maxWidth = `${Math.max(0, viewportWidth - edge * 2)}px`;
+    menu.style.maxHeight = `${Math.max(0, viewportHeight - edge * 2)}px`;
+    const anchor = trigger.getBoundingClientRect();
+    const size = menu.getBoundingClientRect();
+    const roomBelow = viewportTop + viewportHeight - edge - anchor.bottom - gap;
+    const roomAbove = anchor.top - gap - viewportTop - edge;
+    const preferredTop =
+      roomBelow >= size.height || roomBelow >= roomAbove
+        ? anchor.bottom + gap
+        : anchor.top - gap - size.height;
+    menu.style.left = `${Math.max(
+      viewportLeft + edge,
+      Math.min(
+        anchor.right - size.width,
+        viewportLeft + viewportWidth - edge - size.width,
+      ),
+    )}px`;
+    menu.style.top = `${Math.max(
+      viewportTop + edge,
+      Math.min(preferredTop, viewportTop + viewportHeight - edge - size.height),
+    )}px`;
+    translationActionRef.current?.focus({ preventScroll: true });
+
     const onPointerDown = (event: PointerEvent) => {
       if (!pickerRef.current?.contains(event.target as Node)) closeActions();
     };
+    const onScroll = (event: Event) => {
+      if (event.target === window || !menu.contains(event.target as Node)) {
+        closeActions({ restoreFocus: true });
+      }
+    };
+    const onResize = () => closeActions({ restoreFocus: true });
     document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    viewport?.addEventListener("resize", onResize);
+    viewport?.addEventListener("scroll", onResize);
     return () => {
-      window.cancelAnimationFrame(frame);
       document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+      viewport?.removeEventListener("resize", onResize);
+      viewport?.removeEventListener("scroll", onResize);
+      if (
+        menu.isConnected &&
+        typeof menu.showPopover === "function" &&
+        menu.matches(":popover-open")
+      ) {
+        menu.hidePopover();
+      }
     };
   }, [actionsOpen]);
 
@@ -450,10 +512,12 @@ export function TranslationCard({
             </div>
             {onOpenTranslation && actionsOpen && (
               <div
+                ref={actionsMenuRef}
                 id={actionsMenuId}
                 role="menu"
                 aria-label="Translation actions"
                 className={styles.actionsMenu}
+                popover="manual"
               >
                 <button
                   ref={translationActionRef}

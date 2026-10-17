@@ -58,7 +58,7 @@ export function AnalyzerPopover({
   const measureRef = useRef<(() => void) | null>(null);
   const selectionKey = tokenIds.join(",");
   const openingKey = `${compact ? "actions" : "translation"}:${selectionKey}`;
-  const popoverWidth = compact ? 256 : 480;
+  const popoverWidth = compact ? 224 : 480;
   const currentPosition = position?.compact === compact ? position : null;
 
   useLayoutEffect(() => {
@@ -177,7 +177,11 @@ export function AnalyzerPopover({
             'button:not([disabled]), a[href], [tabindex="0"]',
           )
         : null;
-      (firstAction ?? closeButtonRef.current)?.focus({ preventScroll: true });
+      (
+        firstAction ?? (compact ? popupRef.current : closeButtonRef.current)
+      )?.focus({
+        preventScroll: true,
+      });
       focusedSelectionRef.current = openingKey;
     }
   }, [focusOnOpen, positioned, openingKey, compact]);
@@ -186,11 +190,17 @@ export function AnalyzerPopover({
     if (!portalRoot) return;
     const onPointerDown = (event: PointerEvent) => {
       if (!(event.target instanceof Node)) return;
-      if (
-        popupRef.current?.contains(event.target) ||
-        readerRef.current?.contains(event.target)
-      ) {
-        return;
+      if (popupRef.current?.contains(event.target)) return;
+      const reader = readerRef.current;
+      if (reader?.contains(event.target)) {
+        if (!compact) return;
+        const target = event.target;
+        if (
+          Array.from(reader.querySelectorAll("[data-token-id]")).some((word) =>
+            word.contains(target),
+          )
+        )
+          return;
       }
       // Mobile selection handles can dispatch touch events outside the reader.
       const selection = window.getSelection();
@@ -234,7 +244,7 @@ export function AnalyzerPopover({
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [portalRoot, readerRef]);
+  }, [portalRoot, readerRef, compact]);
 
   if (!portalRoot) return null;
   return createPortal(
@@ -242,6 +252,7 @@ export function AnalyzerPopover({
       ref={popupRef}
       id={id}
       role="dialog"
+      tabIndex={-1}
       aria-label={
         compact ? "Selected text actions" : "Selected text translation"
       }
@@ -257,32 +268,34 @@ export function AnalyzerPopover({
         visibility: positioned ? "visible" : "hidden",
       }}
     >
-      <button
-        ref={closeButtonRef}
-        type="button"
-        aria-label={compact ? "Close actions" : "Close translation"}
-        className={styles.closeButton}
-        onClick={() => {
-          anchorElementRef.current?.focus({ preventScroll: true });
-          closeCallbackRef.current();
-        }}
-      >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-          focusable="false"
+      {!compact && (
+        <button
+          ref={closeButtonRef}
+          type="button"
+          aria-label="Close translation"
+          className={styles.closeButton}
+          onClick={() => {
+            anchorElementRef.current?.focus({ preventScroll: true });
+            closeCallbackRef.current();
+          }}
         >
-          <path
-            d="m6 6 12 12M18 6 6 18"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-        </svg>
-      </button>
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path
+              d="m6 6 12 12M18 6 6 18"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      )}
       <div ref={contentRef} className={styles.content}>
         <div ref={contentInnerRef}>{children}</div>
       </div>

@@ -35,9 +35,10 @@ function text(tree) {
 }
 const nextTick = () => new Promise((resolve) => setImmediate(resolve));
 
-function setup(t, props = {}, queryOverrides = {}) {
+function setup(t, props = {}, queryOverrides = {}, geometry = {}) {
   const hooks = [];
   const listeners = new Map();
+  const windowListeners = new Map();
   const frames = new Map();
   const memory = new Map();
   const requests = [];
@@ -117,6 +118,7 @@ function setup(t, props = {}, queryOverrides = {}) {
       }
     },
   };
+  react.useLayoutEffect = react.useEffect;
   const fakeDocument = {
     activeElement: null,
     addEventListener(type, listener) {
@@ -134,6 +136,31 @@ function setup(t, props = {}, queryOverrides = {}) {
     getItem: (key) => memory.get(key) ?? null,
     setItem: (key, value) => memory.set(key, value),
   };
+  const fakeWindow = {
+    localStorage: storage,
+    innerWidth: 320,
+    innerHeight: 450,
+    ...geometry,
+    requestAnimationFrame(callback) {
+      const id = ++frameId;
+      frames.set(id, callback);
+      return id;
+    },
+    cancelAnimationFrame(id) {
+      frames.delete(id);
+    },
+    addEventListener(type, listener) {
+      if (!windowListeners.has(type)) windowListeners.set(type, new Set());
+      windowListeners.get(type).add(listener);
+    },
+    removeEventListener(type, listener) {
+      windowListeners.get(type)?.delete(listener);
+    },
+    dispatch(type, event) {
+      for (const listener of [...(windowListeners.get(type) ?? [])])
+        listener(event);
+    },
+  };
   const globals = new Map(
     ["window", "document", "localStorage"].map((key) => [
       key,
@@ -150,17 +177,7 @@ function setup(t, props = {}, queryOverrides = {}) {
   });
   Object.defineProperty(globalThis, "window", {
     configurable: true,
-    value: {
-      localStorage: storage,
-      requestAnimationFrame(callback) {
-        const id = ++frameId;
-        frames.set(id, callback);
-        return id;
-      },
-      cancelAnimationFrame(id) {
-        frames.delete(id);
-      },
-    },
+    value: fakeWindow,
   });
   t.mock.method(globalThis, "fetch", async (url, options) => {
     requests.push({ url, options, body: JSON.parse(options.body) });
@@ -216,6 +233,33 @@ function setup(t, props = {}, queryOverrides = {}) {
     let element = ref && refElements.get(ref);
     if (!element) {
       element = {
+        style: {},
+        isConnected: true,
+        popoverOpen: false,
+        showPopover() {
+          this.popoverOpen = true;
+          this.showCount = (this.showCount ?? 0) + 1;
+        },
+        hidePopover() {
+          this.popoverOpen = false;
+        },
+        matches(selector) {
+          assert.equal(selector, ":popover-open");
+          return this.popoverOpen;
+        },
+        getBoundingClientRect() {
+          return this.role === "menu"
+            ? {
+                width: Math.min(200, parseFloat(this.style.maxWidth) || 200),
+                height: 50,
+              }
+            : (geometry.anchor ?? {
+                left: 260,
+                right: 304,
+                top: 337,
+                bottom: 381,
+              });
+        },
         focus(options) {
           fakeDocument.activeElement = this;
           focused.push({ element: this, options });
@@ -230,6 +274,7 @@ function setup(t, props = {}, queryOverrides = {}) {
     }
     tree.element = element;
     element.parent = parent;
+    element.role = tree.props?.role;
     if (ref) {
       ref.current = element;
       nextRefs.add(ref);
@@ -266,6 +311,7 @@ function setup(t, props = {}, queryOverrides = {}) {
     memory,
     focused,
     document: fakeDocument,
+    window: fakeWindow,
     render,
     button(label) {
       const button = nodes(
@@ -339,11 +385,9 @@ test("optional overflow action opens the translation exactly once without saving
   const item = card.button("Open in Translation");
   assert.equal(item.props.role, "menuitem");
   assert.equal(card.document.activeElement, item.element);
-  assert.equal(
-    card.focused.at(-1).options,
-    undefined,
-    "opening focus must reveal a menu below the popup scroll viewport",
-  );
+  assert.equal(card.menu().props.popover, "manual");
+  assert.equal(card.menu().element.popoverOpen, true);
+  assert.deepEqual(card.focused.at(-1).options, { preventScroll: true });
   await card.click("Open in Translation");
   assert.equal(opens, 1);
   assert.equal(card.menu(), undefined);
@@ -419,6 +463,50 @@ test("outside pointer dismissal leaves outside focus alone while inside clicks k
   card.flushFrames();
   assert.equal(card.menu(), undefined);
   assert.equal(card.document.activeElement, outside);
+});
+
+test("floating dropdown flips above a low trigger and stays inside a narrow viewport", async (t) => {
+  const card = setup(t, { onOpenTranslation() {} }, {}, { innerHeight: 400 });
+  await card.click("More translation actions");
+  const menu = card.menu().element;
+  assert.equal(
+    menu.showCount,
+    1,
+    "The dropdown must enter the native top layer",
+  );
+  assert(card.actionArea().element.contains(menu));
+  const left = parseFloat(menu.style.left);
+  const top = parseFloat(menu.style.top);
+  const { width, height } = menu.getBoundingClientRect();
+  assert(top + height < 337, "A menu near the viewport bottom must flip above");
+  assert(top >= 0 && top + height <= 400);
+  assert(left >= 0 && left + width <= 320);
+  assert.deepEqual(card.focused.at(-1).options, { preventScroll: true });
+});
+
+test("ancestor scrolling closes the dropdown and restores focus without moving the page", async (t) => {
+  const card = setup(t, { onOpenTranslation() {} });
+  await card.click("More translation actions");
+  const menu = card.menu().element;
+  card.window.dispatch("scroll", {
+    target: card.button("Open in Translation").element,
+  });
+  assert(card.menu(), "Scrolling inside the menu must keep it open");
+  card.window.dispatch("scroll", { target: card.actionArea().element });
+  card.render();
+  card.flushFrames();
+  assert.equal(card.menu(), undefined);
+  assert.equal(menu.popoverOpen, false);
+  assert.equal(
+    card.document.activeElement,
+    card.button("More translation actions").element,
+  );
+  assert.deepEqual(card.focused.at(-1).options, { preventScroll: true });
+
+  await card.click("More translation actions");
+  card.window.dispatch("resize", {});
+  card.render();
+  assert.equal(card.menu(), undefined);
 });
 
 test("set picker and overflow are mutually exclusive and the selected destination still saves correctly", async (t) => {

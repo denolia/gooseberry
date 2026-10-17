@@ -17,7 +17,10 @@
 }
 
 .compact {
-  max-width: 256px;
+  max-width: 224px;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
 }
 
 .closeButton {
@@ -57,6 +60,9 @@
 }
 
 .compact .content {
+  min-height: 0;
+  padding: 0;
+  overflow: visible;
   scrollbar-gutter: auto;
 }
 
