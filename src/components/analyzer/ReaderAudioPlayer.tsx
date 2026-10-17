@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type Ref,
+} from "react";
 import Link from "next/link";
 import { SourceLanguageSelectOptions } from "@/components/ui/Languages";
 import {
@@ -19,6 +26,8 @@ import {
 } from "@/lib/audio/readerConfig";
 import {
   getReaderSpeechChunks,
+  findReaderSentenceChunkIndex,
+  getReaderSentenceNavigation,
   type ReaderSpeechChunk,
   type ReaderTextRange,
 } from "@/lib/audio/readerText";
@@ -31,7 +40,12 @@ type Settings = {
   voice: ReaderVoice;
   speed: ReaderSpeed;
 };
-type Status = "idle" | "loading" | "playing" | "paused" | "complete" | "error";
+type Status =
+  "idle" | "loading" | "playing" | "paused" | "waiting" | "complete" | "error";
+type ReadingMode = "full" | "practice";
+export type ReaderAudioPlayerHandle = {
+  readFrom(offset: number): Promise<void>;
+};
 type AudioRequest = {
   controller: AbortController;
   promise: Promise<string>;
@@ -72,6 +86,8 @@ export function ReaderAudioPlayer({
   accountId,
   onReadingRangeChange,
   onPlaybackActiveChange,
+  onAvailabilityChange,
+  ref,
 }: {
   text: string;
   sourceLanguage: string;
@@ -79,6 +95,8 @@ export function ReaderAudioPlayer({
   accountId?: string | null;
   onReadingRangeChange?: (range: ReaderTextRange | null) => void;
   onPlaybackActiveChange?: (active: boolean) => void;
+  onAvailabilityChange?: (available: boolean) => void;
+  ref?: Ref<ReaderAudioPlayerHandle>;
 }) {
   const [status, setStatus] = useState<Status>("idle");
   const [part, setPart] = useState(0);
@@ -93,6 +111,11 @@ export function ReaderAudioPlayer({
   const [configError, setConfigError] = useState("");
   const [configRetry, setConfigRetry] = useState(0);
   const [controlsAboveViewport, setControlsAboveViewport] = useState(false);
+  const [mode, setMode] = useState<ReadingMode>("full");
+  const [sentenceNavigation, setSentenceNavigation] = useState(() =>
+    getReaderSentenceNavigation([], 0),
+  );
+  const modeRef = useRef<ReadingMode>("full");
   const settingsRef = useRef(settings);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const contentCacheRef = useRef<ReaderAudioCache | null>(null);
@@ -104,6 +127,7 @@ export function ReaderAudioPlayer({
   const readingRangeRef = useRef<ReaderTextRange | null>(null);
   const activeCallbackRef = useRef(onPlaybackActiveChange);
   const playbackActiveRef = useRef(false);
+  const availabilityCallbackRef = useRef(onAvailabilityChange);
   const previousInputRef = useRef({
     text,
     sourceLanguage,
@@ -148,6 +172,10 @@ export function ReaderAudioPlayer({
   useEffect(() => {
     activeCallbackRef.current = onPlaybackActiveChange;
   }, [onPlaybackActiveChange]);
+
+  useEffect(() => {
+    availabilityCallbackRef.current = onAvailabilityChange;
+  }, [onAvailabilityChange]);
 
   useEffect(() => {
     const controls = controlsRef.current;
@@ -230,6 +258,8 @@ export function ReaderAudioPlayer({
         for (const url of playback.urls.values()) URL.revokeObjectURL(url);
         playback.urls.clear();
         playback.chunks = [];
+        if (updateUi && mountedRef.current)
+          setSentenceNavigation(getReaderSentenceNavigation([], 0));
       }
       playback.status = "idle";
       if (updateUi && mountedRef.current) {
@@ -272,6 +302,7 @@ export function ReaderAudioPlayer({
     return () => {
       cancelled = true;
       mountedRef.current = false;
+      availabilityCallbackRef.current?.(false);
       clearPlayback(true, false);
       contentCacheRef.current?.clear();
     };
@@ -396,6 +427,24 @@ export function ReaderAudioPlayer({
     audio.onended = () => {
       if (!isCurrent(generation, index)) return;
       updatePlaybackActive(false);
+      const chunk = playback.chunks[index];
+      const nextChunk = playback.chunks[index + 1];
+      if (
+        modeRef.current === "practice" &&
+        (!nextChunk || nextChunk.sentenceIndex !== chunk.sentenceIndex)
+      ) {
+        playback.wantsPlay = false;
+        const navigation = getReaderSentenceNavigation(playback.chunks, index);
+        playback.index = navigation.firstChunkIndex;
+        setPart(playback.index + 1);
+        setSentenceNavigation(navigation);
+        updateReadingRange({
+          start: chunk.sentenceStart,
+          end: chunk.sentenceEnd,
+        });
+        updateStatus("waiting");
+        return;
+      }
       updateReadingRange(null);
       playback.index++;
       if (playback.index >= playback.chunks.length) {
@@ -404,6 +453,9 @@ export function ReaderAudioPlayer({
         return;
       }
       setPart(playback.index + 1);
+      setSentenceNavigation(
+        getReaderSentenceNavigation(playback.chunks, playback.index),
+      );
       if (!playback.wantsPlay) updateStatus("paused");
       else void playPart(generation);
     };
@@ -550,6 +602,9 @@ export function ReaderAudioPlayer({
     const nextIndex = index + 1;
     if (
       nextIndex >= playback.chunks.length ||
+      (modeRef.current === "practice" &&
+        playback.chunks[nextIndex].sentenceIndex !==
+          playback.chunks[index].sentenceIndex) ||
       playback.urls.has(nextIndex) ||
       playback.requestErrors.has(nextIndex)
     )
@@ -634,32 +689,96 @@ export function ReaderAudioPlayer({
     if (playback.status === "error")
       playback.requestErrors.delete(playback.index);
     getAudio();
+    if (modeRef.current === "practice" && playback.status === "waiting") {
+      await startAtChunk(
+        getReaderSentenceNavigation(playback.chunks, playback.index)
+          .firstChunkIndex,
+      );
+      return;
+    }
     if (playback.status === "complete") clearPlayback(false);
-    if (!playback.chunks.length) {
-      try {
+    if (!prepareChunks()) return;
+    playback.wantsPlay = true;
+    setPart(playback.index + 1);
+    setSentenceNavigation(
+      getReaderSentenceNavigation(playback.chunks, playback.index),
+    );
+    await playPart(playback.generation);
+  }
+
+  function prepareChunks() {
+    const playback = playbackRef.current;
+    try {
+      if (!playback.chunks.length) {
         const language =
           SourceLanguageSelectOptions.find(
             (option) => option.label === sourceLanguage,
           )?.value ?? sourceLanguage;
         playback.chunks = getReaderSpeechChunks(text, language);
-        playback.voice = settingsRef.current.voice;
-        playback.language = sourceLanguage;
         setPartCount(playback.chunks.length);
-      } catch (reason) {
-        updateReadingRange(null);
-        setError(
-          reason instanceof Error
-            ? reason.message
-            : "This text cannot be read.",
-        );
-        updateStatus("error");
-        return;
       }
+      playback.voice = settingsRef.current.voice;
+      playback.language = sourceLanguage;
+      return playback.chunks.length > 0;
+    } catch (reason) {
+      updateReadingRange(null);
+      setError(
+        reason instanceof Error ? reason.message : "This text cannot be read.",
+      );
+      updateStatus("error");
+      return false;
     }
-    if (!playback.chunks.length) return;
+  }
+
+  async function startAtChunk(index: number) {
+    if (!canListen || index < 0 || index >= playbackRef.current.chunks.length)
+      return;
+    getAudio();
+    clearPlayback(false);
+    const playback = playbackRef.current;
+    playback.index = index;
     playback.wantsPlay = true;
-    setPart(playback.index + 1);
+    updateStatus("loading");
+    setPart(index + 1);
+    setSentenceNavigation(getReaderSentenceNavigation(playback.chunks, index));
     await playPart(playback.generation);
+  }
+
+  async function readFrom(offset: number) {
+    if (!canListen || !prepareChunks()) return;
+    const index = findReaderSentenceChunkIndex(
+      playbackRef.current.chunks,
+      offset,
+    );
+    if (index >= 0) await startAtChunk(index);
+  }
+
+  useImperativeHandle(ref, () => ({ readFrom }));
+
+  function changeMode(next: ReadingMode) {
+    if (next === modeRef.current) return;
+    const prepared = prepareChunks();
+    const playback = playbackRef.current;
+    const currentIndex = Math.min(playback.index, playback.chunks.length - 1);
+    const navigation = getReaderSentenceNavigation(
+      playback.chunks,
+      currentIndex,
+    );
+    clearPlayback(false);
+    modeRef.current = next;
+    setMode(next);
+    if (!prepared || navigation.firstChunkIndex < 0) return;
+    playback.index = navigation.firstChunkIndex;
+    setPart(playback.index + 1);
+    setSentenceNavigation(navigation);
+    if (next === "practice") {
+      const chunk = playback.chunks[playback.index];
+      updateReadingRange({
+        start: chunk.sentenceStart,
+        end: chunk.sentenceEnd,
+      });
+      updateStatus("waiting");
+    }
   }
 
   function changeSettings(next: Settings) {
@@ -680,6 +799,9 @@ export function ReaderAudioPlayer({
     Boolean(sourceLanguage) &&
     settingsLoaded &&
     configStatus === "ready";
+  useEffect(() => {
+    availabilityCallbackRef.current?.(canListen);
+  }, [canListen, onAvailabilityChange]);
   const showFloatingControls =
     hasPremium &&
     controlsAboveViewport &&
@@ -691,28 +813,34 @@ export function ReaderAudioPlayer({
       ? "Resume reading"
       : status === "complete"
         ? "Listen to full text again"
-        : status === "error"
-          ? "Retry playback"
-          : "Listen to full text";
+        : status === "waiting" || (mode === "practice" && status === "idle")
+          ? "Repeat sentence"
+          : status === "error"
+            ? "Retry playback"
+            : "Listen to full text";
   const mainLabel = active
     ? "Pause"
     : status === "paused"
       ? "Resume"
       : status === "complete"
         ? "Replay"
-        : status === "error"
-          ? "Retry"
-          : "Listen";
+        : status === "waiting" || (mode === "practice" && status === "idle")
+          ? "Repeat"
+          : status === "error"
+            ? "Retry"
+            : "Listen";
   const speedIndex = READER_SPEEDS.findIndex(
     (speed) => speed.id === settings.speed,
   );
   const selectedSpeed = READER_SPEEDS[speedIndex];
   const progress =
-    status === "complete"
-      ? "Finished reading"
-      : partCount > 0 && status !== "idle"
-        ? `Part ${part} of ${partCount}${status === "loading" ? " · Generating audio…" : status === "paused" ? " · Paused" : ""}`
-        : "";
+    mode === "practice" && sentenceNavigation.sentenceCount > 0
+      ? `Sentence ${sentenceNavigation.sentenceIndex + 1} of ${sentenceNavigation.sentenceCount}${status === "loading" ? " · Generating audio…" : status === "paused" ? " · Paused" : ""}`
+      : status === "complete"
+        ? "Finished reading"
+        : partCount > 0 && status !== "idle"
+          ? `Part ${part} of ${partCount}${status === "loading" ? " · Generating audio…" : status === "paused" ? " · Paused" : ""}`
+          : "";
   const playbackIcon = (
     <svg
       className={styles.playbackIcon}
@@ -724,18 +852,87 @@ export function ReaderAudioPlayer({
       focusable="false"
     >
       <path
-        d={active ? "M5 4h3v12H5zM12 4h3v12h-3z" : "M6 3.5 16 10 6 16.5z"}
+        d={
+          active
+            ? "M5 4h3v12H5zM12 4h3v12h-3z"
+            : mode === "practice" && status !== "paused"
+              ? "M15.5 6A6 6 0 1 0 16 13h-2a4 4 0 1 1-.5-5H11V6h6v6h-2V8"
+              : "M6 3.5 16 10 6 16.5z"
+        }
       />
     </svg>
   );
+  const practiceNavigationButton = (direction: "previous" | "next") => {
+    const target =
+      direction === "previous"
+        ? sentenceNavigation.previousChunkIndex
+        : sentenceNavigation.nextChunkIndex;
+    const label =
+      direction === "previous" ? "Previous sentence" : "Next sentence";
+    return (
+      <button
+        type="button"
+        className={styles.navigationButton}
+        aria-label={label}
+        title={label}
+        disabled={!canListen || target < 0}
+        onClick={() => startAtChunk(target)}
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path
+            d={
+              direction === "previous"
+                ? "M14 4v12L5 10zM3 4h2v12H3z"
+                : "M6 4v12l9-6zM15 4h2v12h-2z"
+            }
+          />
+        </svg>
+      </button>
+    );
+  };
 
   return (
     <section
       className={styles.player}
       aria-label={`Read full text aloud${languageName ? ` in ${languageName}` : ""}`}
     >
-      <div className={styles.toolbar}>
-        <div className={styles.controls} ref={controlsRef}>
+      {hasPremium && (
+        <div
+          className={styles.modeChoice}
+          role="group"
+          aria-label="Reading mode"
+        >
+          <button
+            type="button"
+            aria-pressed={mode === "full"}
+            onClick={() => changeMode("full")}
+          >
+            Full text
+          </button>
+          <button
+            type="button"
+            aria-pressed={mode === "practice"}
+            onClick={() => changeMode("practice")}
+          >
+            Sentence practice
+          </button>
+        </div>
+      )}
+      <div
+        className={`${styles.toolbar} ${mode === "practice" ? styles.practiceToolbar : ""}`}
+      >
+        <div
+          className={`${styles.controls} ${mode === "practice" ? styles.practiceControls : ""}`}
+          ref={controlsRef}
+        >
+          {mode === "practice" && practiceNavigationButton("previous")}
           <button
             type="button"
             className={styles.listenButton}
@@ -746,6 +943,7 @@ export function ReaderAudioPlayer({
             {playbackIcon}
             {mainLabel}
           </button>
+          {mode === "practice" && practiceNavigationButton("next")}
         </div>
         {hasPremium && (
           <div className={styles.settingsGrid}>
@@ -846,10 +1044,11 @@ export function ReaderAudioPlayer({
       )}
       {showFloatingControls && (
         <div
-          className={styles.floatingDock}
+          className={`${styles.floatingDock} ${mode === "practice" ? styles.practiceDock : ""}`}
           role="group"
           aria-label="Floating playback controls"
         >
+          {mode === "practice" && practiceNavigationButton("previous")}
           <button
             type="button"
             className={styles.listenButton}
@@ -860,6 +1059,7 @@ export function ReaderAudioPlayer({
             {playbackIcon}
             {mainLabel}
           </button>
+          {mode === "practice" && practiceNavigationButton("next")}
         </div>
       )}
     </section>

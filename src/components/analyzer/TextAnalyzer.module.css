@@ -243,6 +243,49 @@
   margin-top: 0.25rem;
 }
 
+.readFromButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 0.75rem;
+  border: 0;
+  padding: 0.5rem 0.65rem;
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface-raised));
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.readFromButton svg {
+  flex-shrink: 0;
+}
+
+.readFromButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
+}
+
+.readFromButton:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.readFromNotice {
+  margin: 0 0 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.readFromNotice a {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
 .fullTranslationButton {
   border: 0;
   padding: 0.65rem 0;

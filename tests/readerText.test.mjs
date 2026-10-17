@@ -20,7 +20,12 @@ new Function("require", "exports", code)((name) => {
   assert.equal(name, "./readerConfig");
   return { READER_CHUNK_CHARACTERS: 1000, MAX_READER_CHARACTERS: 20000 };
 }, exports);
-const { getReaderSpeechChunks, splitReaderText } = exports;
+const {
+  getReaderSpeechChunks,
+  splitReaderText,
+  findReaderSentenceChunkIndex,
+  getReaderSentenceNavigation,
+} = exports;
 
 function assertOriginalOffsets(text, chunks) {
   for (const chunk of chunks) {
@@ -195,4 +200,111 @@ test("oversized unbroken Unicode preserves both text and one sentence highlight 
   assert(chunks.every((chunk) => chunk.sentenceStart === 2));
   assert(chunks.every((chunk) => chunk.sentenceEnd === text.length - 2));
   assert.equal(chunks.map((chunk) => chunk.text).join(""), text.trim());
+});
+
+test("read-from locates repeated sentences by original UTF-16 offset", () => {
+  const text = " \n🫐 Hallo. Hallo. Hallo.";
+  const chunks = getReaderSpeechChunks(text, "de");
+  assert.equal(findReaderSentenceChunkIndex(chunks, text.indexOf("🫐")), 0);
+  assert.equal(
+    findReaderSentenceChunkIndex(chunks, text.lastIndexOf("Hallo.")),
+    2,
+  );
+  for (const [index, chunk] of chunks.entries()) {
+    assert.equal(
+      findReaderSentenceChunkIndex(chunks, chunk.sentenceStart),
+      index,
+    );
+    assert.equal(
+      findReaderSentenceChunkIndex(chunks, chunk.sentenceEnd - 1),
+      index,
+    );
+  }
+});
+
+test("read-from returns a long sentence's first chunk even when the selected word is in a later piece", () => {
+  const text = `Vorher. ${"Langes Wort 🫐 ".repeat(200)}Ende. Danach.`;
+  const chunks = getReaderSpeechChunks(text, "de");
+  const first = chunks.findIndex((chunk) => chunk.sentenceIndex === 1);
+  const pieces = chunks.filter((chunk) => chunk.sentenceIndex === 1);
+  assert(pieces.length > 2);
+  for (const piece of pieces)
+    assert.equal(findReaderSentenceChunkIndex(chunks, piece.start), first);
+  assert.equal(
+    findReaderSentenceChunkIndex(chunks, text.indexOf("Ende.")),
+    first,
+  );
+});
+
+test("sentence navigation skips all oversized pieces for Repeat and neighbouring sentence controls", () => {
+  const text = `Vorher. ${"Langes Wort ".repeat(210)}Ende. Danach.`;
+  const chunks = getReaderSpeechChunks(text, "de");
+  const firstLong = chunks.findIndex((chunk) => chunk.sentenceIndex === 1);
+  const lastSentence = chunks.findIndex((chunk) => chunk.sentenceIndex === 2);
+  for (let index = firstLong; index < lastSentence; index++) {
+    assert.deepEqual(getReaderSentenceNavigation(chunks, index), {
+      firstChunkIndex: firstLong,
+      previousChunkIndex: 0,
+      nextChunkIndex: lastSentence,
+      sentenceIndex: 1,
+      sentenceCount: 3,
+    });
+  }
+  assert.equal(getReaderSentenceNavigation(chunks, 0).previousChunkIndex, -1);
+  assert.equal(
+    getReaderSentenceNavigation(chunks, 0).nextChunkIndex,
+    firstLong,
+  );
+  assert.equal(
+    getReaderSentenceNavigation(chunks, lastSentence).previousChunkIndex,
+    firstLong,
+  );
+  assert.equal(
+    getReaderSentenceNavigation(chunks, lastSentence).nextChunkIndex,
+    -1,
+  );
+});
+
+test("offset gaps choose the following sentence while trailing and invalid offsets cannot start playback", () => {
+  const text = `  Hallo.${"\n".repeat(2300)}Wieder.  `;
+  const chunks = getReaderSpeechChunks(text, "de");
+  assert.equal(findReaderSentenceChunkIndex(chunks, 0), 0);
+  assert.equal(
+    findReaderSentenceChunkIndex(chunks, text.indexOf("\n") + 1000),
+    1,
+  );
+  assert.equal(findReaderSentenceChunkIndex(chunks, chunks[0].sentenceEnd), 1);
+  for (const offset of [
+    -1,
+    NaN,
+    Infinity,
+    1.5,
+    chunks.at(-1).sentenceEnd,
+    text.length,
+    text.length + 1,
+  ]) {
+    assert.equal(findReaderSentenceChunkIndex(chunks, offset), -1);
+  }
+  assert.equal(findReaderSentenceChunkIndex([], 0), -1);
+  assert.equal(getReaderSentenceNavigation(chunks, 1).sentenceCount, 2);
+});
+
+test("empty or invalid current chunks expose no navigation target without losing a valid group count", () => {
+  const chunks = getReaderSpeechChunks("第一文です。\n第二文です！", "ja");
+  for (const index of [-1, chunks.length, NaN, Infinity, 0.5]) {
+    assert.deepEqual(getReaderSentenceNavigation(chunks, index), {
+      firstChunkIndex: -1,
+      previousChunkIndex: -1,
+      nextChunkIndex: -1,
+      sentenceIndex: -1,
+      sentenceCount: 2,
+    });
+  }
+  assert.deepEqual(getReaderSentenceNavigation([], 0), {
+    firstChunkIndex: -1,
+    previousChunkIndex: -1,
+    nextChunkIndex: -1,
+    sentenceIndex: -1,
+    sentenceCount: 0,
+  });
 });

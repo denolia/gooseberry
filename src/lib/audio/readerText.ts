@@ -98,3 +98,41 @@ export function getReaderSpeechChunks(
 export function splitReaderText(text: string, language: string): string[] {
   return getReaderSpeechChunks(text, language).map((chunk) => chunk.text);
 }
+
+export function findReaderSentenceChunkIndex(
+  chunks: readonly ReaderSpeechChunk[],
+  offset: number,
+): number {
+  if (!Number.isInteger(offset) || offset < 0) return -1;
+  // A gap belongs to the following sentence. All pieces of a long sentence
+  // share its ending offset, so the first match is always its first chunk.
+  return chunks.findIndex((chunk) => offset < chunk.sentenceEnd);
+}
+
+export function getReaderSentenceNavigation(
+  chunks: readonly ReaderSpeechChunk[],
+  chunkIndex: number,
+) {
+  const starts: number[] = [];
+  for (let index = 0; index < chunks.length; index++) {
+    if (
+      index === 0 ||
+      chunks[index].sentenceIndex !== chunks[index - 1].sentenceIndex
+    ) {
+      starts.push(index);
+    }
+  }
+  const current = Number.isInteger(chunkIndex) ? chunks[chunkIndex] : undefined;
+  const sentenceIndex = current
+    ? starts.findIndex(
+        (index) => chunks[index].sentenceIndex === current.sentenceIndex,
+      )
+    : -1;
+  return {
+    firstChunkIndex: starts[sentenceIndex] ?? -1,
+    previousChunkIndex: sentenceIndex > 0 ? starts[sentenceIndex - 1] : -1,
+    nextChunkIndex: sentenceIndex >= 0 ? (starts[sentenceIndex + 1] ?? -1) : -1,
+    sentenceIndex,
+    sentenceCount: starts.length,
+  };
+}

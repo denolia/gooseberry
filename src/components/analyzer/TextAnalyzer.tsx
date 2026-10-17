@@ -32,7 +32,10 @@ import {
 } from "@/components/ui/Languages";
 import { useLanguages } from "@/lib/languages/useLanguages";
 import type { ReaderTextRange } from "@/lib/audio/readerText";
-import { ReaderAudioPlayer } from "./ReaderAudioPlayer";
+import {
+  ReaderAudioPlayer,
+  type ReaderAudioPlayerHandle,
+} from "./ReaderAudioPlayer";
 import { AnalyzerPopover } from "./AnalyzerPopover";
 import { useReadingFollow } from "./useReadingFollow";
 import styles from "./TextAnalyzer.module.css";
@@ -125,6 +128,7 @@ function responseForCandidate(
 
 export function TextAnalyzer() {
   const { data: session, status } = useSession();
+  const hasPremium = session?.user?.tier === "premium";
   const router = useRouter();
   const { currentSourceLanguage, currentTargetLanguage } = useLanguages();
   const [text, setText] = useState("");
@@ -139,6 +143,7 @@ export function TextAnalyzer() {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [focusPopover, setFocusPopover] = useState(false);
   const [playbackActive, setPlaybackActive] = useState(false);
+  const [audioAvailable, setAudioAvailable] = useState(false);
   const [readingHighlight, setReadingHighlight] = useState<{
     range: ReaderTextRange;
     text: string;
@@ -147,6 +152,7 @@ export function TextAnalyzer() {
   const popoverId = useId();
   const activeRequest = useRef<AbortController | null>(null);
   const readerRef = useRef<HTMLDivElement>(null);
+  const audioPlayerRef = useRef<ReaderAudioPlayerHandle>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const handledTextSelection = useRef(false);
   const touchSelectionTimer = useRef<number | undefined>(undefined);
@@ -168,6 +174,10 @@ export function TextAnalyzer() {
       return { ...token, start, end: offset };
     });
   }, [tokens]);
+  const selectedWordIds = new Set(selectedTokenIds);
+  const selectedReadingToken = positionedTokens.find(
+    (token) => token.isWord && selectedWordIds.has(token.id),
+  );
   const winningConstruction = analysis?.constructions[0];
   const highlightedTokenIds = new Set(
     winningConstruction?.tokenIds ?? selectedTokenIds,
@@ -307,6 +317,19 @@ export function TextAnalyzer() {
     closePopover();
     setEditorExpanded(true);
     window.requestAnimationFrame(() => editorRef.current?.focus());
+  }
+
+  function readFromSelection() {
+    const player = audioPlayerRef.current;
+    if (!hasPremium || !audioAvailable || !selectedReadingToken || !player)
+      return;
+    closePopover();
+    readerRef.current
+      ?.querySelector<HTMLElement>(
+        `[data-token-id="${selectedReadingToken.id}"]`,
+      )
+      ?.focus({ preventScroll: true });
+    void player.readFrom(selectedReadingToken.start);
   }
 
   async function analyzeSelection(tokenIds: number[], keyboard = false) {
@@ -521,10 +544,12 @@ export function TextAnalyzer() {
       {readerText && (
         <>
           <ReaderAudioPlayer
+            ref={audioPlayerRef}
             text={readerText}
             sourceLanguage={sourceCode}
-            hasPremium={session?.user?.tier === "premium"}
+            hasPremium={hasPremium}
             accountId={session?.user?.id ?? null}
+            onAvailabilityChange={setAudioAvailable}
             onReadingRangeChange={handleReadingRangeChange}
             onPlaybackActiveChange={setPlaybackActive}
           />
@@ -612,6 +637,39 @@ export function TextAnalyzer() {
               focusOnOpen={focusPopover}
               onClose={closePopover}
             >
+              <button
+                type="button"
+                className={styles.readFromButton}
+                onClick={readFromSelection}
+                disabled={
+                  !hasPremium || !audioAvailable || !selectedReadingToken
+                }
+                title={
+                  !hasPremium
+                    ? "Available with Premium"
+                    : !audioAvailable
+                      ? "Loading audio settings…"
+                      : undefined
+                }
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path d="M6 3.5 16 10 6 16.5z" />
+                </svg>
+                Read from this sentence
+              </button>
+              {!hasPremium && (
+                <p className={styles.readFromNotice}>
+                  Audio reading is available with <a href="/profile">Premium</a>
+                  .
+                </p>
+              )}
               {isLoading ? (
                 <div className={styles.loadingCard} role="status">
                   <span className={styles.pulse} aria-hidden="true" />

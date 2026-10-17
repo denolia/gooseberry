@@ -82,6 +82,15 @@ before any cache lookup.
 Cache storage failures fall back to generation or return audio already produced
 without repeating synthesis.
 
+Sentence practice uses the same Premium reader, source language, selected voice,
+playback speed, and audio caches. In practice mode playback stops after the whole
+current sentence so the learner can pronounce it; oversized sentences continue
+through all their chunks before stopping. Repeat replays that sentence, and
+Previous/Next move to the first chunk of the neighbouring sentence. The selection
+translation popover also offers Read from this sentence, which starts at the
+sentence containing the selected text and follows the current reading or
+practice mode.
+
 During a playback session, Pause/Resume floats at the bottom of the screen once
 the original control has scrolled above it. Reading follows the highlighted
 sentence when it approaches a screen edge, leaving room for the next lines and

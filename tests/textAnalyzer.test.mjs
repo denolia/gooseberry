@@ -47,7 +47,10 @@ function analysis(expression = "Berlin", tokenIds = [0]) {
   };
 }
 
-function setup(t, { response = async () => Response.json(analysis()) } = {}) {
+function setup(
+  t,
+  { response = async () => Response.json(analysis()), tier = "premium" } = {},
+) {
   const hooks = [];
   let cursor = 0;
   let effects = [];
@@ -118,9 +121,22 @@ function setup(t, { response = async () => Response.json(analysis()) } = {}) {
   let selectedIds = [];
   let tokenElements = [];
   let editorFocuses = 0;
+  const readingCalls = [];
+  const focusCalls = [];
+  const actionEvents = [];
+  const audioHandle = {
+    readFrom(offset) {
+      readingCalls.push(offset);
+      actionEvents.push("read");
+    },
+  };
   const reader = {
     contains: (node) => node === reader || tokenElements.includes(node),
     querySelectorAll: () => tokenElements,
+    querySelector(selector) {
+      const id = selector.match(/^\[data-token-id="(\d+)"\]$/)?.[1];
+      return tokenElements.find((element) => element.dataset.tokenId === id);
+    },
   };
   const selection = {
     get isCollapsed() {
@@ -203,7 +219,7 @@ function setup(t, { response = async () => Response.json(analysis()) } = {}) {
       "next/navigation": { useRouter: () => ({ push() {} }) },
       "next-auth/react": {
         useSession: () => ({
-          data: { user: { id: "user-1", tier: "premium" } },
+          data: { user: { id: "user-1", tier } },
           status: "authenticated",
         }),
       },
@@ -257,7 +273,10 @@ function setup(t, { response = async () => Response.json(analysis()) } = {}) {
       ).map((node) => {
         const element = {
           dataset: { tokenId: String(node.props["data-token-id"]) },
-          focus() {},
+          focus(options) {
+            focusCalls.push({ id: node.props["data-token-id"], options });
+            actionEvents.push("focus");
+          },
           closest: () => element,
         };
         return element;
@@ -272,6 +291,8 @@ function setup(t, { response = async () => Response.json(analysis()) } = {}) {
               editorFocuses++;
             },
           };
+        else if (node.type === "ReaderAudioPlayer")
+          node.props.ref.current = audioHandle;
         else if (node.props.onMouseUp) node.props.ref.current = reader;
       }
       const pending = effects;
@@ -294,6 +315,9 @@ function setup(t, { response = async () => Response.json(analysis()) } = {}) {
   });
   return {
     requests,
+    readingCalls,
+    focusCalls,
+    actionEvents,
     timers,
     listeners,
     render,
@@ -342,6 +366,10 @@ function setup(t, { response = async () => Response.json(analysis()) } = {}) {
     },
     playbackActive(active) {
       this.player().props.onPlaybackActiveChange(active);
+      return render();
+    },
+    audioAvailable(available) {
+      this.player().props.onAvailabilityChange(available);
       return render();
     },
     spoken() {
@@ -749,4 +777,106 @@ test("reading follow receives exact token offsets and pauses or suspends without
     null,
     "An old source-language range must not drive automatic scrolling",
   );
+});
+
+test("read-from-selection waits for audio readiness, then synchronously closes analysis and starts at the earliest selected UTF-16 offset", async (t) => {
+  const pending = deferred();
+  const ui = setup(t, { response: () => pending.promise });
+  const value = "🫐 Hallo Welt! Hallo Welt!";
+  await ui.ready();
+  await ui.open(value);
+  const secondStart = value.lastIndexOf("Hallo Welt!");
+  const selectedWords = nodes(
+    ui.tokens(),
+    (node) =>
+      node.props?.["data-token-id"] !== undefined &&
+      node.props["data-text-start"] >= secondStart,
+  );
+  const selectedIds = selectedWords.map((node) => node.props["data-token-id"]);
+  ui.select([...selectedIds].reverse());
+  ui.tokens().props.onMouseUp();
+  ui.render();
+  assert.match(text(ui.popup()), /Checking the selected words/);
+  const unavailable = ui.button("Read from this sentence");
+  assert.equal(unavailable.props.disabled, true);
+  assert.match(unavailable.props.title, /Loading audio settings/);
+  unavailable.props.onClick();
+  assert.deepEqual(ui.readingCalls, []);
+  assert(ui.popup(), "The unavailable action must leave translation open");
+
+  ui.audioAvailable(true);
+  assert.equal(ui.button("Read from this sentence").props.disabled, false);
+  ui.fireTimers();
+  ui.tokens().props.onTouchEnd();
+  assert(ui.timers.size > 0);
+  ui.button("Read from this sentence").props.onClick();
+  assert.deepEqual(
+    ui.readingCalls,
+    [secondStart],
+    "Invoke the reader within the click, using original UTF-16 positions",
+  );
+  assert.deepEqual(ui.actionEvents, ["focus", "read"]);
+  assert.deepEqual(ui.focusCalls, [
+    { id: selectedIds[0], options: { preventScroll: true } },
+  ]);
+  assert.equal(ui.requests[0].options.signal.aborted, true);
+  assert.equal(ui.timers.size, 0);
+  assert.equal(ui.popup(), undefined);
+  assert.equal(ui.followOptions.suspended, false);
+  pending.resolve(Response.json(analysis("Hallo Welt", selectedIds)));
+  await ui.settle();
+  assert.equal(ui.popup(), undefined, "A late translation must stay closed");
+});
+
+test("read-from-selection remains available in translation error and results states and reflects revoked audio readiness", async (t) => {
+  const ui = setup(t, {
+    response: (_request, index) =>
+      index === 1
+        ? Response.json({ error: "Analysis unavailable" }, { status: 503 })
+        : Response.json(analysis()),
+  });
+  await ui.ready();
+  await ui.open();
+  ui.audioAvailable(true);
+  ui.keyWord(0);
+  await ui.settle();
+  assert.match(text(ui.popup()), /Analysis unavailable/);
+  assert.equal(ui.button("Read from this sentence").props.disabled, false);
+  ui.button("Retry analysis").props.onClick();
+  await ui.settle();
+  assert.match(text(ui.popup()), /Translation: Berlin/);
+  assert.equal(ui.button("Read from this sentence").props.disabled, false);
+  ui.audioAvailable(false);
+  assert.equal(ui.button("Read from this sentence").props.disabled, true);
+  ui.button("Read from this sentence").props.onClick();
+  assert.deepEqual(ui.readingCalls, []);
+  assert(ui.popup());
+  ui.audioAvailable(true);
+  ui.button("Read from this sentence").props.onClick();
+  assert.deepEqual(ui.readingCalls, [0]);
+  assert.equal(ui.popup(), undefined);
+});
+
+test("free accounts keep translation and a Premium notice but cannot read from the selected sentence", async (t) => {
+  const ui = setup(t, { tier: "free" });
+  await ui.ready();
+  await ui.open();
+  ui.audioAvailable(true);
+  ui.clickWord(0);
+  await ui.settle();
+  assert.match(text(ui.popup()), /Translation: Berlin/);
+  const action = ui.button("Read from this sentence");
+  assert.equal(action.props.disabled, true);
+  assert.equal(action.props.title, "Available with Premium");
+  assert.equal(
+    nodes(
+      ui.popup(),
+      (node) => node.type === "a" && node.props.href === "/profile",
+    ).some((node) => text(node) === "Premium"),
+    true,
+  );
+  action.props.onClick();
+  assert.deepEqual(ui.readingCalls, []);
+  assert.deepEqual(ui.focusCalls, []);
+  assert(ui.popup());
 });

@@ -80,12 +80,16 @@ function setup(
   let mounted = true;
   const readingRanges = [];
   const activeChanges = [];
+  const availabilityChanges = [];
+  const handle = { current: null };
   const currentProps = {
     text: "Guten Morgen.",
     sourceLanguage: "de",
     hasPremium: true,
     onReadingRangeChange: (range) => readingRanges.push(range),
     onPlaybackActiveChange: (active) => activeChanges.push(active),
+    onAvailabilityChange: (available) => availabilityChanges.push(available),
+    ref: handle,
     ...props,
   };
   const sameDeps = (left, right) =>
@@ -140,6 +144,17 @@ function setup(
     },
     useCallback(callback, deps) {
       return react.useMemo(() => callback, deps);
+    },
+    useImperativeHandle(ref, create, deps) {
+      react.useEffect(() => {
+        const value = create();
+        if (typeof ref === "function") ref(value);
+        else if (ref) ref.current = value;
+        return () => {
+          if (typeof ref === "function") ref(null);
+          else if (ref?.current === value) ref.current = null;
+        };
+      }, deps);
     },
   };
   const requests = [];
@@ -356,6 +371,8 @@ function setup(
     storage,
     readingRanges,
     activeChanges,
+    availabilityChanges,
+    handle,
     get playbackActive() {
       return activeChanges.at(-1) ?? false;
     },
@@ -433,6 +450,29 @@ function setup(
       render();
       return pending;
     },
+    buttonByLabel(label) {
+      return nodes(
+        render(),
+        (node) => node.type === "button" && node.props["aria-label"] === label,
+      )[0];
+    },
+    async clickByLabel(label) {
+      const button = this.buttonByLabel(label);
+      assert(
+        button && !button.props.disabled,
+        `Missing enabled button ${label}`,
+      );
+      const pending = button.props.onClick();
+      await nextTick();
+      render();
+      return pending;
+    },
+    async readFrom(offset) {
+      const pending = handle.current.readFrom(offset);
+      await nextTick();
+      render();
+      return pending;
+    },
     async settle() {
       await nextTick();
       return render();
@@ -474,6 +514,275 @@ test("free accounts see the Premium banner and cannot start full-text audio", as
   );
   assert.equal(player.requests.length, 0);
   assert.equal(player.audios.length, 0);
+});
+
+test("sentence practice waits at boundaries, repeats cached audio, and navigates whole sentences with correct bounds", async (t) => {
+  const player = setup(t, { props: { text: "Eins. Zwei. Drei." } });
+  await player.ready();
+  await player.click("Sentence practice");
+  assert.equal(player.requests.length, 0);
+  assert.equal(player.audios.length, 0);
+  assert.equal(player.button("Sentence practice").props["aria-pressed"], true);
+  assert.equal(player.buttonByLabel("Previous sentence").props.disabled, true);
+  assert.equal(player.buttonByLabel("Next sentence").props.disabled, false);
+  assert.match(text(player.render()), /Sentence 1 of 3/);
+  await player.click("Repeat");
+  assert.equal(
+    player.requests.length,
+    1,
+    "Practice must not prefetch the next sentence",
+  );
+  player.audios[0].currentTime = 20;
+  player.audios[0].onended();
+  await player.settle();
+  assert.equal(player.playbackActive, false);
+  assert.deepEqual(player.readingRange, { start: 0, end: 5 });
+  assert(player.button("Repeat"));
+  await player.click("Repeat");
+  assert.equal(player.requests.length, 1);
+  assert.equal(player.audios[0].currentTime, 0);
+  assert.equal(player.audios[0].plays, 2);
+  await player.clickByLabel("Next sentence");
+  assert.equal(player.requests.at(-1).body.text.trim(), "Zwei.");
+  assert.match(text(player.render()), /Sentence 2 of 3/);
+  assert.equal(player.buttonByLabel("Previous sentence").props.disabled, false);
+  await player.clickByLabel("Next sentence");
+  assert.equal(player.requests.at(-1).body.text.trim(), "Drei.");
+  assert.equal(player.buttonByLabel("Next sentence").props.disabled, true);
+  player.audios[0].onended();
+  await player.settle();
+  assert(player.button("Repeat"));
+  assert.equal(player.playbackActive, false);
+  assert.deepEqual(player.readingRange, { start: 12, end: 17 });
+  await player.clickByLabel("Previous sentence");
+  assert.equal(player.requests.length, 3);
+  assert.deepEqual(player.readingRange, { start: 6, end: 11 });
+  assert.equal(player.audios.length, 1);
+});
+
+test("practice automatically plays every oversized piece of its sentence and repeats them without fetching the following sentence", async (t) => {
+  const sentence = `${Array.from({ length: 430 }, (_, index) => `Wort${index}`).join(" ")}.`;
+  const fullText = `${sentence} Danach.`;
+  const chunks = readerText.getReaderSpeechChunks(fullText, "de");
+  const count = chunks.filter((chunk) => chunk.sentenceIndex === 0).length;
+  assert(count > 1);
+  const player = setup(t, { props: { text: fullText } });
+  await player.ready();
+  await player.click("Sentence practice");
+  await player.click("Repeat");
+  for (let index = 0; index < count; index++) {
+    assert.deepEqual(player.readingRange, { start: 0, end: sentence.length });
+    player.audios[0].onended();
+    await player.settle();
+  }
+  assert(player.button("Repeat"));
+  assert.equal(player.playbackActive, false);
+  assert(
+    player.requests.every((request) => request.body.text.trim() !== "Danach."),
+  );
+  const requests = player.requests.length;
+  await player.click("Repeat");
+  for (let index = 0; index < count; index++) {
+    player.audios[0].onended();
+    await player.settle();
+  }
+  assert.equal(player.requests.length, requests);
+  assert.equal(player.audios[0].plays, count * 2);
+  assert.deepEqual(player.readingRange, { start: 0, end: sentence.length });
+});
+
+test("imperative readFrom starts the containing sentence and full-text mode continues to the end", async (t) => {
+  const player = setup(t, { props: { text: "  Eins. Zwei. Drei.  " } });
+  await player.ready();
+  await player.readFrom(10);
+  assert.deepEqual(
+    player.requests.map(({ body }) => body.text.trim()),
+    ["Zwei.", "Drei."],
+  );
+  assert.deepEqual(player.readingRange, { start: 8, end: 13 });
+  player.audios[0].onended();
+  await player.settle();
+  assert.deepEqual(player.readingRange, { start: 14, end: 19 });
+  player.audios[0].onended();
+  await player.settle();
+  assert(player.button("Replay"));
+  const plays = player.audios[0].plays;
+  await player.readFrom(-1);
+  await player.readFrom(Number.NaN);
+  await player.readFrom(1000);
+  assert.equal(player.audios[0].plays, plays);
+});
+
+test("practice readFrom inside an oversized sentence starts its first piece and retains practice mode", async (t) => {
+  const sentence = `${Array.from({ length: 430 }, (_, index) => `Wort${index}`).join(" ")}.`;
+  const fullText = `Intro. ${sentence} Danach.`;
+  const chunks = readerText.getReaderSpeechChunks(fullText, "de");
+  const target = chunks.find((chunk) => chunk.sentenceIndex === 1);
+  const laterPiece = chunks.find(
+    (chunk) => chunk.sentenceIndex === 1 && chunk.start > target.start,
+  );
+  const player = setup(t, { props: { text: fullText } });
+  await player.ready();
+  await player.click("Sentence practice");
+  await player.readFrom(laterPiece.start + 5);
+  assert.equal(player.requests[0].body.text, target.text);
+  assert.deepEqual(player.readingRange, {
+    start: target.sentenceStart,
+    end: target.sentenceEnd,
+  });
+  assert.match(text(player.render()), /Sentence 2 of 3/);
+  assert.equal(player.button("Sentence practice").props["aria-pressed"], true);
+  assert(
+    player.requests.every(
+      ({ body }) => !["Intro.", "Danach."].includes(body.text.trim()),
+    ),
+  );
+});
+
+test("entering practice cancels full-text lookahead, retains the current sentence, and does not play until Repeat", async (t) => {
+  const pendingNext = deferred();
+  const player = setup(t, {
+    props: { text: "Eins. Zwei. Drei." },
+    response: (_request, index) =>
+      index === 2 ? pendingNext.promise : new Response("mp3"),
+  });
+  await player.ready();
+  await player.readFrom(8);
+  assert.deepEqual(player.readingRange, { start: 6, end: 11 });
+  const plays = player.audios[0].plays;
+  await player.click("Sentence practice");
+  assert.equal(player.requests[1].options.signal.aborted, true);
+  assert.equal(player.audios[0].plays, plays);
+  assert.equal(player.playbackActive, false);
+  assert.deepEqual(player.readingRange, { start: 6, end: 11 });
+  assert.match(text(player.render()), /Sentence 2 of 3/);
+  pendingNext.resolve(new Response("stale full-text lookahead"));
+  await player.settle();
+  await player.click("Repeat");
+  assert.equal(player.requests.length, 2);
+  assert.equal(player.audios[0].plays, plays + 1);
+  player.audios[0].onended();
+  await player.settle();
+  await player.click("Full text");
+  assert.equal(player.playbackActive, false);
+  assert(player.button("Listen"));
+  await player.click("Listen");
+  assert.equal(player.requests.length, 3);
+  assert.equal(player.requests[2].body.text.trim(), "Drei.");
+});
+
+test("rapid practice navigation ignores old playing, ended, error and rejected-play callbacks", async (t) => {
+  const oldPlay = deferred();
+  let plays = 0;
+  const player = setup(t, {
+    props: { text: "Eins. Zwei. Drei." },
+    play: (audio) => {
+      audio.onplaying?.();
+      return ++plays === 1 ? oldPlay.promise : Promise.resolve();
+    },
+  });
+  await player.ready();
+  await player.click("Sentence practice");
+  const starting = player.button("Repeat").props.onClick();
+  await player.settle();
+  const oldPlaying = player.audios[0].onplaying;
+  const oldEnded = player.audios[0].onended;
+  const oldError = player.audios[0].onerror;
+  await player.clickByLabel("Next sentence");
+  oldPlaying();
+  oldEnded();
+  oldError();
+  oldPlay.reject(new DOMException("Old playback interrupted", "AbortError"));
+  await starting;
+  await player.settle();
+  assert.deepEqual(player.readingRange, { start: 6, end: 11 });
+  assert.equal(player.playbackActive, true);
+  assert.equal(player.requests.length, 2);
+  await player.clickByLabel("Previous sentence");
+  assert.deepEqual(player.readingRange, { start: 0, end: 5 });
+  assert.equal(player.requests.length, 2);
+  assert.equal(player.audios.length, 1);
+});
+
+test("practice navigation aborts an earlier foreground fetch and ignores its late audio", async (t) => {
+  const pendingFirst = deferred();
+  const player = setup(t, {
+    props: { text: "Eins. Zwei." },
+    response: (_request, index) =>
+      index === 1 ? pendingFirst.promise : new Response("mp3"),
+  });
+  await player.ready();
+  await player.click("Sentence practice");
+  const starting = player.button("Repeat").props.onClick();
+  await player.settle();
+  await player.clickByLabel("Next sentence");
+  assert.equal(player.requests[0].options.signal.aborted, true);
+  pendingFirst.resolve(new Response("stale first sentence"));
+  await starting;
+  await player.settle();
+  assert.deepEqual(player.created, ["blob:reader-1"]);
+  assert.deepEqual(player.readingRange, { start: 6, end: 11 });
+  assert(player.button("Pause"));
+});
+
+test("practice floating controls share Repeat, Pause, Resume and sentence navigation at the live playback rate", async (t) => {
+  const player = setup(t, { geometry: true, props: { text: "Eins. Zwei." } });
+  await player.ready();
+  await player.click("Sentence practice");
+  player.scrollControlsTo(-10);
+  assert(player.dock());
+  await player.clickDock("Repeat");
+  player.audios[0].currentTime = 3;
+  await player.clickDock("Pause");
+  player.setSpeed(4);
+  assert.equal(player.audios[0].currentTime, 3);
+  assert.equal(player.playbackActive, false);
+  await player.clickDock("Resume");
+  assert.equal(player.audios[0].playbackRate, 1.5);
+  player.audios[0].onended();
+  await player.settle();
+  assert(player.dock());
+  const next = nodes(
+    player.dock(),
+    (node) => node.props?.["aria-label"] === "Next sentence",
+  )[0];
+  await next.props.onClick();
+  await player.settle();
+  assert.deepEqual(player.readingRange, { start: 6, end: 11 });
+  assert.equal(player.audios[0].playbackRate, 1.5);
+  assert.equal(player.requests.length, 2);
+  assert.equal(player.audios.length, 1);
+});
+
+test("readFrom readiness is reported before use and revoked on Premium change and unmount", async (t) => {
+  const player = setup(t);
+  player.render();
+  assert.equal(player.availabilityChanges.at(-1), false);
+  await player.handle.current.readFrom(2);
+  assert.equal(player.audios.length, 0);
+  await player.ready();
+  assert.equal(player.availabilityChanges.at(-1), true);
+  await player.readFrom(2);
+  player.render({ hasPremium: false });
+  assert.equal(player.availabilityChanges.at(-1), false);
+  player.unmount();
+  assert.equal(player.availabilityChanges.at(-1), false);
+  assert.equal(player.handle.current, null);
+});
+
+test("a replacement availability callback receives the current ready value immediately", async (t) => {
+  const player = setup(t);
+  await player.ready();
+  assert.equal(player.availabilityChanges.at(-1), true);
+  const latestAvailability = [];
+  player.render({
+    onAvailabilityChange: (available) => latestAvailability.push(available),
+  });
+  assert.deepEqual(latestAvailability, [true]);
+  player.render({ hasPremium: false });
+  assert.equal(latestAvailability.at(-1), false);
+  player.unmount();
+  assert.equal(latestAvailability.at(-1), false);
 });
 
 test("full text plays every bounded part in the source language using one audio element", async (t) => {
