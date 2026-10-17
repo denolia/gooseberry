@@ -524,6 +524,7 @@ export function TextAnalyzer() {
             text={readerText}
             sourceLanguage={sourceCode}
             hasPremium={session?.user?.tier === "premium"}
+            accountId={session?.user?.id ?? null}
             onReadingRangeChange={handleReadingRangeChange}
             onPlaybackActiveChange={setPlaybackActive}
           />

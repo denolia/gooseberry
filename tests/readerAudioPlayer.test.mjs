@@ -27,6 +27,9 @@ const readerText = load("../src/lib/audio/readerText.ts", {
   "./readerConfig": config,
 });
 const languages = load("../src/components/ui/Languages.ts");
+const audioCache = load("../src/lib/audio/readerAudioCache.ts", {
+  "@/components/ui/Languages": languages,
+});
 
 function nodes(tree, predicate) {
   if (Array.isArray(tree))
@@ -65,6 +68,9 @@ function setup(
     response,
     play = async (audio) => audio.onplaying?.(),
     geometry = false,
+    storedSettings,
+    cacheBytes,
+    cacheEntries,
   } = {},
 ) {
   const hooks = [];
@@ -140,9 +146,12 @@ function setup(
   const audios = [];
   const revoked = [];
   const created = [];
+  const audioCaches = [];
   const timers = new Map();
   let timerId = 0;
   const storage = new Map();
+  if (storedSettings)
+    storage.set("readerAudioSettings:v1", JSON.stringify(storedSettings));
   let controlsBottom = 100;
   const frames = new Map();
   let frameId = 0;
@@ -216,12 +225,24 @@ function setup(
   const originalAudio = globalThis.Audio;
   globalThis.Audio = class {
     constructor(url = "") {
+      this.defaultPlaybackRate = 1;
+      this.playbackRate = 1;
+      this.preservesPitch = false;
       this.src = url;
       this.currentTime = 0;
       this.plays = 0;
       this.pauses = 0;
+      this.loads = 0;
       this.error = null;
       audios.push(this);
+    }
+    get src() {
+      return this._src;
+    }
+    set src(value) {
+      this._src = value;
+      this.currentTime = 0;
+      this.playbackRate = this.defaultPlaybackRate;
     }
     play() {
       this.plays++;
@@ -231,7 +252,9 @@ function setup(
       this.pauses++;
     }
     load() {
+      this.loads++;
       this.currentTime = 0;
+      this.playbackRate = this.defaultPlaybackRate;
     }
     removeAttribute(name) {
       if (name === "src") this.src = "";
@@ -264,6 +287,15 @@ function setup(
     "./ReaderAudioPlayer.module.css": { default: {} },
     "@/lib/audio/readerConfig": config,
     "@/lib/audio/readerText": readerText,
+    "@/lib/audio/readerAudioCache": {
+      ...audioCache,
+      ReaderAudioCache: class extends audioCache.ReaderAudioCache {
+        constructor() {
+          super(cacheBytes, cacheEntries);
+          audioCaches.push(this);
+        }
+      },
+    },
     "@/components/ui/Languages": languages,
   });
   function render(props = {}) {
@@ -319,7 +351,9 @@ function setup(
     requests,
     revoked,
     created,
+    audioCaches,
     timers,
+    storage,
     readingRanges,
     activeChanges,
     get playbackActive() {
@@ -452,18 +486,14 @@ test("full text plays every bounded part in the source language using one audio 
     index < 100 && text(player.render()).includes("Pause");
     index++
   ) {
-    assert.equal(player.requests.length, Math.min(index + 2, 100));
+    assert.equal(player.requests.length, 1);
     player.audios[0].onended();
     await player.settle();
   }
-  assert(
-    player.requests.length > 2,
-    "A text longer than 500 characters must continue to its end",
-  );
-  assert.equal(player.requests.length, 100);
   assert.equal(
-    player.requests.map((request) => request.body.text).join(""),
-    fullText,
+    player.requests.length,
+    1,
+    "Repeated sentences should share generated audio",
   );
   assert(player.requests.every((request) => request.body.text.length <= 1000));
   assert(
@@ -473,7 +503,7 @@ test("full text plays every bounded part in the source language using one audio 
     player.requests.every((request) => request.url === "/api/speech/reader"),
   );
   assert.equal(player.audios.length, 1);
-  assert.equal(player.audios[0].plays, player.requests.length);
+  assert.equal(player.audios[0].plays, 100);
   assert.match(text(player.render()), /Finished reading/);
   assert(player.button("Replay"));
   assert.equal(player.readingRange, null);
@@ -617,40 +647,22 @@ test("an interrupted pending play cannot overwrite a successful resume", async (
   assert(player.button("Pause"));
 });
 
-test("sentence pauses can be paused and resumed and replacing text cancels their timer", async (t) => {
+test("the stored .7 speed is a continuous playback rate without sentence-gap timers", async (t) => {
   const player = setup(t, {
     props: { text: "Erster Satz. Zweiter Satz. Dritter Satz." },
   });
   await player.ready();
   player.setSpeed(2);
   await player.click("Listen");
+  assert.equal(player.audios[0].playbackRate, 0.7);
   player.audios[0].onended();
   await player.settle();
-  assert.equal(player.timers.size, 1);
-  assert.equal(player.readingRange, null);
-  assert.equal(player.playbackActive, false);
-  assert.match(text(player.render()), /Sentence pause/);
-  await player.click("Pause");
   assert.equal(player.timers.size, 0);
-  player.fireTimers();
-  assert.equal(player.requests.length, 2);
-  await player.click("Resume");
-  assert.equal(player.timers.size, 1);
-  player.fireTimers();
-  await player.settle();
-  assert.equal(player.requests.length, 3);
+  assert.equal(player.audios[0].plays, 2);
+  assert.equal(player.audios[0].playbackRate, 0.7);
   assert.equal(player.playbackActive, true);
-  assert(
-    player.requests.every((request) => request.body.speed === "normal-pauses"),
-  );
-  player.audios[0].onended();
-  await player.settle();
-  assert.equal(player.timers.size, 1);
-  player.render({ text: "Neuer Text." });
-  assert.equal(player.timers.size, 0);
-  player.fireTimers();
-  await player.settle();
-  assert.equal(player.requests.length, 3);
+  assert.doesNotMatch(text(player.render()), /Sentence pause/);
+  assert(player.requests.every((request) => !("speed" in request.body)));
 });
 
 test("changing text, source language, or Premium entitlement stops and discards audio", async (t) => {
@@ -679,7 +691,7 @@ test("changing text, source language, or Premium entitlement stops and discards 
   ]);
 });
 
-test("changing voice and speed resets playback and sends the new choices", async (t) => {
+test("changing the actual voice resets audio while changing speed only sets the local rate", async (t) => {
   const player = setup(t);
   await player.ready();
   await player.click("Listen");
@@ -691,10 +703,11 @@ test("changing voice and speed resets playback and sends the new choices", async
   assert.deepEqual(player.revoked, ["blob:reader-1"]);
   await player.click("Listen");
   assert.equal(player.requests.at(-1).body.voice, "cedar");
-  assert.equal(player.requests.at(-1).body.speed, "very-slow");
+  assert.equal("speed" in player.requests.at(-1).body, false);
+  assert.equal(player.audios[0].playbackRate, 0.3);
 });
 
-test("the native five-position speed slider maps its indices to the advertised reader rates", async (t) => {
+test("the native five-position speed slider changes real audio rates without restarting or regenerating", async (t) => {
   const player = setup(t);
   await player.ready();
   assert.deepEqual(
@@ -708,10 +721,19 @@ test("the native five-position speed slider maps its indices to the advertised r
   assert.equal(initial.value, 3);
   assert.equal(initial["aria-label"], "Reading speed");
   assert.equal(initial["aria-valuetext"], "1× — Normal");
-  assert.equal(
-    player.button("Listen").props["aria-label"],
-    "Listen to full text",
-  );
+  player.setSpeed(0);
+  assert.equal(player.audios.length, 0, "An idle slider must not create audio");
+  await player.click("Listen");
+  const audio = player.audios[0];
+  audio.currentTime = 12.5;
+  const before = {
+    url: audio.src,
+    plays: audio.plays,
+    pauses: audio.pauses,
+    loads: audio.loads,
+    range: player.readingRange,
+    active: player.playbackActive,
+  };
   for (const [index, speed] of config.READER_SPEEDS.entries()) {
     player.setSpeed(index);
     assert.equal(player.speed().props.value, index);
@@ -719,11 +741,346 @@ test("the native five-position speed slider maps its indices to the advertised r
       player.speed().props["aria-valuetext"],
       `${speed.speed}× — ${speed.label}`,
     );
-    await player.click("Listen");
-    assert.equal(player.requests.at(-1).body.speed, speed.id);
-    assert.equal(player.requests.at(-1).body.text, "Guten Morgen.");
-    assert.equal(player.button("Pause").props["aria-label"], "Pause reading");
+    assert.equal(audio.playbackRate, speed.speed);
+    assert.equal(audio.defaultPlaybackRate, speed.speed);
+    assert.equal(audio.preservesPitch, true);
+    assert.equal(audio.currentTime, 12.5);
+    assert.deepEqual(
+      {
+        url: audio.src,
+        plays: audio.plays,
+        pauses: audio.pauses,
+        loads: audio.loads,
+        range: player.readingRange,
+        active: player.playbackActive,
+      },
+      before,
+    );
+    assert.equal(player.requests.length, 1);
+    assert.equal(player.audios.length, 1);
+    assert.equal(player.requests[0].options.signal.aborted, false);
+    assert.equal("speed" in player.requests[0].body, false);
+    assert.deepEqual(player.created, ["blob:reader-1"]);
+    assert.deepEqual(player.revoked, []);
+    assert(player.button("Pause"));
   }
+});
+
+test("changing speed while paused preserves position, highlight, URL and pause until explicit Resume", async (t) => {
+  const player = setup(t);
+  await player.ready();
+  await player.click("Listen");
+  const audio = player.audios[0];
+  audio.currentTime = 7.25;
+  await player.click("Pause");
+  const before = {
+    url: audio.src,
+    plays: audio.plays,
+    pauses: audio.pauses,
+    loads: audio.loads,
+    range: player.readingRange,
+  };
+  player.setSpeed(0);
+  player.setSpeed(4);
+  assert.equal(audio.playbackRate, 1.5);
+  assert.equal(audio.currentTime, 7.25);
+  assert.deepEqual(
+    {
+      url: audio.src,
+      plays: audio.plays,
+      pauses: audio.pauses,
+      loads: audio.loads,
+      range: player.readingRange,
+    },
+    before,
+  );
+  assert.equal(player.playbackActive, false);
+  assert.equal(player.requests.length, 1);
+  assert(player.button("Resume"));
+  await player.click("Resume");
+  assert.equal(audio.currentTime, 7.25);
+  assert.equal(audio.playbackRate, 1.5);
+  assert.equal(audio.plays, before.plays + 1);
+});
+
+test("speed changes during generation preserve the pending request and use the latest rate after a paused load", async (t) => {
+  const pending = deferred();
+  const player = setup(t, { response: () => pending.promise });
+  await player.ready();
+  const starting = player.button("Listen").props.onClick();
+  await player.settle();
+  const audio = player.audios[0];
+  player.setSpeed(0);
+  assert.equal(player.requests.length, 1);
+  assert.equal(player.requests[0].options.signal.aborted, false);
+  assert.equal(audio.playbackRate, 0.3);
+  assert.equal(audio.plays, 0);
+  assert.equal(audio.loads, 0);
+  assert.equal(audio.pauses, 0);
+  assert(player.button("Pause"));
+  await player.click("Pause");
+  const pauseCount = audio.pauses;
+  player.setSpeed(4);
+  pending.resolve(new Response("mp3"));
+  await starting;
+  await player.settle();
+  assert.equal(audio.plays, 0);
+  assert.equal(audio.pauses, pauseCount);
+  assert.equal(player.readingRange, null);
+  assert.equal(player.playbackActive, false);
+  assert.equal(player.requests[0].options.signal.aborted, false);
+  assert(player.button("Resume"));
+  await player.click("Resume");
+  assert.equal(audio.playbackRate, 1.5);
+  assert.equal(audio.defaultPlaybackRate, 1.5);
+  assert.equal(player.requests.length, 1);
+});
+
+test("live speed keeps lookahead in flight and applies to subsequent sources and cached replay", async (t) => {
+  const nextResponse = deferred();
+  const player = setup(t, {
+    props: { text: "Eins. Zwei." },
+    response: (_request, index) =>
+      index === 2 ? nextResponse.promise : new Response("mp3"),
+  });
+  await player.ready();
+  await player.click("Listen");
+  const audio = player.audios[0];
+  audio.currentTime = 3;
+  const before = {
+    url: audio.src,
+    plays: audio.plays,
+    pauses: audio.pauses,
+    loads: audio.loads,
+    range: player.readingRange,
+  };
+  player.setSpeed(4);
+  assert.equal(player.requests.length, 2);
+  assert(
+    player.requests.every(
+      (request) =>
+        !request.options.signal.aborted && !("speed" in request.body),
+    ),
+  );
+  assert.equal(audio.currentTime, 3);
+  assert.deepEqual(
+    {
+      url: audio.src,
+      plays: audio.plays,
+      pauses: audio.pauses,
+      loads: audio.loads,
+      range: player.readingRange,
+    },
+    before,
+  );
+  nextResponse.resolve(new Response("next mp3"));
+  await player.settle();
+  audio.onended();
+  await player.settle();
+  assert.equal(audio.src, "blob:reader-2");
+  assert.equal(audio.playbackRate, 1.5);
+  assert.equal(audio.defaultPlaybackRate, 1.5);
+  audio.onended();
+  await player.settle();
+  const completedPlays = audio.plays;
+  player.setSpeed(1);
+  assert(player.button("Replay"));
+  assert.equal(audio.plays, completedPlays);
+  await player.click("Replay");
+  assert.equal(audio.src, "blob:reader-1");
+  assert.equal(audio.currentTime, 0);
+  assert.equal(audio.playbackRate, 0.5);
+  assert.equal(audio.defaultPlaybackRate, 0.5);
+  assert.equal(player.requests.length, 2);
+  assert.equal(player.audios.length, 1);
+});
+
+test("a voice-tone filter that keeps the same named voice preserves playback", async (t) => {
+  const player = setup(t);
+  await player.ready();
+  await player.click("Listen");
+  const audio = player.audios[0];
+  audio.currentTime = 5;
+  const before = {
+    url: audio.src,
+    plays: audio.plays,
+    pauses: audio.pauses,
+    loads: audio.loads,
+    range: player.readingRange,
+  };
+  player.select("Voice tone", "feminine");
+  player.select("Voice tone", "all");
+  assert.deepEqual(
+    {
+      url: audio.src,
+      plays: audio.plays,
+      pauses: audio.pauses,
+      loads: audio.loads,
+      range: player.readingRange,
+    },
+    before,
+  );
+  assert.equal(audio.currentTime, 5);
+  assert.equal(player.playbackActive, true);
+  assert.equal(player.requests.length, 1);
+  assert.deepEqual(player.revoked, []);
+});
+
+test("returning to edited text reuses its Blob across whitespace, speed, tone filter and language aliases with a fresh URL", async (t) => {
+  const player = setup(t);
+  await player.ready();
+  await player.click("Listen");
+  const originalUrl = player.audios[0].src;
+  player.render({ text: "Anderer Text." });
+  await player.click("Listen");
+  assert.equal(player.requests.length, 2);
+  player.setSpeed(4);
+  player.select("Voice tone", "feminine");
+  player.render({ text: "  Guten Morgen.  ", sourceLanguage: "German" });
+  await player.click("Listen");
+  assert.equal(player.requests.length, 2);
+  assert.notEqual(player.audios[0].src, originalUrl);
+  assert(player.revoked.includes(originalUrl));
+  assert.deepEqual(player.readingRange, { start: 2, end: 15 });
+  assert.equal(player.audios[0].playbackRate, 1.5);
+  assert.equal(player.audioCaches[0].size, 2);
+});
+
+test("source language and named voice have distinct content-cache entries and returning to either reuses audio", async (t) => {
+  const player = setup(t);
+  await player.ready();
+  await player.click("Listen");
+  player.select("Voice name", "cedar");
+  await player.click("Listen");
+  assert.equal(player.requests.length, 2);
+  assert.equal(player.requests[1].body.voice, "cedar");
+  player.select("Voice name", "marin");
+  await player.click("Listen");
+  assert.equal(player.requests.length, 2);
+  player.render({ sourceLanguage: "fi" });
+  await player.click("Listen");
+  assert.equal(player.requests.length, 3);
+  assert.equal(player.requests[2].body.sourceLanguage, "fi");
+  player.render({ sourceLanguage: "de" });
+  await player.click("Listen");
+  assert.equal(player.requests.length, 3);
+  assert.equal(player.audioCaches[0].size, 3);
+  assert.deepEqual(
+    player.requests.map(({ body }) => [
+      body.text.trim(),
+      body.sourceLanguage,
+      body.voice,
+    ]),
+    [
+      ["Guten Morgen.", "de", "marin"],
+      ["Guten Morgen.", "de", "cedar"],
+      ["Guten Morgen.", "fi", "marin"],
+    ],
+  );
+});
+
+test("a media failure evicts the shared Blob and every duplicate-sentence URL before retry", async (t) => {
+  const player = setup(t, { props: { text: "Eins. Eins." } });
+  await player.ready();
+  await player.click("Listen");
+  assert.equal(player.requests.length, 1);
+  assert.deepEqual(player.created, ["blob:reader-1", "blob:reader-2"]);
+  assert.equal(player.audioCaches[0].size, 1);
+  player.audios[0].onerror();
+  await player.settle();
+  assert.deepEqual(player.revoked, ["blob:reader-1", "blob:reader-2"]);
+  assert.equal(player.audioCaches[0].size, 0);
+  await player.click("Retry");
+  assert.equal(player.requests.length, 2);
+  assert.equal(player.audios[0].src, "blob:reader-3");
+  assert.equal(player.audioCaches[0].size, 1);
+});
+
+test("bounded content-cache eviction causes a fresh download while recent entries remain reusable", async (t) => {
+  const player = setup(t, { props: { text: "Eins." }, cacheEntries: 2 });
+  await player.ready();
+  for (const sentence of ["Eins.", "Zwei.", "Drei."]) {
+    player.render({ text: sentence });
+    await player.click("Listen");
+  }
+  assert.equal(player.requests.length, 3);
+  assert.equal(player.audioCaches[0].size, 2);
+  player.render({ text: "Zwei." });
+  await player.click("Listen");
+  assert.equal(player.requests.length, 3);
+  player.render({ text: "Eins." });
+  await player.click("Listen");
+  assert.equal(player.requests.length, 4);
+  assert.equal(player.audioCaches[0].size, 2);
+});
+
+test("account and Premium entitlement changes clear reusable audio bytes", async (t) => {
+  const player = setup(t, { props: { accountId: "account-a" } });
+  await player.ready();
+  await player.click("Listen");
+  assert.equal(player.audioCaches[0].size, 1);
+  player.render({ accountId: "account-b" });
+  assert.equal(player.audioCaches[0].size, 0);
+  await player.click("Listen");
+  assert.equal(player.requests.length, 2);
+  player.render({ hasPremium: false });
+  assert.equal(player.audioCaches[0].size, 0);
+  player.render({ hasPremium: true });
+  await player.settle();
+  await player.click("Listen");
+  assert.equal(player.requests.length, 3);
+  player.unmount();
+  assert.equal(player.audioCaches[0].size, 0);
+  assert.equal(player.audioCaches[0].byteLength, 0);
+});
+
+test("late aborted lookahead cannot refill a cleared account cache", async (t) => {
+  const pendingNext = deferred();
+  const player = setup(t, {
+    props: { accountId: "account-a", text: "Eins. Zwei." },
+    response: (_request, index) =>
+      index === 2 ? pendingNext.promise : new Response("mp3"),
+  });
+  await player.ready();
+  await player.click("Listen");
+  assert.equal(player.audioCaches[0].size, 1);
+  player.render({ accountId: "account-b" });
+  assert.equal(player.requests[1].options.signal.aborted, true);
+  pendingNext.resolve(new Response("late audio"));
+  await player.settle();
+  assert.equal(player.audioCaches[0].size, 0);
+  player.render({ text: "Zwei." });
+  await player.click("Listen");
+  assert.equal(player.requests.length, 3);
+});
+
+test("saved Slower speed restores .7 playback without creating audio before Listen", async (t) => {
+  const player = setup(t, {
+    storedSettings: {
+      version: 1,
+      voice: "marin",
+      speed: "Slower",
+      style: "all",
+    },
+  });
+  await player.ready();
+  assert.equal(player.speed().props.value, 2);
+  assert.equal(player.speed().props["aria-valuetext"], "0.7× — Slower");
+  assert.equal(
+    JSON.parse(player.storage.get("readerAudioSettings:v1")).speed,
+    "Slower",
+  );
+  assert.equal(player.audios.length, 0);
+  await player.click("Listen");
+  assert.equal(player.audios[0].playbackRate, 0.7);
+  assert.equal(player.audios[0].defaultPlaybackRate, 0.7);
+  assert.equal(player.audios[0].preservesPitch, true);
+  assert.equal("speed" in player.requests[0].body, false);
+  player.setSpeed(4);
+  assert.equal(
+    JSON.parse(player.storage.get("readerAudioSettings:v1")).speed,
+    "fast",
+  );
 });
 
 test("highlight waits for actual playback and late media events cannot restore it after replacing text", async (t) => {
@@ -737,6 +1094,16 @@ test("highlight waits for actual playback and late media events cannot restore i
   await player.settle();
   assert.equal(player.readingRange, null);
   assert.equal(player.playbackActive, false);
+  const waitingAudio = player.audios[0];
+  const waitingUrl = waitingAudio.src;
+  player.setSpeed(4);
+  assert.equal(waitingAudio.playbackRate, 1.5);
+  assert.equal(waitingAudio.src, waitingUrl);
+  assert.equal(waitingAudio.plays, 1);
+  assert.equal(waitingAudio.pauses, 0);
+  assert.equal(waitingAudio.loads, 0);
+  assert.equal(player.requests.length, 1);
+  assert.equal(player.readingRange, null);
   const onplaying = player.audios[0].onplaying;
   const onerror = player.audios[0].onerror;
   onplaying();
@@ -759,24 +1126,18 @@ test("highlight waits for actual playback and late media events cannot restore i
   assert(player.button("Listen"));
 });
 
-test("repeated sentences highlight their original offsets, clear while loading, and replay from the first sentence", async (t) => {
-  const nextSentence = deferred();
+test("repeated sentences reuse audio, highlight their original offsets, and replay from the first sentence", async (t) => {
   const player = setup(t, {
     props: { text: "  Hallo. Hallo.  " },
-    response: (_request, index) =>
-      index === 2 ? nextSentence.promise : new Response("mp3"),
   });
   await player.ready();
   await player.click("Listen");
   assert.deepEqual(player.readingRange, { start: 2, end: 8 });
   player.audios[0].onended();
-  await player.settle();
   assert.equal(player.readingRange, null);
-  assert.equal(player.playbackActive, false);
+  await player.settle();
+  assert.deepEqual(player.readingRange, { start: 9, end: 15 });
   await player.click("Pause");
-  nextSentence.resolve(new Response("second sentence mp3"));
-  await player.settle();
-  assert.equal(player.readingRange, null);
   await player.click("Resume");
   assert.deepEqual(player.readingRange, { start: 9, end: 15 });
   player.audios[0].onended();
@@ -784,7 +1145,7 @@ test("repeated sentences highlight their original offsets, clear while loading, 
   assert.equal(player.readingRange, null);
   await player.click("Replay");
   assert.deepEqual(player.readingRange, { start: 2, end: 8 });
-  assert.equal(player.requests.length, 2);
+  assert.equal(player.requests.length, 1);
 });
 
 test("delayed playing and error callbacks from an old text cannot alter the new sentence highlight", async (t) => {
@@ -804,7 +1165,7 @@ test("delayed playing and error callbacks from an old text cannot alter the new 
   assert(player.button("Pause"));
 });
 
-test("long sentence pieces share one full sentence range and add a pause only at the next sentence", async (t) => {
+test("long sentence pieces share one full sentence range without artificial speed-dependent gaps", async (t) => {
   const longSentence = `${"Wort ".repeat(430)}endet.`;
   const player = setup(t, {
     props: { text: `${longSentence} Danach.` },
@@ -830,8 +1191,7 @@ test("long sentence pieces share one full sentence range and add a pause only at
   }
   player.audios[0].onended();
   assert.equal(player.readingRange, null);
-  assert.equal(player.timers.size, 1);
-  player.fireTimers();
+  assert.equal(player.timers.size, 0);
   await player.settle();
   assert.deepEqual(player.readingRange, {
     start: longSentence.length + 1,
@@ -1075,6 +1435,7 @@ test("failed prefetch does not interrupt the current sentence and becomes retrya
   await player.ready();
   await player.click("Listen");
   assert.equal(player.requests.length, 2);
+  assert.equal(player.audioCaches[0].size, 1);
   assert.doesNotMatch(text(player.render()), /Next sentence failed/);
   assert.deepEqual(player.readingRange, { start: 0, end: 5 });
   assert(player.button("Pause"));
@@ -1121,10 +1482,10 @@ test("unmount aborts pending audio and releases already generated object URLs", 
   player.setSpeed(2);
   await player.click("Listen");
   player.audios[0].onended();
-  player.fireTimers();
   await player.settle();
   assert.equal(player.requests.length, 2);
   player.unmount();
+  assert.equal(player.audioCaches[0].size, 0);
   assert.equal(player.readingRange, null);
   assert.equal(player.requests[1].options.signal.aborted, true);
   assert.equal(player.audios[0].src, "");
@@ -1133,4 +1494,5 @@ test("unmount aborts pending audio and releases already generated object URLs", 
   await nextTick();
   assert.equal(player.created.length, 1);
   assert.equal(player.audios[0].plays, 1);
+  assert.equal(player.audioCaches[0].size, 0);
 });

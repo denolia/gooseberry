@@ -27,10 +27,12 @@ export const READER_VOICES = [
 
 export type ReaderVoice = (typeof READER_VOICES)[number]["id"];
 
+// These multipliers control native audio playback; generation always produces
+// normal-speed audio.
 export const READER_SPEEDS = [
   { id: "very-slow", label: "Very slow", speed: 0.3 },
   { id: "slow", label: "Slow", speed: 0.5 },
-  { id: "normal-pauses", label: "Normal with pauses", speed: 0.7 },
+  { id: "Slower", label: "Slower", speed: 0.7 },
   { id: "normal", label: "Normal", speed: 1 },
   { id: "fast", label: "Fast", speed: 1.5 },
 ] as const;

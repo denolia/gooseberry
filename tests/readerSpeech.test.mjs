@@ -5,12 +5,12 @@ import ts from "@typescript/typescript6";
 import * as languages from "../src/components/ui/Languages.ts";
 import * as readerConfig from "../src/lib/audio/readerConfig.ts";
 import * as bodies from "../src/lib/http/readJson.ts";
+import { loadReaderSpeechCache } from "./helpers/readerSpeechCache.mjs";
 
 const validInput = {
   text: "  Guten Morgen. Das ist ein ganzer Text.  ",
   sourceLanguage: "de",
   voice: "marin",
-  speed: "normal",
 };
 
 function loadRoute({
@@ -101,6 +101,30 @@ test("reader rechecks Premium access on every chunk after access is revoked", as
   assert.equal(calls.speech.length, 1);
 });
 
+test("revoking Premium blocks even a persistent cache hit before any cache lookup", async () => {
+  let premium = true;
+  let generated = 0;
+  const cached = loadReaderSpeechCache();
+  const { route } = loadRoute({
+    premium: () => premium,
+    generate: (text, language, options, signal) =>
+      cached.cache.getOrGenerateReaderSpeech(
+        { text, language, voice: options.voice, model: "gpt-4o-mini-tts" },
+        async () => {
+          generated++;
+          return Uint8Array.from([73, 68, 51]);
+        },
+        signal,
+      ),
+  });
+  assert.equal((await route.POST(request())).status, 200);
+  assert.equal(cached.entries.size, 1);
+  premium = false;
+  assert.equal((await route.POST(request())).status, 403);
+  assert.equal(cached.reads.length, 1);
+  assert.equal(generated, 1);
+});
+
 test("reader accepts source language names and codes and passes options and cancellation", async () => {
   for (const sourceLanguage of ["Finnish", "fi"]) {
     const { route, calls } = loadRoute();
@@ -109,7 +133,6 @@ test("reader accepts source language names and codes and passes options and canc
       text: "  Hyvää päivää.  ",
       sourceLanguage,
       targetLanguage: "ru",
-      speed: "very-slow",
       voice: "cedar",
     });
     const response = await route.POST(req);
@@ -123,7 +146,7 @@ test("reader accepts source language names and codes and passes options and canc
     assert.deepEqual(calls.speech[0].slice(0, 3), [
       "Hyvää päivää.",
       "Finnish",
-      { voice: "cedar", speed: "very-slow" },
+      { voice: "cedar" },
     ]);
     assert.equal(calls.speech[0][3], req.signal);
   }
@@ -144,17 +167,12 @@ test("reader rejects missing or invalid source language instead of using the tar
   }
 });
 
-test("reader rejects malformed voice and speed choices before synthesis", async () => {
+test("reader rejects malformed voice choices before synthesis", async () => {
   for (const change of [
     { voice: undefined },
     { voice: "__proto__" },
     { voice: "invalid" },
     { voice: { id: "marin" } },
-    { speed: undefined },
-    { speed: 1 },
-    { speed: "1" },
-    { speed: "very-fast" },
-    { speed: null },
   ]) {
     const { route, calls } = loadRoute();
     assert.equal(

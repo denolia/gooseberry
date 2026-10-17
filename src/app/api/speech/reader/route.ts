@@ -8,7 +8,6 @@ import {
   SourceLanguages,
 } from "@/components/ui/Languages";
 import {
-  isReaderSpeed,
   isReaderVoice,
   READER_CHUNK_CHARACTERS,
 } from "@/lib/audio/readerConfig";
@@ -111,14 +110,14 @@ export async function POST(request: Request) {
     );
   }
   const voice = input.voice;
-  const speed = input.speed;
   if (
     !isReaderVoice(voice) ||
-    !getReaderSpeechConfig().voices.some((value) => value.id === voice) ||
-    !isReaderSpeed(speed)
+    !getReaderSpeechConfig().voices.some((value) => value.id === voice)
   ) {
     return NextResponse.json(
-      { error: "A supported reader voice and speed are required" },
+      {
+        error: "A supported reader voice is required",
+      },
       { status: 400 },
     );
   }
@@ -127,7 +126,7 @@ export async function POST(request: Request) {
     const audio = await generateReaderSpeechMp3(
       text,
       sourceLanguage,
-      { voice, speed },
+      { voice },
       request.signal,
     );
     request.signal.throwIfAborted();

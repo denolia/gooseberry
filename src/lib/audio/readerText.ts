@@ -1,8 +1,4 @@
-import {
-  MAX_READER_CHARACTERS,
-  READER_CHUNK_CHARACTERS,
-  type ReaderSpeed,
-} from "./readerConfig";
+import { MAX_READER_CHARACTERS, READER_CHUNK_CHARACTERS } from "./readerConfig";
 
 export type ReaderTextRange = { start: number; end: number };
 
@@ -99,10 +95,6 @@ export function getReaderSpeechChunks(
   return chunks;
 }
 
-export function splitReaderText(
-  text: string,
-  language: string,
-  _speed?: ReaderSpeed,
-): string[] {
+export function splitReaderText(text: string, language: string): string[] {
   return getReaderSpeechChunks(text, language).map((chunk) => chunk.text);
 }

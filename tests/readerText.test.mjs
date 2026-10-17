@@ -41,7 +41,7 @@ test("reader chunks preserve the full 20,000-character text within the API limit
     .repeat(800)
     .slice(0, 20000)
     .trim();
-  const chunks = splitReaderText(text, "de", "normal");
+  const chunks = splitReaderText(text, "de");
   assert.ok(chunks.length > 1);
   assert.ok(chunks.every((chunk) => chunk.length <= 1000 && chunk.trim()));
   assert.equal(chunks.join(""), text);
@@ -49,35 +49,26 @@ test("reader chunks preserve the full 20,000-character text within the API limit
 
 test("normal reading keeps separate requests for complete sentences that fit", () => {
   const text = `${"a".repeat(800)}. ${"b".repeat(800)}.`;
-  const chunks = splitReaderText(text, "de", "normal");
+  const chunks = splitReaderText(text, "de");
   assert.equal(chunks.length, 2);
   assert.equal(chunks[0], `${"a".repeat(800)}. `);
   assert.equal(chunks.join(""), text);
 });
 
-test("every reading speed generates each sentence separately in the source language", () => {
+test("reading generates each sentence separately in the source language", () => {
   const text = "Hyvää päivää. Mitä kuuluu?\n\nKaikki hyvin!";
-  for (const speed of [
-    "very-slow",
-    "slow",
-    "normal-pauses",
-    "normal",
-    "fast",
-    undefined,
-  ]) {
-    const chunks = splitReaderText(text, "fi", speed);
-    assert.deepEqual(chunks, [
-      "Hyvää päivää. ",
-      "Mitä kuuluu?\n\n",
-      "Kaikki hyvin!",
-    ]);
-    assert.equal(chunks.join(""), text);
-  }
+  const chunks = splitReaderText(text, "fi");
+  assert.deepEqual(chunks, [
+    "Hyvää päivää. ",
+    "Mitä kuuluu?\n\n",
+    "Kaikki hyvin!",
+  ]);
+  assert.equal(chunks.join(""), text);
 });
 
 test("long sentences split at spaces without losing words or punctuation", () => {
   const text = `${"langes Wort ".repeat(210)}Ende.`;
-  const chunks = splitReaderText(text, "de", "normal");
+  const chunks = splitReaderText(text, "de");
   assert.ok(chunks.length > 2);
   assert.ok(chunks.every((chunk) => chunk.length <= 1000));
   assert.ok(chunks.slice(0, -1).every((chunk) => /\s$/u.test(chunk)));
@@ -86,7 +77,7 @@ test("long sentences split at spaces without losing words or punctuation", () =>
 
 test("unbroken Unicode text never splits a surrogate pair", () => {
   const text = `a${"🫐".repeat(1200)}`;
-  const chunks = splitReaderText(text, "ja", "normal");
+  const chunks = splitReaderText(text, "ja");
   assert.ok(
     chunks.every((chunk) => chunk.length <= 1000 && chunk.isWellFormed()),
   );
@@ -94,19 +85,13 @@ test("unbroken Unicode text never splits a surrogate pair", () => {
 });
 
 test("empty input and input above the analyzer limit are handled before requests", () => {
-  assert.deepEqual(splitReaderText(" \n\t ", "de", "normal"), []);
-  assert.throws(
-    () => splitReaderText("x".repeat(20001), "de", "normal"),
-    /20,000/,
-  );
+  assert.deepEqual(splitReaderText(" \n\t ", "de"), []);
+  assert.throws(() => splitReaderText("x".repeat(20001), "de"), /20,000/);
 });
 
 test("invalid locale falls back without losing source text", () => {
   const text = "Hallo. Guten Tag!";
-  assert.equal(
-    splitReaderText(text, "invalid locale", "normal").join(""),
-    text,
-  );
+  assert.equal(splitReaderText(text, "invalid locale").join(""), text);
 });
 
 test("sentence metadata uses original UTF-16 offsets after trimming outer whitespace", () => {

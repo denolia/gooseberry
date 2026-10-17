@@ -53,16 +53,34 @@ and language from repeatedly consuming speech-generation credits.
 Full-text reading in the text analyzer is also Premium-only. The player sits
 above the reader on desktop and mobile, with voice settings always visible,
 reads in the selected source language, and supports pause, resume, and
-five reading speeds on a slider (0.3, 0.5, 0.7, 1, and 1.5 times normal speed).
-Every speed generates audio sentence by sentence and highlights the current
+five playback speeds on a slider (0.3, 0.5, 0.7, 1, and 1.5 times normal speed).
+Audio is generated sentence by sentence at normal speed. The browser applies
+the selected multiplier through native audio playback, so changing speed takes
+effect immediately without regenerating audio or losing the playback position.
+The player highlights the current
 sentence in blue when playback actually starts. Pausing keeps that sentence
 marked; completion, errors, and the wait for another sentence clear it.
-Normal with pauses also adds a short pause between sentences. Oversized
-sentences are split within the per-request limit while retaining one sentence
+The 0.7 setting uses the `Slower` ID and label and adds no extra pause. Oversized sentences
+are split within the per-request limit while retaining one sentence
 highlight. One following sentence is prepared during playback to reduce gaps;
-pausing cancels pending preparation. Voice settings are saved in
-this browser; audio stays in memory for replay and is discarded
-when the text, source language, voice, or speed changes.
+pausing cancels pending preparation. Voice settings are saved in this browser.
+Downloaded sentence MP3s remain in a browser-memory Blob cache, bounded to
+32 MiB and 256 entries. Changing the text, source language, or voice resets
+playback URLs and chunks while keeping those cached Blobs. Returning to the same
+sentence and audio settings reuses its Blob without another network request
+while the player remains mounted. The cache clears when the account or Premium
+tier changes, or the player unmounts. A speed change reuses downloaded audio and
+any sentence already being prepared.
+The server also stores base-speed reader MP3s in the existing
+`speech_audio_cache` table. A versioned reader-specific SHA-256 key includes
+trimmed sentence text, source language, voice, model, and generation instructions;
+playback speed and the voice selector's style group do not affect it. Repeating
+the same sentence and audio settings reuses the stored MP3 across page reloads
+and reading sessions without another provider generation. After a reload the
+browser downloads that stored audio again. Current Premium access is checked
+before any cache lookup.
+Cache storage failures fall back to generation or return audio already produced
+without repeating synthesis.
 
 During a playback session, Pause/Resume floats at the bottom of the screen once
 the original control has scrolled above it. Reading follows the highlighted
@@ -72,7 +90,9 @@ following resumes after roughly 2.5 seconds of inactivity. Paused playback,
 text editing, and an open translation popover suspend automatic scrolling.
 
 `/api/speech/reader` checks the current database entitlement for every audio
-chunk, including short ones. Texts up to the analyzer's 20,000-character limit
+chunk, including short ones. Generation always uses speed 1; playback speed is
+handled entirely by the browser.
+Texts up to the analyzer's 20,000-character limit
 are split into chunks of at most 1,000 characters. `/api/speech` remains the
 authenticated individual-pronunciation endpoint. The reader uses
 `OPENAI_TTS_MODEL` and offers only that model's supported built-in voices;

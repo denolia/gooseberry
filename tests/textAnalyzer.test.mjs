@@ -412,6 +412,7 @@ test("opened text has one reader, standalone audio above it, and Edit text in th
     (node) => node.props?.["aria-label"] === "Text reader",
   );
   assert(player && reader);
+  assert.equal(player.props.accountId, "user-1");
   assert(all.indexOf(player) < all.indexOf(reader));
   assert.equal(
     nodes(reader, (node) => node.type === "ReaderAudioPlayer").length,

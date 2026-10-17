@@ -21,6 +21,14 @@ test("speech generator requests a clear MP3 pronunciation", async () => {
   const exports = {};
   new Function("require", "exports", code)((name) => {
     if (name === "./readerConfig") return readerConfig;
+    if (name === "./readerSpeechCache")
+      return {
+        getOrGenerateReaderSpeech: () => {
+          throw new Error(
+            "Individual pronunciation must not access the reader cache",
+          );
+        },
+      };
     if (name !== "openai") throw new Error(`Unexpected dependency ${name}`);
     return {
       __esModule: true,

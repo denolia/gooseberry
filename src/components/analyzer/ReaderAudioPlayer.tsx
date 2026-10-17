@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { SourceLanguageSelectOptions } from "@/components/ui/Languages";
 import {
+  ReaderAudioCache,
+  getReaderAudioCacheKey,
+} from "@/lib/audio/readerAudioCache";
+import {
   DEFAULT_READER_SPEED,
   DEFAULT_READER_VOICE,
   READER_SPEEDS,
@@ -22,7 +26,6 @@ import {
 import styles from "./ReaderAudioPlayer.module.css";
 
 const SETTINGS_KEY = "readerAudioSettings:v1";
-const SENTENCE_PAUSE_MS = 700;
 
 type VoiceOption = (typeof READER_VOICES)[number];
 type Settings = {
@@ -30,8 +33,7 @@ type Settings = {
   speed: ReaderSpeed;
   style: ReaderVoiceStyle | "all";
 };
-type Status =
-  "idle" | "loading" | "playing" | "paused" | "gap" | "complete" | "error";
+type Status = "idle" | "loading" | "playing" | "paused" | "complete" | "error";
 type AudioRequest = {
   controller: AbortController;
   promise: Promise<string>;
@@ -48,11 +50,7 @@ type Playback = {
   requests: Map<number, AudioRequest>;
   requestErrors: Map<number, Error>;
   prefetchIndex: number | null;
-  gapTimer: ReturnType<typeof setTimeout> | null;
-  gapDeadline: number;
-  gapRemaining: number;
   voice: ReaderVoice;
-  speed: ReaderSpeed;
   language: string;
 };
 
@@ -71,21 +69,26 @@ function isVoiceStyle(value: unknown): value is Settings["style"] {
   );
 }
 
-function cancelGap(playback: Playback) {
-  if (playback.gapTimer !== null) clearTimeout(playback.gapTimer);
-  playback.gapTimer = null;
+function applyPlaybackSpeed(audio: HTMLAudioElement, speed: ReaderSpeed) {
+  const rate = READER_SPEEDS.find((preset) => preset.id === speed)?.speed ?? 1;
+  // Keep the selected rate through source changes and preserve the voice's pitch.
+  audio.defaultPlaybackRate = rate;
+  audio.playbackRate = rate;
+  audio.preservesPitch = true;
 }
 
 export function ReaderAudioPlayer({
   text,
   sourceLanguage,
   hasPremium,
+  accountId,
   onReadingRangeChange,
   onPlaybackActiveChange,
 }: {
   text: string;
   sourceLanguage: string;
   hasPremium: boolean;
+  accountId?: string | null;
   onReadingRangeChange?: (range: ReaderTextRange | null) => void;
   onPlaybackActiveChange?: (active: boolean) => void;
 }) {
@@ -104,13 +107,21 @@ export function ReaderAudioPlayer({
   const [controlsAboveViewport, setControlsAboveViewport] = useState(false);
   const settingsRef = useRef(settings);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const contentCacheRef = useRef<ReaderAudioCache | null>(null);
+  if (!contentCacheRef.current)
+    contentCacheRef.current = new ReaderAudioCache();
   const controlsRef = useRef<HTMLDivElement | null>(null);
   const mountedRef = useRef(true);
   const readingCallbackRef = useRef(onReadingRangeChange);
   const readingRangeRef = useRef<ReaderTextRange | null>(null);
   const activeCallbackRef = useRef(onPlaybackActiveChange);
   const playbackActiveRef = useRef(false);
-  const previousInputRef = useRef({ text, sourceLanguage, hasPremium });
+  const previousInputRef = useRef({
+    text,
+    sourceLanguage,
+    hasPremium,
+    accountId,
+  });
   const playbackRef = useRef<Playback>({
     generation: 0,
     attempt: 0,
@@ -123,11 +134,7 @@ export function ReaderAudioPlayer({
     requests: new Map(),
     requestErrors: new Map(),
     prefetchIndex: null,
-    gapTimer: null,
-    gapDeadline: 0,
-    gapRemaining: 0,
     voice: DEFAULT_READER_VOICE,
-    speed: DEFAULT_READER_SPEED,
     language: sourceLanguage,
   });
 
@@ -219,8 +226,6 @@ export function ReaderAudioPlayer({
       playback.requests.clear();
       playback.requestErrors.clear();
       playback.prefetchIndex = null;
-      cancelGap(playback);
-      playback.gapRemaining = 0;
       playback.index = 0;
       updatePlaybackActive(false);
       updateReadingRange(null);
@@ -281,6 +286,7 @@ export function ReaderAudioPlayer({
       cancelled = true;
       mountedRef.current = false;
       clearPlayback(true, false);
+      contentCacheRef.current?.clear();
     };
   }, [clearPlayback]);
 
@@ -298,15 +304,18 @@ export function ReaderAudioPlayer({
 
   useEffect(() => {
     const previous = previousInputRef.current;
-    previousInputRef.current = { text, sourceLanguage, hasPremium };
+    previousInputRef.current = { text, sourceLanguage, hasPremium, accountId };
     if (
       previous.text === text &&
       previous.sourceLanguage === sourceLanguage &&
-      previous.hasPremium === hasPremium
+      previous.hasPremium === hasPremium &&
+      previous.accountId === accountId
     )
       return;
+    if (previous.hasPremium !== hasPremium || previous.accountId !== accountId)
+      contentCacheRef.current?.clear();
     clearPlayback(true);
-  }, [text, sourceLanguage, hasPremium, clearPlayback]);
+  }, [text, sourceLanguage, hasPremium, accountId, clearPlayback]);
 
   useEffect(() => {
     if (!hasPremium) return;
@@ -368,6 +377,7 @@ export function ReaderAudioPlayer({
     if (!audioRef.current) {
       audioRef.current = new Audio();
       audioRef.current.preload = "auto";
+      applyPlaybackSpeed(audioRef.current, settingsRef.current.speed);
     }
     return audioRef.current;
   }
@@ -381,25 +391,13 @@ export function ReaderAudioPlayer({
     );
   }
 
-  function waitBetweenParts(generation: number) {
-    const playback = playbackRef.current;
-    cancelGap(playback);
-    updateStatus("gap");
-    playback.gapDeadline = Date.now() + playback.gapRemaining;
-    playback.gapTimer = setTimeout(() => {
-      playback.gapTimer = null;
-      playback.gapRemaining = 0;
-      if (playback.generation === generation && playback.wantsPlay)
-        void playPart(generation);
-    }, playback.gapRemaining);
-  }
-
   async function startAudio(url: string, generation: number, index: number) {
     const playback = playbackRef.current;
     if (!isCurrent(generation, index) || !playback.wantsPlay) return;
     const audio = getAudio();
     const attempt = ++playback.attempt;
     if (audio.src !== url) audio.src = url;
+    applyPlaybackSpeed(audio, settingsRef.current.speed);
     const reportPlaying = () => {
       if (
         !isCurrent(generation, index) ||
@@ -427,14 +425,7 @@ export function ReaderAudioPlayer({
         return;
       }
       setPart(playback.index + 1);
-      playback.gapRemaining =
-        playback.speed === "normal-pauses" &&
-        playback.chunks[playback.index].sentenceIndex !==
-          playback.chunks[index].sentenceIndex
-          ? SENTENCE_PAUSE_MS
-          : 0;
       if (!playback.wantsPlay) updateStatus("paused");
-      else if (playback.gapRemaining) waitBetweenParts(generation);
       else void playPart(generation);
     };
     audio.onerror = () => {
@@ -449,8 +440,24 @@ export function ReaderAudioPlayer({
       audio.onplaying = null;
       audio.removeAttribute("src");
       audio.load();
-      URL.revokeObjectURL(url);
-      playback.urls.delete(index);
+      const key = getReaderAudioCacheKey(
+        playback.chunks[index].text,
+        playback.language,
+        playback.voice,
+      );
+      contentCacheRef.current?.delete(key);
+      for (const [cachedIndex, cachedUrl] of playback.urls) {
+        if (
+          getReaderAudioCacheKey(
+            playback.chunks[cachedIndex].text,
+            playback.language,
+            playback.voice,
+          ) === key
+        ) {
+          URL.revokeObjectURL(cachedUrl);
+          playback.urls.delete(cachedIndex);
+        }
+      }
       setError("Could not play this part. Press Retry to try again.");
       updateStatus("error");
     };
@@ -488,6 +495,21 @@ export function ReaderAudioPlayer({
     if (previousError) return Promise.reject(previousError);
     const existing = playback.requests.get(index);
     if (existing) return existing.promise;
+    const key = getReaderAudioCacheKey(
+      playback.chunks[index].text,
+      playback.language,
+      playback.voice,
+    );
+    const cachedBlob = contentCacheRef.current?.get(key);
+    if (
+      cachedBlob &&
+      mountedRef.current &&
+      playback.generation === generation
+    ) {
+      const url = URL.createObjectURL(cachedBlob);
+      playback.urls.set(index, url);
+      return Promise.resolve(url);
+    }
     const controller = new AbortController();
     const request: AudioRequest = { controller, promise: Promise.resolve("") };
     playback.requests.set(index, request);
@@ -500,7 +522,6 @@ export function ReaderAudioPlayer({
             text: playback.chunks[index].text,
             sourceLanguage: playback.language,
             voice: playback.voice,
-            speed: playback.speed,
           }),
           signal: controller.signal,
         });
@@ -519,6 +540,7 @@ export function ReaderAudioPlayer({
           throw new DOMException("Audio request cancelled", "AbortError");
         }
         const url = URL.createObjectURL(blob);
+        contentCacheRef.current?.set(key, blob);
         playback.urls.set(index, url);
         return url;
       } catch (reason) {
@@ -612,10 +634,6 @@ export function ReaderAudioPlayer({
     playback.attempt++;
     abortPrefetch();
     audioRef.current?.pause();
-    if (playback.gapTimer !== null) {
-      playback.gapRemaining = Math.max(0, playback.gapDeadline - Date.now());
-      cancelGap(playback);
-    }
     updateStatus("paused");
   }
 
@@ -645,8 +663,7 @@ export function ReaderAudioPlayer({
             (option) => option.label === sourceLanguage,
           )?.value ?? sourceLanguage;
         playback.chunks = getReaderSpeechChunks(text, language);
-        playback.voice = settings.voice;
-        playback.speed = settings.speed;
+        playback.voice = settingsRef.current.voice;
         playback.language = sourceLanguage;
         setPartCount(playback.chunks.length);
       } catch (reason) {
@@ -663,14 +680,14 @@ export function ReaderAudioPlayer({
     if (!playback.chunks.length) return;
     playback.wantsPlay = true;
     setPart(playback.index + 1);
-    if (playback.gapRemaining > 0) waitBetweenParts(playback.generation);
-    else await playPart(playback.generation);
+    await playPart(playback.generation);
   }
 
   function changeSettings(next: Settings) {
-    clearPlayback(true);
+    if (next.voice !== settingsRef.current.voice) clearPlayback(true);
     settingsRef.current = next;
     setSettings(next);
+    if (audioRef.current) applyPlaybackSpeed(audioRef.current, next.speed);
   }
 
   const languageName =
@@ -680,8 +697,7 @@ export function ReaderAudioPlayer({
   const filteredVoices = voices.filter(
     (voice) => settings.style === "all" || voice.style === settings.style,
   );
-  const active =
-    status === "loading" || status === "playing" || status === "gap";
+  const active = status === "loading" || status === "playing";
   const canListen =
     hasPremium &&
     Boolean(text.trim()) &&
@@ -719,7 +735,7 @@ export function ReaderAudioPlayer({
     status === "complete"
       ? "Finished reading"
       : partCount > 0 && status !== "idle"
-        ? `Part ${part} of ${partCount}${status === "loading" ? " · Generating audio…" : status === "gap" ? " · Sentence pause" : status === "paused" ? " · Paused" : ""}`
+        ? `Part ${part} of ${partCount}${status === "loading" ? " · Generating audio…" : status === "paused" ? " · Paused" : ""}`
         : "";
 
   return (
@@ -771,7 +787,7 @@ export function ReaderAudioPlayer({
                       title={speed.label}
                       data-label={speed.label}
                     >
-                      {speed.speed}
+                      {speed.speed}×
                     </span>
                   ))}
                 </span>
