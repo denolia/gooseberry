@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import ts from "@typescript/typescript6";
+import * as readerConfig from "../src/lib/audio/readerConfig.ts";
 
 test("speech generator requests a clear MP3 pronunciation", async () => {
   const calls = [];
@@ -19,6 +20,7 @@ test("speech generator requests a clear MP3 pronunciation", async () => {
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "./readerConfig") return readerConfig;
     if (name !== "openai") throw new Error(`Unexpected dependency ${name}`);
     return {
       __esModule: true,

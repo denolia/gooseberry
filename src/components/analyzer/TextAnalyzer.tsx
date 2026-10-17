@@ -24,6 +24,7 @@ import {
   TargetLanguage,
 } from "@/components/ui/Languages";
 import { useLanguages } from "@/lib/languages/useLanguages";
+import { ReaderAudioPlayer } from "./ReaderAudioPlayer";
 import styles from "./TextAnalyzer.module.css";
 
 const CACHE_KEY = "textAnalyzerState:v2";
@@ -113,7 +114,7 @@ function responseForCandidate(
 }
 
 export function TextAnalyzer() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const { currentSourceLanguage, currentTargetLanguage } = useLanguages();
   const [text, setText] = useState("");
@@ -430,6 +431,11 @@ export function TextAnalyzer() {
       {readerText && (
         <div className={styles.workspace}>
           <section className={styles.reader} aria-label="Text reader">
+            <ReaderAudioPlayer
+              text={readerText}
+              sourceLanguage={sourceCode}
+              hasPremium={session?.user?.tier === "premium"}
+            />
             <div className={styles.readerHeading}>
               <span>Click a word or select several words</span>
               {isLoading && <span>Looking for stable expressions…</span>}

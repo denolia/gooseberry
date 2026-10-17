@@ -38,7 +38,7 @@ logged. No email is sent to the requesting user in this version.
 
 ## Premium enforcement
 
-Audio-enabled Anki deck export is the first Premium capability. Its checkbox is
+Audio-enabled Anki deck export is a Premium capability. Its checkbox is
 chosen for each export rather than stored as a preference. Free users retain
 CSV, text-only APKG, and individual pronunciation playback.
 
@@ -49,6 +49,21 @@ Free sees Free and has the same feature restrictions as any other Free account.
 An audio export supports up to 50 included cards and reuses MP3 data from
 `speech_audio_cache`; the cache prevents repeat exports of the same source text
 and language from repeatedly consuming speech-generation credits.
+
+Full-text reading in the text analyzer is also Premium-only. The player sits
+above the reader on desktop and mobile, reads in the selected source language,
+and supports pause, resume, stop, and five reading speeds. Normal with pauses
+reads sentence by sentence with a short pause between requests. Voice settings
+are saved in this browser; audio stays in memory for replay and is discarded
+when the text, source language, voice, or speed changes.
+
+`/api/speech/reader` checks the current database entitlement for every audio
+chunk, including short ones. Texts up to the analyzer's 20,000-character limit
+are split into chunks of at most 1,000 characters. `/api/speech` remains the
+authenticated individual-pronunciation endpoint. The reader uses
+`OPENAI_TTS_MODEL` and offers only that model's supported built-in voices;
+`OPENAI_TTS_VOICE` is the default when supported. Voice-style groups describe
+perceived tone, since OpenAI publishes voice names without assigning genders.
 
 ## Manual verification
 

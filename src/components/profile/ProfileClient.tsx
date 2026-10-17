@@ -149,8 +149,8 @@ export function ProfileClient({ initialProfile }: { initialProfile: Profile }) {
 
         {initialProfile.tier === "premium" ? (
           <div className={styles.notice}>
-            Premium access is active. You can include AI pronunciation when
-            exporting Anki decks.
+            Premium access is active. You can listen to full texts in the text
+            analyzer and include AI pronunciation when exporting Anki decks.
           </div>
         ) : pendingRequest ? (
           <div className={styles.notice} role="status">
