@@ -264,7 +264,15 @@ export function WordSetList() {
               };
               return (
                 <div key={set.id} className={styles.card}>
-                  <Link className={styles.cardContent} href={`/anki/${set.id}`}>
+                  <Link
+                    className={styles.cardContent}
+                    href={`/anki/${set.id}/review`}
+                    aria-label={`Study ${set.name}`}
+                    aria-disabled={reviewStats.dueCount === 0}
+                    onClick={(event) => {
+                      if (reviewStats.dueCount === 0) event.preventDefault();
+                    }}
+                  >
                     <StudyPlant
                       stage={plantReadinessStage(
                         reviewStats.dueCount,
@@ -317,6 +325,7 @@ export function WordSetList() {
                         />
                       </summary>
                       <div className={styles.moreMenuContent}>
+                        <Link href={`/anki/${set.id}`}>Open set</Link>
                         <button
                           disabled={deleteMutation.isPending}
                           onClick={() => void handleDelete(set.id, set.name)}

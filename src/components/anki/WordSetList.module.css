@@ -300,6 +300,10 @@
   min-width: 0;
 }
 
+.cardContent[aria-disabled="true"] {
+  cursor: default;
+}
+
 .readiness {
   margin: 0.15rem 0 0;
   color: var(--text-muted);
@@ -390,16 +394,27 @@
   box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 22%);
 }
 
+.moreMenuContent a,
 .moreMenuContent button {
+  display: block;
   width: 100%;
   padding: 0.55rem 0.65rem;
   cursor: pointer;
   border: 0;
   background: transparent;
-  color: var(--danger);
+  color: var(--foreground);
   font: inherit;
   font-size: 0.8rem;
   text-align: left;
+  text-decoration: none;
+}
+
+.moreMenuContent a:hover {
+  background: var(--button-secondary-hover);
+}
+
+.moreMenuContent button {
+  color: var(--danger);
 }
 
 .moreMenuContent button:hover {
