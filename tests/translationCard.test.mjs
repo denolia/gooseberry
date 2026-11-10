@@ -193,7 +193,28 @@ function setup(t, props = {}, queryOverrides = {}, geometry = {}) {
     return Response.json({ itemId: "item-1" });
   });
   const exports = {};
-  const jsx = (type, props) => ({ type, props });
+  const picker = {};
+  const jsx = (type, props) =>
+    type === picker.WordSetPicker ? type(props) : { type, props };
+  const pickerCode = ts.transpileModule(
+    readFileSync(
+      new URL("../src/components/anki/WordSetPicker.tsx", import.meta.url),
+      "utf8",
+    ),
+    {
+      compilerOptions: {
+        module: ts.ModuleKind.CommonJS,
+        target: ts.ScriptTarget.ES2022,
+        jsx: ts.JsxEmit.ReactJSX,
+      },
+    },
+  ).outputText;
+  new Function("require", "exports", pickerCode)((name) => {
+    if (name === "react/jsx-runtime")
+      return { jsx, jsxs: jsx, Fragment: "fragment" };
+    if (name === "./WordSetPicker.module.css") return { default: {} };
+    throw new Error(`Unexpected picker import ${name}`);
+  }, picker);
   new Function("require", "exports", code)((name) => {
     const dependencies = {
       react,
@@ -218,6 +239,8 @@ function setup(t, props = {}, queryOverrides = {}, geometry = {}) {
       },
       "@/app/utils/cardDraft": { fieldsFromDraft },
       "./CardEditor": { CardEditor: "CardEditor" },
+      "./useWordSets": { useWordSets: () => query },
+      "./WordSetPicker": picker,
       "./TranslationCard.module.css": { default: {} },
     };
     assert(name in dependencies, `Unexpected import ${name}`);

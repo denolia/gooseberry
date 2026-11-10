@@ -243,6 +243,89 @@ export async function deleteWordSetItem(wordSetId: string, itemId: string) {
   return item ?? null;
 }
 
+export class MoveWordSetItemError extends Error {
+  constructor(
+    message: string,
+    public status: 400 | 404 | 409,
+  ) {
+    super(message);
+  }
+}
+
+export async function moveWordSetItem(input: {
+  userId: string;
+  sourceWordSetId: string;
+  destinationWordSetId: string;
+  itemId: string;
+}) {
+  const { userId, sourceWordSetId, destinationWordSetId, itemId } = input;
+  if (sourceWordSetId === destinationWordSetId) {
+    throw new MoveWordSetItemError("Choose another set.", 400);
+  }
+  const [source, destination] = await Promise.all([
+    getWordSet(sourceWordSetId, userId),
+    getWordSet(destinationWordSetId, userId),
+  ]);
+  if (!source || !destination)
+    throw new MoveWordSetItemError("Word set not found.", 404);
+  if (
+    source.sourceLang !== destination.sourceLang ||
+    source.targetLang !== destination.targetLang
+  ) {
+    throw new MoveWordSetItemError(
+      "Choose a set with the same source and target languages.",
+      400,
+    );
+  }
+
+  const db = getDb();
+  try {
+    // The moved note keeps its import identity/baseline, but an undo of the
+    // original import must no longer delete a word the user has relocated.
+    await db.batch([
+      // A stable lock order also serializes appends from concurrent moves.
+      db.execute(sql`SELECT id FROM word_set WHERE user_id = ${userId}
+        AND id IN (${sourceWordSetId}, ${destinationWordSetId}) ORDER BY id FOR UPDATE`),
+      db.execute(sql`WITH moved AS (
+        UPDATE word_set_item AS item SET
+          word_set_id = ${destinationWordSetId},
+          position = (SELECT coalesce(max(position), -1) + 1 FROM word_set_item WHERE word_set_id = ${destinationWordSetId}),
+          import_job_id = NULL,
+          updated_at = now()
+        FROM word_set AS source, word_set AS destination
+        WHERE item.id = ${itemId} AND item.word_set_id = ${sourceWordSetId}
+          AND source.id = item.word_set_id AND source.user_id = ${userId}
+          AND destination.id = ${destinationWordSetId} AND destination.user_id = ${userId}
+          AND source.source_lang = destination.source_lang AND source.target_lang = destination.target_lang
+        RETURNING item.id
+      ) UPDATE word_set SET updated_at = now()
+        WHERE id IN (${sourceWordSetId}, ${destinationWordSetId}) AND user_id = ${userId}
+          AND EXISTS (SELECT 1 FROM moved)`),
+    ]);
+  } catch (error) {
+    let cause: unknown = error;
+    while (cause && typeof cause === "object") {
+      if ("code" in cause && cause.code === "23505") {
+        throw new MoveWordSetItemError(
+          "This set already contains this imported word. Choose another set.",
+          409,
+        );
+      }
+      cause = "cause" in cause ? cause.cause : null;
+    }
+    throw error;
+  }
+
+  const item = await getWordSetItem(itemId);
+  // A retry after a lost response succeeds without appending or copying again.
+  if (item?.wordSetId === destinationWordSetId)
+    return { id: item.id, wordSetId: destinationWordSetId };
+  throw new MoveWordSetItemError(
+    "This word is no longer in the source set. Refresh and try again.",
+    409,
+  );
+}
+
 export async function updateLastExportedAt(wordSetId: string) {
   const db = getDb();
   await db

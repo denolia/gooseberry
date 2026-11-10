@@ -1,7 +1,7 @@
 "use client";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CardEditor } from "./CardEditor";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/app/utils/cardDraft";
 import { TranslationSelector } from "./TranslationSelector";
 import { EnrichmentDialog } from "./EnrichmentDialog";
+import { MoveWordDialog } from "./MoveWordDialog";
 import { missingEnrichmentFields } from "@/lib/anki/enrichment";
 import { reviewCountLabel, reviewStateLabel } from "@/lib/review/stats";
 import type { FsrsCardStateValue } from "@/lib/review/model";
@@ -78,6 +79,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const [showSelector, setShowSelector] = useState(false);
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [enrichingItem, setEnrichingItem] = useState<WordSetItem | null>(null);
+  const [movingItem, setMovingItem] = useState<WordSetItem | null>(null);
   const [editValues, setEditValues] = useState<CardDraft | null>(null);
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
@@ -93,17 +95,56 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const [deckExportError, setDeckExportError] = useState<string | null>(null);
   const exportAbortController = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    if (status === "authenticated" && session?.user?.id) {
-      loadWordSet();
-      loadItems();
-    } else if (status === "authenticated") {
-      setError(
-        "Your session could not be initialized. Please sign out and sign in again.",
-      );
+  const loadWordSet = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/word-sets/${wordSetId}`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          router.push("/anki");
+          return;
+        }
+        throw new Error("Failed to load word set");
+      }
+      const data = await response.json();
+      setWordSet(data.wordSet);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load word set");
+    } finally {
       setLoading(false);
     }
-  }, [session?.user?.id, status, wordSetId]);
+  }, [router, wordSetId]);
+
+  const loadItems = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/word-sets/${wordSetId}/items`);
+      if (!response.ok) throw new Error("Failed to load items");
+      const data = await response.json();
+      setItems(data.items);
+    } catch (err) {
+      setStatusMessage(
+        err instanceof Error ? err.message : "Failed to load items",
+      );
+    }
+  }, [wordSetId]);
+
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      if (status === "authenticated" && session?.user?.id) {
+        void loadWordSet();
+        void loadItems();
+      } else if (status === "authenticated") {
+        setError(
+          "Your session could not be initialized. Please sign out and sign in again.",
+        );
+        setLoading(false);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [session?.user?.id, status, loadWordSet, loadItems]);
 
   useEffect(() => {
     if (!showDeckExportDialog) return;
@@ -121,38 +162,6 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [deckExportStage, showDeckExportDialog]);
-
-  const loadWordSet = async () => {
-    try {
-      const response = await fetch(`/api/word-sets/${wordSetId}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          router.push("/anki");
-          return;
-        }
-        throw new Error("Failed to load word set");
-      }
-      const data = await response.json();
-      setWordSet(data.wordSet);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load word set");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadItems = async () => {
-    try {
-      const response = await fetch(`/api/word-sets/${wordSetId}/items`);
-      if (!response.ok) throw new Error("Failed to load items");
-      const data = await response.json();
-      setItems(data.items);
-    } catch (err) {
-      setStatusMessage(
-        err instanceof Error ? err.message : "Failed to load items",
-      );
-    }
-  };
 
   const handleItemsAdded = ({
     count,
@@ -701,6 +710,24 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
         />
       )}
 
+      {movingItem && (
+        <MoveWordDialog
+          item={movingItem}
+          sourceSet={wordSet}
+          onClose={() => setMovingItem(null)}
+          onMoved={(destination) => {
+            setItems((current) =>
+              current.filter((item) => item.id !== movingItem.id),
+            );
+            setMovingItem(null);
+            setStatusMessage(
+              `Moved “${movingItem.original || movingItem.translation || "Imported word"}” to “${destination.name}”.`,
+            );
+            void loadWordSet();
+          }}
+        />
+      )}
+
       {items.length === 0 ? (
         <div className={styles.empty}>
           No cards yet. Save a word from a translation, or add words from your
@@ -827,6 +854,18 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                           onClick={() => startEditing(item)}
                         >
                           Edit card
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            const menu = event.currentTarget.closest("details");
+                            if (menu) menu.open = false;
+                            // Keep the visible trigger as the modal's return-focus target.
+                            menu?.querySelector("summary")?.focus();
+                            setMovingItem(item);
+                          }}
+                        >
+                          Move to another set
                         </button>
                         {missingEnrichmentFields(item).length > 0 && (
                           <button

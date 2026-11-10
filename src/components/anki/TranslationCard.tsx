@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { EllipsisVertical } from "lucide-react";
@@ -15,14 +15,10 @@ import { TranslationResponse } from "@/app/utils/translationSchema";
 import { mapTranslationToWordSetItem } from "@/app/utils/ankiMapper";
 import { CardDraft, fieldsFromDraft } from "@/app/utils/cardDraft";
 import { CardEditor } from "./CardEditor";
+import { useWordSets, type WordSetOption as WordSet } from "./useWordSets";
+import { WordSetPicker } from "./WordSetPicker";
 import styles from "./TranslationCard.module.css";
 
-type WordSet = {
-  id: string;
-  name: string;
-  sourceLang: string;
-  targetLang: string;
-};
 export function TranslationCard({
   response,
   sourceLang,
@@ -72,15 +68,7 @@ export function TranslationCard({
     })),
   }));
   const storageKey = `anki:last-set:${session?.user?.id}:${sourceLang}:${targetLang}`;
-  const sets = useQuery({
-    queryKey: ["wordSets", session?.user?.id],
-    enabled: !!session?.user?.id,
-    queryFn: async (): Promise<WordSet[]> => {
-      const res = await fetch("/api/word-sets");
-      if (!res.ok) throw new Error("Could not load sets.");
-      return (await res.json()).wordSets;
-    },
-  });
+  const sets = useWordSets(session?.user?.id);
   const compatible = (sets.data ?? []).filter(
     (s) => s.sourceLang === sourceLang && s.targetLang === targetLang,
   );
@@ -95,14 +83,6 @@ export function TranslationCard({
     compatible.find((s) => s.id === remembered)?.id ??
     compatible[0]?.id ??
     "";
-  const normalizedSearch = setSearch.trim().toLocaleLowerCase();
-  const pickerSets = [...compatible]
-    .sort((a, b) => {
-      if (a.id === setId) return -1;
-      if (b.id === setId) return 1;
-      return a.name.localeCompare(b.name);
-    })
-    .filter((set) => set.name.toLocaleLowerCase().includes(normalizedSearch));
   const fingerprint = JSON.stringify(fieldsFromDraft(draft));
   const isSaved = saved[setId]?.fingerprint === fingerprint;
 
@@ -600,54 +580,20 @@ export function TranslationCard({
                   </form>
                 ) : (
                   <>
-                    <label
-                      className={styles.srOnly}
-                      htmlFor={`${pickerId}-search`}
-                    >
-                      Find a set
-                    </label>
-                    <input
-                      ref={searchRef}
+                    <WordSetPicker
+                      sets={compatible}
+                      selectedId={setId}
+                      onSelect={(id) => {
+                        setSelected(id);
+                        setError("");
+                        closePicker({ restoreFocus: true });
+                      }}
+                      search={setSearch}
+                      onSearchChange={setSetSearch}
                       id={`${pickerId}-search`}
-                      className={styles.setSearch}
-                      type="search"
-                      placeholder="Find a set…"
-                      value={setSearch}
-                      onChange={(event) => setSetSearch(event.target.value)}
+                      searchRef={searchRef}
+                      label="Compatible sets"
                     />
-                    <div
-                      className={styles.setList}
-                      role="group"
-                      aria-label="Compatible sets"
-                    >
-                      {pickerSets.length > 0 ? (
-                        pickerSets.map((set) => (
-                          <button
-                            key={set.id}
-                            type="button"
-                            className={`${styles.setOption} ${set.id === setId ? styles.selectedSet : ""}`}
-                            aria-pressed={set.id === setId}
-                            onClick={() => {
-                              setSelected(set.id);
-                              setError("");
-                              closePicker({ restoreFocus: true });
-                            }}
-                          >
-                            <span
-                              className={styles.optionMark}
-                              aria-hidden="true"
-                            >
-                              {set.id === setId ? "✓" : ""}
-                            </span>
-                            <span>{set.name}</span>
-                          </button>
-                        ))
-                      ) : (
-                        <p className={styles.noSets}>
-                          No sets match “{setSearch}”.
-                        </p>
-                      )}
-                    </div>
                     <div className={styles.pickerFooter}>
                       <button
                         type="button"

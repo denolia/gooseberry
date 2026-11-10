@@ -160,7 +160,6 @@
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
-.setSearch,
 .createSetForm input {
   width: 100%;
   min-width: 0;
@@ -172,39 +171,6 @@
   font: inherit;
   font-size: 0.82rem;
 }
-.setList {
-  max-height: 14rem;
-  margin-top: 0.45rem;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-.container .setOption {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 1.1rem minmax(0, 1fr);
-  gap: 0.4rem;
-  align-items: center;
-  padding: 0.65rem 0.6rem;
-  color: var(--foreground);
-  background: transparent;
-  text-align: left;
-}
-.setOption > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.container .setOption:hover {
-  background: var(--item-hover);
-}
-.container .selectedSet {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-.optionMark {
-  color: var(--accent);
-  font-weight: 700;
-}
-.noSets,
 .pickerMessage {
   margin: 0;
   padding: 0.9rem 0.6rem;

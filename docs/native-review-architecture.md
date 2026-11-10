@@ -74,6 +74,8 @@ Reimport can seed untouched existing exercises, but a native event, projection o
 
 Content edits update shared note fields without replacing exercise UUIDs. A content revision protects concurrent manual/proposal saves, and field provenance records imported, generated or edited text. Requested enrichment fills only reviewed, still-empty fields; enabling an exercise does not reset sibling progress.
 
+The word's action menu offers **Move to another set**. Its native modal shares the searchable `WordSetPicker` and cached set query with the translation save dropdown. All owned sets are listed; the current set and different language pairs are unavailable, with reasons. Cancel/Escape leave the word unchanged. Move posts to `/api/word-sets/[id]/items/[itemId]/move`, which validates both set owners/languages again and updates the note's membership in an atomic batch. The word is appended to the destination; its UUID, export GUID, content, card identities, schedules, review history, imported baseline and exposure marker remain intact. Retries after a lost response do not copy or reposition it again. An imported-note identity collision returns a conflict rather than merging or deleting history. Moving clears the note's original import-undo ownership so undoing that import cannot delete the relocated word; its source key and study baseline are retained.
+
 APKG export writes one Gooseberry note with applicable sibling templates. Its historical template ordinals are stable. The export GUID is separate from an imported source GUID; export does not reproduce arbitrary source templates or imported progress.
 
 ## Database requirements

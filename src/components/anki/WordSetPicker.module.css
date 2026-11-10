@@ -1,0 +1,92 @@
+.picker {
+  min-width: 0;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.search {
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0;
+  color: var(--foreground);
+  background: var(--input-background);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.list {
+  max-height: min(18rem, 45dvh);
+  margin-top: 0.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.list .option {
+  display: grid;
+  grid-template-columns: 1.1rem minmax(0, 1fr);
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  padding: 0.65rem 0.6rem;
+  border: 0;
+  border-radius: 0;
+  color: var(--foreground);
+  background: transparent;
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.list .option:hover:not(:disabled) {
+  background: var(--item-hover);
+}
+
+.list .selected {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.list .option:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.mark {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  grid-column: 2;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.empty {
+  padding: 1rem 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.picker :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
