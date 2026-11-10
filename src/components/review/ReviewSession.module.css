@@ -26,13 +26,6 @@
   gap: 0.5rem;
 }
 
-.sessionLabel {
-  flex: 0 0 auto;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  white-space: nowrap;
-}
-
 .sessionHeader h1 {
   min-width: 0;
   margin: 0;
@@ -55,23 +48,11 @@
   font-weight: 600;
 }
 
-.exerciseMeta {
-  display: flex;
-  justify-content: center;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-}
-
-.promptLabel {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-}
-
 .exerciseLabel {
+  padding-inline: 1rem;
   color: var(--text-secondary);
   font-size: 0.875rem;
-  font-weight: 600;
+  text-align: end;
 }
 
 .languagePair {
@@ -198,7 +179,6 @@
 }
 
 .answerWrap {
-  border-top: 1px solid var(--border-color);
   animation: reveal 180ms ease-out;
 }
 

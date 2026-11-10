@@ -17,10 +17,6 @@ export function isNewState(state: FsrsCardStateValue): boolean {
   return state === FsrsCardState.New;
 }
 
-export function reviewPrompt(state: FsrsCardStateValue): string {
-  return isNewState(state) ? "Try to remember this:" : "Do you remember this?";
-}
-
 export function reviewControls(
   state: FsrsCardStateValue,
   mode: ReviewModeValue,

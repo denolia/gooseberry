@@ -7,11 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SourceAudioButton } from "@/components/ui/SourceAudioButton";
 import { BottomPanelLayout } from "@/components/ui/BottomPanelLayout";
-import {
-  isNewState,
-  reviewControls,
-  reviewPrompt,
-} from "@/lib/review/controls";
+import { isNewState, reviewControls } from "@/lib/review/controls";
 import { formatReviewInterval } from "@/lib/review/formatInterval";
 import type { FsrsCardStateValue, ReviewModeValue } from "@/lib/review/model";
 import { withAutomaticRetries } from "@/lib/review/retry";
@@ -709,7 +705,6 @@ export function ReviewSession({
       <div className={styles.session}>
         <header className={styles.sessionHeader}>
           <div className={styles.sessionInfo}>
-            <p className={styles.sessionLabel}>Reviewing</p>
             <h1 title={card.wordSetName}>{card.wordSetName}</h1>
             <p className={styles.languagePair}>
               {promptLanguage.toUpperCase()} → {answerLanguage.toUpperCase()}
@@ -721,13 +716,8 @@ export function ReviewSession({
         </header>
 
         <article key={card.id} className={styles.card} aria-live="polite">
+          <p className={styles.exerciseLabel}>{template.label}</p>
           <div className={styles.promptSide}>
-            <div className={styles.exerciseMeta}>
-              <p className={styles.exerciseLabel}>{template.label}</p>
-              <p className={styles.promptLabel}>
-                {reviewPrompt(card.state.state)}
-              </p>
-            </div>
             <h2 lang={promptLanguage}>{card[template.promptField]}</h2>
             {(card.templateKey === "word_forms" || isExample) &&
               card.translation && (
@@ -817,7 +807,6 @@ export function ReviewSession({
                     </p>
                   </div>
                 )}
-                <p className={styles.sideLabel}>Answer</p>
                 {isExample && card.original && (
                   <p className={styles.answerContext} lang={card.sourceLang}>
                     {card.original}

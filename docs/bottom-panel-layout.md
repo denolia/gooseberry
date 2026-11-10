@@ -19,7 +19,9 @@ Overlays rendered inside the layout can use `--bottom-panel-height` to sit above
 
 The reviewer keeps Show answer, Ok, simple ratings and full ratings in a single row of at least 64px-high controls. Full mode preserves Hard, Good, Easy, Again and their keyboard shortcuts. Comments retain line breaks and wrap long text. The Reader page's current player is unchanged.
 
-Study mode omits the site's logo/navigation header and extra page-bottom padding. Reviewing, the set name and language direction share one line, with End session on the right linking back to `/anki`, where the normal header appears. Long set names ellipsize on narrow screens; their complete text remains in the heading and its title. The study card has no outer border or minimum height. Prompt and answer share a 24–28px text scale, with 16px forms/examples/comments and 14px metadata; both sides use 16px padding. These sizes follow the browser's base font size. Long study prose is left-aligned and is never truncated or collapsed.
+The exercise type is a quiet label in the card's top-right corner. The prompt and revealed answer have no intervening divider, Answer heading or reminder question. Typed comparison retains its Your answer label to identify the learner's input.
+
+Study mode omits the site's logo/navigation header and extra page-bottom padding. The set name and language direction share one line, with End session on the right linking back to `/anki`, where the normal header appears. Long set names ellipsize on narrow screens; their complete text remains in the heading and its title. The study card has no outer border or minimum height. Prompt and answer share a 24–28px text scale, with 16px forms/examples/comments and 14px metadata; both sides use 16px padding. These sizes follow the browser's base font size. Long study prose is left-aligned and is never truncated or collapsed.
 
 Manual verification:
 
