@@ -2,6 +2,7 @@
 import styles from "./Header.module.css";
 import { signIn, signOut, useSession } from "next-auth/react";
 import Link from "next/link";
+import { ArrowRightLeft } from "lucide-react";
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -69,9 +70,7 @@ function DesktopLanguageControls() {
         }
         showLabel={false}
       />
-      <span className={styles.languageArrow} aria-hidden="true">
-        &rarr;
-      </span>
+      <SwapLanguagesButton />
       <LanguageControl
         id="header-target-language-select"
         value={currentTargetLanguage}
@@ -82,6 +81,20 @@ function DesktopLanguageControls() {
         showLabel={false}
       />
     </div>
+  );
+}
+
+function SwapLanguagesButton() {
+  return (
+    <button
+      type="button"
+      className={styles.swapButton}
+      onClick={LanguageStore.swapLanguages}
+      aria-label="Swap source and target languages"
+      title="Swap source and target languages"
+    >
+      <ArrowRightLeft size={18} aria-hidden="true" />
+    </button>
   );
 }
 
@@ -99,6 +112,7 @@ function MobileLanguageControls() {
           LanguageStore.setCurrentSourceLanguage(value as SourceLanguage)
         }
       />
+      <SwapLanguagesButton />
       <LanguageControl
         id="header-target-language-select-mobile"
         label="Target"

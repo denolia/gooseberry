@@ -61,12 +61,34 @@ initReadFromLocalStorage();
 
 let listeners: (() => void)[] = [];
 function emitChange() {
-  for (let listener of listeners) {
+  for (const listener of listeners) {
     listener();
   }
 }
 
 export const LanguageStore = {
+  swapLanguages() {
+    const { currentSourceLanguage, currentTargetLanguage } = data;
+    if (
+      currentSourceLanguage === currentTargetLanguage ||
+      !isSourceLanguage(currentTargetLanguage) ||
+      !isTargetLanguage(currentSourceLanguage)
+    )
+      return;
+
+    // Publish one complete pair so readers never see an intermediate direction.
+    updateStore({
+      currentSourceLanguage: currentTargetLanguage,
+      currentTargetLanguage: currentSourceLanguage,
+    });
+    try {
+      localStorage.setItem(SOURCE_LANGUAGE_STORAGE_KEY, currentTargetLanguage);
+      localStorage.setItem(TARGET_LANGUAGE_STORAGE_KEY, currentSourceLanguage);
+    } catch (error) {
+      console.error("Failed to save swapped languages to localStorage ", error);
+    }
+    emitChange();
+  },
   getSnapshot() {
     return data;
   },
