@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SourceAudioButton } from "@/components/ui/SourceAudioButton";
+import { BottomPanelLayout } from "@/components/ui/BottomPanelLayout";
 import {
   isNewState,
   reviewControls,
@@ -469,6 +470,7 @@ export function ReviewSession({
       setTypedAnswer("");
       setError(null);
       shownAt.current = performance.now();
+      window.scrollTo({ top: 0, behavior: "instant" });
       void sendReview(submission);
 
       if (
@@ -648,13 +650,67 @@ export function ReviewSession({
       ? typedAnswerDiff(typedAnswer, card[template.answerField], answerLanguage)
       : null;
 
+  const actions = !revealed ? (
+    <button
+      className={styles.revealButton}
+      onClick={revealAnswer}
+      autoFocus={!template.requiresTyping}
+    >
+      {template.requiresTyping ? "Check answer" : "Show answer"}
+      <span className={styles.shortcutHint}>
+        {template.requiresTyping ? "Enter" : "Space"}
+      </span>
+    </button>
+  ) : (
+    <div
+      className={`${styles.ratings} ${
+        newCard
+          ? styles.newCardRatings
+          : reviewMode === "full"
+            ? styles.fullRatings
+            : styles.simpleRatings
+      }`}
+    >
+      {controls.map((control) => {
+        const preview = card.ratings.find(
+          ({ rating }) => rating === control.rating,
+        );
+        if (!preview) return null;
+
+        return (
+          <button
+            key={control.rating}
+            className={`${styles.ratingButton} ${
+              styles[`rating${control.rating}`]
+            } ${newCard ? styles.okButton : ""}`}
+            onClick={() => submitRating(control.rating)}
+          >
+            {control.shortcut && (
+              <span className={styles.ratingKey}>
+                {control.shortcut === " " ? "Space" : control.shortcut}
+              </span>
+            )}
+            <span className={styles.ratingCopy}>
+              <strong>{control.label}</strong>
+              <small>{formatReviewInterval(preview.intervalMs)}</small>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <>
+    <BottomPanelLayout
+      className={styles.reviewLayout}
+      label="Study controls"
+      panel={actions}
+    >
       <div className={styles.session}>
         <header className={styles.sessionHeader}>
-          <div>
-            <p className={styles.eyebrow}>Reviewing</p>
-            <h1>{card.wordSetName}</h1>
+          <div className={styles.sessionInfo}>
+            <p className={styles.sessionLabel}>Reviewing</p>
+            <h1 title={card.wordSetName}>{card.wordSetName}</h1>
             <p className={styles.languagePair}>
               {promptLanguage.toUpperCase()} → {answerLanguage.toUpperCase()}
             </p>
@@ -664,18 +720,15 @@ export function ReviewSession({
           </Link>
         </header>
 
-        <main key={card.id} className={styles.card} aria-live="polite">
+        <article key={card.id} className={styles.card} aria-live="polite">
           <div className={styles.promptSide}>
-            <p className={styles.exerciseLabel}>{template.label}</p>
-            <p className={styles.promptLabel}>
-              {reviewPrompt(card.state.state)}
-            </p>
-            <h2
-              lang={promptLanguage}
-              className={isExample ? styles.sentence : undefined}
-            >
-              {card[template.promptField]}
-            </h2>
+            <div className={styles.exerciseMeta}>
+              <p className={styles.exerciseLabel}>{template.label}</p>
+              <p className={styles.promptLabel}>
+                {reviewPrompt(card.state.state)}
+              </p>
+            </div>
+            <h2 lang={promptLanguage}>{card[template.promptField]}</h2>
             {(card.templateKey === "word_forms" || isExample) &&
               card.translation && (
                 <p className={styles.supporting} lang={card.targetLang}>
@@ -730,18 +783,7 @@ export function ReviewSession({
             )}
           </div>
 
-          {!revealed ? (
-            <button
-              className={styles.revealButton}
-              onClick={revealAnswer}
-              autoFocus={!template.requiresTyping}
-            >
-              {template.requiresTyping ? "Check answer" : "Show answer"}
-              <span className={styles.shortcutHint}>
-                {template.requiresTyping ? "Enter" : "Space"}
-              </span>
-            </button>
-          ) : (
+          {revealed && (
             <div className={styles.answerWrap}>
               <div className={styles.answerSide}>
                 {typedComparison && (
@@ -781,10 +823,7 @@ export function ReviewSession({
                     {card.original}
                   </p>
                 )}
-                <h2
-                  lang={answerLanguage}
-                  className={isExample ? styles.sentence : undefined}
-                >
+                <h2 lang={answerLanguage}>
                   {typedComparison
                     ? typedComparison.expected.map((part, index) =>
                         part.changed ? (
@@ -829,54 +868,11 @@ export function ReviewSession({
                   {error}
                 </p>
               )}
-
-              <div className={styles.ratingArea}>
-                <div
-                  className={`${styles.ratings} ${
-                    newCard
-                      ? styles.newCardRatings
-                      : reviewMode === "full"
-                        ? styles.fullRatings
-                        : styles.simpleRatings
-                  }`}
-                >
-                  {controls.map((control) => {
-                    const preview = card.ratings.find(
-                      ({ rating }) => rating === control.rating,
-                    );
-                    if (!preview) return null;
-
-                    return (
-                      <button
-                        key={control.rating}
-                        className={`${styles.ratingButton} ${
-                          styles[`rating${control.rating}`]
-                        } ${newCard ? styles.okButton : ""}`}
-                        onClick={() => submitRating(control.rating)}
-                      >
-                        {control.shortcut && (
-                          <span className={styles.ratingKey}>
-                            {control.shortcut === " "
-                              ? "Space"
-                              : control.shortcut}
-                          </span>
-                        )}
-                        <span className={styles.ratingCopy}>
-                          <strong>{control.label}</strong>
-                          <small>
-                            {formatReviewInterval(preview.intervalMs)}
-                          </small>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
             </div>
           )}
-        </main>
+        </article>
       </div>
       {failureToast}
-    </>
+    </BottomPanelLayout>
   );
 }

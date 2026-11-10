@@ -104,6 +104,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
   const focusListeners = new Set();
   const submissions = [];
   const activations = [];
+  const scrolls = [];
   const router = { replace() {} };
   const queryClient = { invalidateQueries() {} };
   const sameDeps = (left, right) =>
@@ -150,6 +151,9 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
   const originalWindow = globalThis.window;
   const originalElement = globalThis.Element;
   globalThis.window = {
+    scrollTo(options) {
+      scrolls.push(options);
+    },
     addEventListener(event, callback) {
       if (event === "keydown") keyboardListeners.add(callback);
       if (event === "focus") focusListeners.add(callback);
@@ -240,7 +244,19 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
   });
 
   function SourceAudioButton() {}
-  const jsx = (type, props) => ({ type, props });
+  function BottomPanelLayout({ children, panel, label }) {
+    return {
+      type: "div",
+      props: {
+        children: [
+          children,
+          { type: "section", props: { "aria-label": label, children: panel } },
+        ],
+      },
+    };
+  }
+  const jsx = (type, props) =>
+    type === BottomPanelLayout ? type(props) : { type, props };
   const retries = { withAutomaticRetries: (operation) => operation() };
   const exposureHook = transpile(
     "../src/components/review/useStudyExposure.ts",
@@ -259,6 +275,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
       "next-auth/react": { useSession: () => ({ status: "authenticated" }) },
       "@tanstack/react-query": { useQueryClient: () => queryClient },
       "@/components/ui/SourceAudioButton": { SourceAudioButton },
+      "@/components/ui/BottomPanelLayout": { BottomPanelLayout },
       "@/lib/review/controls": controls,
       "@/lib/review/queue": queue,
       "@/lib/review/formatInterval": { formatReviewInterval: () => "1 day" },
@@ -275,6 +292,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
   return {
     submissions,
     activations,
+    scrolls,
     focus() {
       focusListeners.forEach((callback) => callback());
     },
@@ -978,6 +996,52 @@ test("rollover can renew a visible prompt even while its first confirmation is p
   assert.doesNotMatch(text(settled), /Old response lost/);
   session.key("2");
   assert.equal(session.submissions.length, 1);
+});
+
+test("study controls stay outside long card content and advancing returns to the next word", async (t) => {
+  const comments = Array.from(
+    { length: 60 },
+    (_, index) => `Usage note ${index + 1}`,
+  ).join("\n");
+  const session = setup(t, [
+    { ...fixture, comments },
+    { ...fixture, id: "next", original: "next word" },
+  ]);
+  let tree = await session.ready();
+  const panel = (view) =>
+    nodes(
+      view,
+      (node) =>
+        node.type === "section" &&
+        node.props["aria-label"] === "Study controls",
+    );
+  assert.equal(panel(tree).length, 1);
+  assert.match(text(panel(tree)), /Show answer/);
+  assert.doesNotMatch(
+    text(nodes(tree, (node) => node.type === "article")),
+    /Show answer/,
+  );
+  session.key(" ");
+  tree = session.render();
+  assert.equal(panel(tree).length, 1);
+  assert.match(text(panel(tree)), /No/);
+  assert.match(text(panel(tree)), /Yes/);
+  assert.equal(text(panel(tree)).includes(comments), false);
+  assert(
+    text(nodes(tree, (node) => node.type === "article")).includes(comments),
+  );
+  assert.equal(
+    session.scrolls.length,
+    0,
+    "revealing content must not scroll it away",
+  );
+  session.key("2");
+  tree = await session.ready();
+  assert.deepEqual(session.scrolls, [{ top: 0, behavior: "instant" }]);
+  assert.deepEqual(nodes(tree, (node) => node.type === "h2").map(text), [
+    "next word",
+  ]);
+  assert.match(text(panel(tree)), /Show answer/);
 });
 
 test("completion explains deferred repetitions and their study-zone reset", async (t) => {

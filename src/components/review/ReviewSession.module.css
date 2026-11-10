@@ -1,61 +1,98 @@
+.reviewLayout {
+  --bottom-panel-content-width: 900px;
+}
+
 .session {
   width: min(100%, 900px);
   margin: 0 auto;
-  padding-top: 1.25rem;
+  padding-top: 0.75rem;
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 .sessionHeader {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
-.sessionHeader h1,
+.sessionInfo {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.sessionLabel {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.sessionHeader h1 {
+  min-width: 0;
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .complete h1 {
   margin: 0;
-  font-size: clamp(1.4rem, 4vw, 2rem);
+  font-size: 1.75rem;
 }
 
 .eyebrow,
 .sideLabel {
   color: var(--text-secondary);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.exerciseMeta {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
 }
 
 .promptLabel {
   color: var(--text-secondary);
-  font-size: 0.85rem;
-  font-weight: 650;
+  font-size: 0.875rem;
 }
 
 .exerciseLabel {
-  margin-bottom: 0.5rem;
-  color: var(--accent);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
 .languagePair {
-  margin-top: 0.25rem;
+  flex: 0 0 auto;
   color: var(--text-secondary);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
+  white-space: nowrap;
 }
 
 .exitLink,
 .textLink {
   color: var(--text-secondary);
-  font-size: 0.85rem;
+  font-size: 0.9375rem;
 }
 
 .exitLink {
-  padding: 0.55rem 0;
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 44px;
+  align-items: center;
+  padding-block: 0.5rem;
 }
 
 .exitLink:hover,
@@ -64,55 +101,46 @@
 }
 
 .card {
-  min-height: min(600px, calc(100svh - 12rem));
-  border: 1px solid var(--border-color);
-  background: var(--surface-raised);
+  overflow-wrap: anywhere;
 }
 
 .promptSide,
 .answerSide {
   display: flex;
-  min-height: 230px;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: clamp(1.5rem, 6vw, 4rem);
+  padding: 1rem;
   text-align: center;
 }
 
 .promptSide h2,
-.answerSide h2 {
-  max-width: 760px;
-  margin-top: 1rem;
-  font-size: clamp(2rem, 7vw, 4.5rem);
-  font-weight: 620;
-  line-height: 1.08;
+.answerSide h2,
+.enteredAnswer {
+  max-width: 65ch;
+  margin-top: 0.5rem;
+  font-size: clamp(1.5rem, 1.25rem + 0.75vw, 1.75rem);
+  font-weight: 600;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 
-.promptSide h2.sentence,
-.answerSide h2.sentence {
-  font-size: clamp(1.6rem, 4vw, 2.6rem);
-  line-height: 1.3;
-}
-
 .answerContext {
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
   color: var(--text-secondary);
-  font-size: 1.2rem;
+  font-size: 1rem;
 }
 
 .typedAnswer {
   display: grid;
   width: min(100%, 520px);
   gap: 0.5rem;
-  margin-top: 1.75rem;
+  margin-top: 1rem;
   text-align: left;
 }
 
 .typedAnswer label {
   color: var(--text-secondary);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   font-weight: 650;
 }
 
@@ -125,18 +153,18 @@
   background: var(--background);
   color: var(--foreground);
   font: inherit;
-  font-size: 1.15rem;
+  font-size: 1rem;
 }
 
 .typedAnswer p {
   color: var(--text-secondary);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   line-height: 1.5;
 }
 
 .answerComparison {
-  width: min(100%, 760px);
-  margin-bottom: 1.5rem;
+  width: min(100%, 65ch);
+  margin-bottom: 1rem;
 }
 
 .enteredAnswer {
@@ -174,33 +202,23 @@
   animation: reveal 180ms ease-out;
 }
 
-.answerSide {
-  min-height: 210px;
-}
-
-.answerSide h2,
-.enteredAnswer {
-  font-size: clamp(1.8rem, 6vw, 3.8rem);
-  font-weight: 620;
-  line-height: 1.08;
-}
-
 .answerSide h2 {
   color: var(--accent);
 }
 
 .supporting {
-  margin-top: 1rem;
+  margin-top: 0.5rem;
   color: var(--text-secondary);
+  font-size: 1rem;
 }
 
 .example {
-  width: min(100%, 620px);
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  line-height: 1.55;
+  width: min(100%, 65ch);
+  margin-top: 0.75rem;
+  color: var(--foreground);
+  font-size: 1rem;
+  line-height: 1.5;
+  text-align: left;
 }
 
 .example p + p {
@@ -209,20 +227,23 @@
 }
 
 .comments {
-  max-width: 620px;
-  margin-top: 1rem;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
+  width: min(100%, 65ch);
+  margin-top: 0.75rem;
+  color: var(--foreground);
+  font-size: 1rem;
   line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: left;
 }
 
 .revealButton {
   display: flex;
-  width: calc(100% - 2rem);
+  width: 100%;
+  min-height: 4rem;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  margin: 0 1rem 1rem;
   padding: 1rem;
   border: 0;
   background: var(--accent);
@@ -240,12 +261,8 @@
 .shortcutHint {
   padding: 0.15rem 0.4rem;
   border: 1px solid rgb(255 255 255 / 45%);
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   font-weight: 500;
-}
-
-.ratingArea {
-  padding: 0 1rem 1rem;
 }
 
 .ratings {
@@ -258,12 +275,7 @@
 }
 
 .fullRatings {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.fullRatings .rating1 {
-  grid-column: 1 / -1;
-  grid-row: 2;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .newCardRatings {
@@ -274,6 +286,8 @@
   display: flex;
   gap: 0.65rem;
   align-items: center;
+  justify-content: center;
+  min-width: 0;
   min-height: 4rem;
   padding: 0.65rem;
   border: 1px solid
@@ -419,7 +433,9 @@
   position: fixed;
   z-index: 20;
   right: 1.25rem;
-  bottom: 1.25rem;
+  bottom: calc(
+    1.25rem + var(--bottom-panel-height, env(safe-area-inset-bottom, 0px))
+  );
   width: min(390px, calc(100vw - 2rem));
   padding: 1rem;
   border: 1px solid var(--danger);
@@ -484,17 +500,7 @@
 
 @media (max-width: 640px) {
   .session {
-    padding-top: 0.75rem;
-  }
-
-  .card {
-    min-height: calc(100svh - 9rem);
-  }
-
-  .promptSide,
-  .answerSide {
-    min-height: 190px;
-    padding: 1.5rem 1rem;
+    padding-top: 0.5rem;
   }
 
   .ratingKey,
@@ -502,8 +508,15 @@
     display: none;
   }
 
+  .ratingButton {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.875rem;
+  }
+
   .syncToast {
     right: 1rem;
-    bottom: 1rem;
+    bottom: calc(
+      1rem + var(--bottom-panel-height, env(safe-area-inset-bottom, 0px))
+    );
   }
 }
