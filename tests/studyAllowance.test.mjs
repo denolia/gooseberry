@@ -69,10 +69,20 @@ const answer = (set, card, reviewedAt = now) =>
     reviewedAt,
   });
 
+async function finishIntroductions(set, itemId) {
+  for (;;) {
+    const card = (await queue(set)).find(
+      (entry) => entry.wordSetItemId === itemId && entry.state.state === 0,
+    );
+    if (!card) return;
+    await answer(set, card);
+  }
+}
+
 test("defaults to 20 words, with stable cohorts across fetches and exclusions", async () => {
   const set = await makeSet(25);
   const first = await queue(set);
-  assert.equal(first.length, 50);
+  assert.equal(first.length, 20);
   assert.deepEqual(
     new Set(wordIds(first)),
     new Set(set.items.slice(0, 20).map((item) => item.id)),
@@ -80,7 +90,7 @@ test("defaults to 20 words, with stable cohorts across fetches and exclusions", 
   const next = await queue(set, {
     excludedStudyCardIds: first.map((card) => card.id),
   });
-  assert.equal(next.length, 10);
+  assert.equal(next.length, 0);
   assert(
     next.every((card) =>
       set.items.slice(0, 20).some((item) => item.id === card.wordSetItemId),
@@ -96,10 +106,7 @@ test("saved introductions count words once, survive reopening and reset the next
   await settings(2);
   const set = await makeSet(4);
   let cards = await queue(set);
-  const firstWord = cards.filter(
-    (card) => card.wordSetItemId === set.items[0].id,
-  );
-  for (const card of firstWord) await answer(set, card);
+  await finishIntroductions(set, set.items[0].id);
   cards = await queue(set);
   assert.deepEqual(wordIds(cards), [set.items[1].id]);
   await answer(set, cards[0]);
@@ -122,10 +129,10 @@ test("daily allowances are independent for each set and reflected in ready count
   await answer(first, (await queue(first))[0]);
   assert.deepEqual(wordIds(await queue(second)), [second.items[0].id]);
   const summaries = await stats.getWordSetReviewStats({ userId, now });
-  assert.equal(summaries.find((set) => set.wordSetId === first.id).dueCount, 2);
+  assert.equal(summaries.find((set) => set.wordSetId === first.id).dueCount, 1);
   assert.equal(
     summaries.find((set) => set.wordSetId === second.id).dueCount,
-    3,
+    1,
   );
   const items = await stats.getWordSetItemReviewStats({
     userId,
@@ -134,7 +141,7 @@ test("daily allowances are independent for each set and reflected in ready count
   });
   assert.equal(
     items.find((item) => item.wordSetItemId === second.items[0].id).dueCount,
-    3,
+    1,
   );
   assert(
     items
@@ -217,7 +224,7 @@ test("reports the next scheduled repetition without treating new exercises as sc
   );
 });
 
-test("an imported New projection stays in its word's exercise round", async () => {
+test("an imported New projection still introduces recognition before production", async () => {
   const set = await makeSet(2);
   await client.query(
     `INSERT INTO fsrs_card_state (user_id,study_card_id,due_at,state,reps,scheduler_version)
@@ -230,10 +237,6 @@ test("an imported New projection stays in its word's exercise round", async () =
     cards.map((card) => [card.wordSetItemId, card.templateKey]),
     [
       [set.items[0].id, "recognition"],
-      [set.items[1].id, "production"],
-      [set.items[0].id, "production"],
-      [set.items[1].id, "type_answer"],
-      [set.items[0].id, "type_answer"],
       [set.items[1].id, "recognition"],
     ],
   );

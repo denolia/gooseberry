@@ -1,8 +1,21 @@
 # Study exercises: current behavior and revision plan
 
-Audited on **9 November 2026**, against working-tree code at commit `28f7fd1` (`Use blue reader borders and vertical action menus`). This is an analysis and implementation proposal; application behavior has not been changed.
+Originally audited on **9 November 2026**, against code at commit `28f7fd1` (`Use blue reader borders and vertical action menus`). The audit sections describe that revision; implementation progress is tracked below.
 
 **Confirmed policy:** for this exposure feature, **New and Learning are initial learning; Review and Relearning are repetition**. Every displayed study card records exposure. Only recognition, production, and typing in Review/Relearning consult earlier same-day exposure and defer until the next day when any exists. New/Learning cards and forms/examples ignore this gate but still record exposure. Learning returns, including the same card's 10-minute step, remain available when due. Existing Ok/grading controls are unchanged. **The exposure restriction resets at 2 am in the saved study time zone**, not after a rolling 24 hours.
+
+## Implementation checklist
+
+1. [x] Recognition first, production second.
+2. [ ] Exposure timestamp and 2 am repetition gate.
+3. [ ] Study selected sets or all sets.
+4. [ ] Leaves, daily history, and streaks.
+
+Step 1 enforces saved introduction prerequisites in queues, ready counts, and review submission. Saving recognition unlocks production; saving production unlocks typing, forms, and examples the same day. Existing studied/imported card progress remains intact. Short batches, excluded cards, or missing/suspended prerequisite content cannot bypass the order. The client also retries a refill requested while an older fetch was in flight, so a saved introduction cannot leave newly unlocked siblings waiting for the next due timer.
+
+Implementation: [policy order](../src/lib/review/policy.ts), [shared SQL eligibility](../src/db/studyPolicy.ts), [queue and submission](../src/db/reviewRepo.ts), and [regression coverage](../tests/studyIntroduction.test.mjs). The exposure reset, combined scopes, and rewards remain planned.
+
+Step 1 validation: **418 tests passed**, typecheck and production build passed, and changed-file lint passed. Full-repository lint still reports existing errors outside this change. No browser automation or remote database migration was used.
 
 ## 1. Findings and recommended direction
 

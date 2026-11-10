@@ -537,3 +537,43 @@ test("a completion screen refreshes when the next scheduled repetition becomes d
     [fixture.original],
   );
 });
+
+test("a saved introduction refetches unlocked siblings after an older refill finishes", async (t) => {
+  let finishSave;
+  let finishRefill;
+  const saving = new Promise((resolve) => {
+    finishSave = resolve;
+  });
+  const waiting = new Promise((resolve) => {
+    finishRefill = resolve;
+  });
+  let refills = 0;
+  const recognition = { ...fixture, state: { state: FsrsCardState.New } };
+  const production = {
+    ...recognition,
+    id: "production-card",
+    templateKey: "production",
+  };
+  const session = setup(t, [recognition], ReviewMode.Simple, {
+    saveReview: () => saving,
+    loadQueue: () => (++refills === 1 ? waiting : { cards: [production] }),
+  });
+  await session.ready();
+  session.key(" ");
+  session.render();
+  session.key(" ");
+  assert.equal(refills, 1);
+  finishSave({
+    state: { dueAt: new Date(Date.now() + 600_000).toISOString() },
+  });
+  await nextTick();
+  assert.equal(refills, 1);
+  finishRefill({ cards: [] });
+  await nextTick();
+  assert.equal(refills, 2);
+  const tree = session.render();
+  assert.match(text(tree), /Production/);
+  assert.deepEqual(nodes(tree, (node) => node.type === "h2").map(text), [
+    fixture.translation,
+  ]);
+});

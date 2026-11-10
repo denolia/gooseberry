@@ -126,6 +126,13 @@ function createFixture({ complete = true, empty = false } = {}) {
         studyWordAvailabilityCondition: () =>
           externalRequire("drizzle-orm").sql`true`,
       };
+    // Prerequisites and imported/native progress use genuine PostgreSQL in
+    // studyIntroduction.test.mjs; this fixture covers content and queue sorting.
+    if (name === "@/db/studyPolicy")
+      return {
+        studyCardIntroductionCondition: () =>
+          externalRequire("drizzle-orm").sql`true`,
+      };
     if (!name.startsWith("@/")) return externalRequire(name);
     if (modules.has(name)) return modules.get(name);
     const exports = {};
@@ -317,7 +324,7 @@ test("availability treats Unicode whitespace exactly like String.trim", async ()
   assert.equal(set.cardCount, 3);
 });
 
-test("new cards rotate exercises across notes and scheduled reviews take priority", async () => {
+test("new cards use recognition, production, then typing and scheduled reviews take priority", async () => {
   const { repo, storage, setState } = createFixture({ complete: false });
   storage.run(`INSERT INTO word_set_item
     SELECT 'item-2', word_set_id, 'kissa', 'кот', word_forms, sample,
@@ -328,11 +335,11 @@ test("new cards rotate exercises across notes and scheduled reviews take priorit
     cards.map((card) => [card.templateKey, card.wordSetItemId]),
     [
       ["recognition", "item-1"],
-      ["production", "item-2"],
-      ["production", "item-1"],
-      ["type_answer", "item-2"],
-      ["type_answer", "item-1"],
       ["recognition", "item-2"],
+      ["production", "item-1"],
+      ["production", "item-2"],
+      ["type_answer", "item-1"],
+      ["type_answer", "item-2"],
     ],
   );
   const scheduledId = setState("type_answer", {
@@ -341,7 +348,7 @@ test("new cards rotate exercises across notes and scheduled reviews take priorit
   assert.equal((await queue(repo))[0].id, scheduledId);
 });
 
-test("new-card rounds keep word order, diversify all modes and survive prefetch exclusions", async () => {
+test("new-card ordering keeps word order and template priority across prefetch exclusions", async () => {
   const { repo, storage } = createFixture();
   for (let position = 1; position < 8; position += 1) {
     storage.run(
@@ -357,7 +364,7 @@ test("new-card rounds keep word order, diversify all modes and survive prefetch 
     first.map((card) => card.wordSetItemId),
     Array.from({ length: 8 }, (_, i) => `item-${i + 1}`),
   );
-  assert.equal(new Set(first.map((card) => card.templateKey)).size, 5);
+  assert(first.every((card) => card.templateKey === "recognition"));
   const remaining = await queue(repo, {
     limit: 8,
     excludedStudyCardIds: first.map((card) => card.id),
@@ -366,9 +373,7 @@ test("new-card rounds keep word order, diversify all modes and survive prefetch 
     remaining.map((card) => card.wordSetItemId),
     first.map((card) => card.wordSetItemId),
   );
-  assert(
-    remaining.every((card, i) => card.templateKey !== first[i].templateKey),
-  );
+  assert(remaining.every((card) => card.templateKey === "production"));
   const complete = await queue(repo, { limit: 50 });
   assert.equal(complete.length, 40);
   assert(

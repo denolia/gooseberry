@@ -93,7 +93,6 @@ test("a missing imported projection retains future due date and counters in queu
   assert(!cards.some((entry) => entry.id === card.cardId));
   assert.deepEqual(cards.map((entry) => entry.templateKey).sort(), [
     "production",
-    "type_answer",
   ]);
   const [summary] = await stats.getWordSetItemReviewStats({
     userId,
@@ -101,12 +100,12 @@ test("a missing imported projection retains future due date and counters in queu
     now,
   });
   assert.equal(summary.cardCount, 3);
-  assert.equal(summary.dueCount, 2);
+  assert.equal(summary.dueCount, 1);
   assert.equal(summary.reps, 30);
   assert.equal(summary.lapses, 2);
   assert.equal(
     (await stats.getWordSetReviewStats({ userId, now }))[0].dueCount,
-    2,
+    1,
   );
   assert.equal(
     (await client.query("SELECT count(*) FROM review_event")).rows[0].count,
@@ -202,7 +201,7 @@ test("scheduler rebuild and projection loss replay only owned Gooseberry events 
     now: tomorrow,
   });
   assert.equal(summary.reps, 31);
-  assert.equal(summary.dueCount, 2);
+  assert.equal(summary.dueCount, 1);
   projection = (
     await client.query("SELECT * FROM fsrs_card_state WHERE study_card_id=$1", [
       card.cardId,
@@ -232,11 +231,11 @@ test("suspended and buried directions keep history but do not become due until a
   );
   assert.deepEqual(
     (await due(card.setId)).map((entry) => entry.templateKey),
-    ["type_answer"],
+    [],
   );
   const [summary] = await stats.getWordSetReviewStats({ userId, now });
   assert.equal(summary.cardCount, 3);
-  assert.equal(summary.dueCount, 1);
+  assert.equal(summary.dueCount, 0);
   for (const entry of (
     await client.query(
       "SELECT id FROM study_card WHERE word_set_item_id=$1 AND template_key IN ('recognition','production')",
@@ -257,7 +256,7 @@ test("suspended and buried directions keep history but do not become due until a
   }
   assert.deepEqual(
     (await due(card.setId, tomorrow)).map((entry) => entry.templateKey).sort(),
-    ["production", "type_answer"],
+    ["production"],
   );
   await client.query("DELETE FROM word_set_item WHERE id=$1", [card.itemId]);
   assert.equal(

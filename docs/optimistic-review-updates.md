@@ -30,6 +30,12 @@ Queue-refill requests exclude:
 These exclusions prevent a card from appearing twice while its database write
 is still in flight.
 
+New sibling exercises become eligible only after their prerequisite introduction
+is saved. If a save requests a refill while an older queue fetch is in flight,
+the client runs that refill after the older fetch finishes. This prevents an
+empty response from before the save from hiding newly unlocked siblings until
+the next scheduled repetition.
+
 ## Answering a card
 
 When the learner chooses a rating, the browser synchronously:

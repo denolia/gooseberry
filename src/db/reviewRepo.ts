@@ -27,11 +27,11 @@ import {
   eligibleStudyCardCondition,
   availableStudyCardCondition,
   ensureStudyCards,
-  studyCardContentCondition,
 } from "@/db/studyCardRepo";
-import { STUDY_CARD_TEMPLATE_KEYS } from "@/lib/review/templates";
+import { STUDY_CARD_INTRODUCTION_ORDER } from "@/lib/review/policy";
 import { ensureReviewProjections } from "@/db/reviewProjectionRepo";
 import { studyWordAvailabilityCondition } from "@/db/studyAllowance";
+import { studyCardIntroductionCondition } from "@/db/studyPolicy";
 
 const MAX_REVIEW_WRITE_ATTEMPTS = 3;
 
@@ -61,6 +61,7 @@ export type DueReviewCard = {
 type ReviewCardRow = Omit<DueReviewCard, "state" | "revision"> & {
   introducedAt: Date;
   baseline: SerializedFsrsStateProjection | null;
+  introductionAllowed: boolean;
   isSuspended: boolean;
   buriedUntil: Date | null;
   projection: {
@@ -103,6 +104,7 @@ export async function getDueReviewCards(input: {
     eq(wordSet.id, input.wordSetId),
     eligibleStudyCardCondition(),
     availableStudyCardCondition(input.now),
+    studyCardIntroductionCondition(input.userId),
     studyWordAvailabilityCondition(input),
     or(isNull(fsrsCardState.studyCardId), lte(fsrsCardState.dueAt, input.now)),
   ];
@@ -113,11 +115,11 @@ export async function getDueReviewCards(input: {
   const rows = await baseCardQuery(input.userId)
     .where(and(...conditions))
     .orderBy(
-      // Scheduled reviews keep their due-date priority. New exercises visit
-      // notes in rounds, rotating the preferred exercise at each set position.
+      // Existing reviews keep their due-date priority. New exercises follow
+      // the same introduction order for every note, regardless of position.
       sql`CASE WHEN ${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.state} = ${FsrsCardState.New} THEN 1 ELSE 0 END`,
       sql`CASE WHEN ${fsrsCardState.state} <> ${FsrsCardState.New} THEN ${fsrsCardState.dueAt} ELSE NULL END ASC NULLS LAST`,
-      exerciseRoundOrder(),
+      exerciseIntroductionOrder(),
       asc(wordSetItem.position),
       asc(studyCard.id),
     )
@@ -160,27 +162,13 @@ export async function getNextScheduledReviewAt(input: {
   return row?.nextDueAt ?? null;
 }
 
-function exerciseRoundOrder() {
-  const count = STUDY_CARD_TEMPLATE_KEYS.length;
-  const start = sql`((${wordSetItem.position} % ${count} + ${count}) % ${count})`;
-  const currentIndex = sql`CASE ${studyCard.templateKey} ${sql.join(
-    STUDY_CARD_TEMPLATE_KEYS.map(
+function exerciseIntroductionOrder() {
+  return sql`CASE ${studyCard.templateKey} ${sql.join(
+    STUDY_CARD_INTRODUCTION_ORDER.map(
       (key, index) => sql`WHEN ${key} THEN ${index}::integer`,
     ),
     sql` `,
-  )} ELSE ${count}::integer END`;
-  const currentRotation = sql`((${currentIndex} - ${start} + ${count}) % ${count})`;
-  // Count all applicable siblings before this one, including cards already
-  // answered or prefetched. Filtering/exclusions must not restart the rounds.
-  return sql`(${sql.join(
-    STUDY_CARD_TEMPLATE_KEYS.map(
-      (key, index) => sql`CASE
-    WHEN ${studyCardContentCondition(key)} AND
-      ((${index} - ${start} + ${count}) % ${count}) < ${currentRotation}
-    THEN 1 ELSE 0 END`,
-    ),
-    sql` + `,
-  )})`;
+  )} ELSE ${STUDY_CARD_INTRODUCTION_ORDER.length}::integer END`;
 }
 
 export async function recordReview(input: {
@@ -202,6 +190,11 @@ export async function recordReview(input: {
       input.studyCardId,
     );
     if (!row) throw new ReviewCardNotFoundError("Review card not found");
+    if (!row.introductionAllowed) {
+      throw new ReviewCardNotDueError(
+        "Complete the earlier word exercises first",
+      );
+    }
     if (
       row.isSuspended ||
       (row.buriedUntil && row.buriedUntil > input.reviewedAt)
@@ -330,7 +323,7 @@ async function getRecordedReviewState(input: {
       );
 }
 
-function baseCardQuery(userId: string) {
+function baseCardQuery(userId: string, checkIntroduction = false) {
   return getDb()
     .select({
       id: studyCard.id,
@@ -349,6 +342,9 @@ function baseCardQuery(userId: string) {
       tags: wordSetItem.tags,
       introducedAt: studyCard.createdAt,
       baseline: studyCardImportBaseline.baselineState,
+      introductionAllowed: checkIntroduction
+        ? studyCardIntroductionCondition(userId)
+        : sql<boolean>`true`,
       isSuspended: studyCard.isSuspended,
       buriedUntil: studyCard.buriedUntil,
       projection: {
@@ -390,7 +386,7 @@ async function getOwnedReviewCard(
   wordSetId: string,
   studyCardId: string,
 ): Promise<ReviewCardRow | null> {
-  const [row] = await baseCardQuery(userId)
+  const [row] = await baseCardQuery(userId, true)
     .where(
       and(
         eq(wordSet.userId, userId),

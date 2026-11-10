@@ -1,6 +1,16 @@
 # Study order, daily limits, and reviews
 
-Audited against `main` at `fd79c50` on 11 October 2026. The first sections describe that revision. The final sections describe the changes in this working tree.
+The current introduction behavior is summarized first. The historical sections below preserve the audit of `main` at `fd79c50` on 11 October 2026 and the earlier daily-limit rollout.
+
+## Current introduction order
+
+Every genuinely new note starts with recognition (source → target). Saving that introduction unlocks production (target → source). Saving production unlocks the remaining available types, ordered typing, word forms, then example. These introductions can happen the same day; Learning returns still use their existing FSRS due times.
+
+This is server eligibility, not just a sort preference: queues and ready counts exclude locked introductions, and review submission rejects attempts to bypass prerequisites. Prefetch/exclusions never count as completed prerequisites. Existing studied directions keep their schedules; native history, imported studied baselines, and projections identify prior progress. Missing or paused recognition prevents an unseen note from consuming a daily new-word slot through its optional content.
+
+The fetch size remains 20 and the client retains its refill strategy. A post-save refill requested during an older fetch runs afterward so newly unlocked cards do not wait for the 10-minute learning timer. The proposed exposure rule and 2 am reset are not implemented in this step.
+
+Implementation: [introduction order](../src/lib/review/policy.ts), [SQL prerequisites](../src/db/studyPolicy.ts), [queues/submission](../src/db/reviewRepo.ts), [daily cohort](../src/db/studyAllowance.ts), and [tests](../tests/studyIntroduction.test.mjs). See the [remaining implementation steps](study-flow-revision-plan.md#implementation-checklist).
 
 ## A word has several independent exercises
 
@@ -51,7 +61,7 @@ Eligibility requires an absent schedule or `due_at <= now`. Learning, relearning
 
 Implementation: [`getDueReviewCards` and `exerciseRoundOrder`](../src/db/reviewRepo.ts). Projection restoration: [`reviewProjectionRepo.ts`](../src/db/reviewProjectionRepo.ts).
 
-## New exercises use rotating rounds
+## Historical new exercises used rotating rounds
 
 The order is **not recognition for every word, then production for every word**. It uses this fixed cycle:
 
@@ -112,7 +122,7 @@ Anki's order is configurable: its New/Review Order can show new cards after revi
 
 Those are separate decisions: scheduling each exercise with FSRS does not itself determine the order in which new exercises are introduced.
 
-## Changes in this working tree
+## Earlier daily-limit rollout
 
 The requested first change is a **Study set settings** block in Profile:
 
@@ -157,4 +167,4 @@ Apply [`0012_study_set_settings.sql`](../migrations/0012_study_set_settings.sql)
 3. Open a different untouched set. It should have its own two-word allowance.
 4. Set the limit to 0 and reopen a set with due reviews and untouched words. Due reviews and sibling exercises of started words should remain available; wholly unseen words should be paused.
 5. Introduce an exercise with Ok. After its displayed 10-minute interval, keep the review page open or return focus to it. The repetition should appear before waiting new material, after the currently displayed exercise.
-6. In a fresh set, check the rotation against the tables above. Optional exercises should disappear when their required content is missing.
+6. In a fresh set, each word must start with recognition regardless of position. After saving it, production becomes available; only after saving production should typing/forms/examples appear. Optional exercises stay hidden when their content is missing.

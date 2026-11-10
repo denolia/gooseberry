@@ -3,26 +3,16 @@ import { fsrsCardState, wordSetItem } from "@/db/schema";
 import { studyCardContentCondition } from "@/db/studyCardRepo";
 import { FsrsCardState } from "@/lib/review/model";
 import { DEFAULT_NEW_WORDS_PER_DAY } from "@/lib/review/settings";
-import { STUDY_CARD_TEMPLATE_KEYS } from "@/lib/review/templates";
 
 // Select a stable word cohort before applying card exclusions or fetch limits.
 // Prefetching never consumes an allowance or opens a second cohort. A word's
-// first saved native review consumes one slot; its siblings remain available.
+// first saved native review consumes one slot; unlocked siblings stay available.
 // Canonical history/import baselines keep this correct after projection rebuilds.
 export function studyWordAvailabilityCondition(input: {
   userId: string;
   now: Date;
   wordSetId?: string;
 }) {
-  const candidateContent = or(
-    ...STUDY_CARD_TEMPLATE_KEYS.map((key) =>
-      and(
-        sql`candidate_card.template_key = ${key}`,
-        studyCardContentCondition(key, "candidate"),
-      ),
-    ),
-  );
-
   return or(
     // No daily cap ever hides an already-scheduled learning/review exercise.
     and(
@@ -74,12 +64,15 @@ export function studyWordAvailabilityCondition(input: {
         FROM progress
         INNER JOIN word_set_item candidate ON candidate.id = progress.id
         WHERE first_review_at IS NULL AND NOT imported_studied AND NOT projected_studied
+          -- Only recognition can introduce an unseen word. Optional content
+          -- must not reserve an allowance slot when recognition is unavailable.
           AND EXISTS (
             SELECT 1 FROM study_card candidate_card
             WHERE candidate_card.word_set_item_id = candidate.id
+              AND candidate_card.template_key = 'recognition'
               AND NOT candidate_card.is_suspended
               AND (candidate_card.buried_until IS NULL OR candidate_card.buried_until <= ${input.now})
-              AND ${candidateContent}
+              AND ${studyCardContentCondition("recognition", "candidate")}
           )
       )
       SELECT id FROM progress

@@ -83,6 +83,7 @@ export function ReviewSession({
   const ignoredCardIdsRef = useRef(new Set<string>());
   const scheduledReviewsRef = useRef(new Map<string, string>());
   const loadingQueueRef = useRef(false);
+  const queueRefreshPendingRef = useRef(false);
   const revealedCardIdRef = useRef<string | null>(null);
   const audioButtonRef = useRef<HTMLButtonElement | null>(null);
   const shownAt = useRef(0);
@@ -103,8 +104,13 @@ export function ReviewSession({
   );
 
   const loadCards = useCallback(
-    async ({ replace = false }: { replace?: boolean } = {}) => {
-      if (loadingQueueRef.current) return;
+    async function loadQueue({
+      replace = false,
+    }: { replace?: boolean } = {}): Promise<void> {
+      if (loadingQueueRef.current) {
+        queueRefreshPendingRef.current = true;
+        return;
+      }
 
       const currentCards = replace ? [] : cardsRef.current;
       const exclusions = new Set([
@@ -192,6 +198,12 @@ export function ReviewSession({
         loadingQueueRef.current = false;
         if (replace) setLoading(false);
         else setLoadingMore(false);
+        // A saved introduction may unlock siblings after this fetch started.
+        // Do not lose that refill just because an older request was in flight.
+        if (queueRefreshPendingRef.current) {
+          queueRefreshPendingRef.current = false;
+          queueMicrotask(() => void loadQueue());
+        }
       }
     },
     [updateCards, wordSetId],

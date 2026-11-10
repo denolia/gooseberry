@@ -41,6 +41,7 @@ function loadRepo({
     comments: "",
     tags: "",
     introducedAt: new Date("2026-01-01T11:00:00.000Z"),
+    introductionAllowed: true,
     projection: null,
   };
   const query = (rows) => ({
@@ -183,12 +184,15 @@ function loadRepo({
       "@/db/studyAllowance": {
         studyWordAvailabilityCondition: () => ({ op: "allowance" }),
       },
-      "@/lib/review/templates": {
-        STUDY_CARD_TEMPLATE_KEYS: [
+      "@/db/studyPolicy": {
+        studyCardIntroductionCondition: () => ({ op: "introduction" }),
+      },
+      "@/lib/review/policy": {
+        STUDY_CARD_INTRODUCTION_ORDER: [
           "recognition",
           "production",
-          "word_forms",
           "type_answer",
+          "word_forms",
           "example",
         ],
       },
