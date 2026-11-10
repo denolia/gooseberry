@@ -8,10 +8,18 @@ const code = ts.transpileModule(
   { compilerOptions: { module: ts.ModuleKind.CommonJS } },
 ).outputText;
 new Function("require", "exports", code)(
-  () => ({ FsrsCardState: { New: 0 } }),
+  (name) =>
+    name === "@/lib/review/policy"
+      ? {
+          isExposureSensitive: (key, state) =>
+            [2, 3].includes(state) &&
+            ["recognition", "production", "type_answer"].includes(key),
+        }
+      : { FsrsCardState: { New: 0 } },
   exports,
 );
-const { mergeReviewQueue, shouldRefillReviewQueue } = exports;
+const { filterExposedReviewQueue, mergeReviewQueue, shouldRefillReviewQueue } =
+  exports;
 const fresh = (id) => ({ id, state: { state: 0 } });
 const due = (id, dueAt = "2026-10-11T12:00:00Z") => ({
   id,
@@ -57,4 +65,31 @@ test("buffered new material cannot delay fetching the remaining due-review backl
   );
   assert.equal(shouldRefillReviewQueue(newCards, true), true);
   assert.equal(shouldRefillReviewQueue(newCards), false);
+});
+
+test("live exposure filters mature vocabulary siblings but retains all initial and forms/example cards", () => {
+  const cards = [
+    ["active", "recognition", 2],
+    ["reverse", "production", 2],
+    ["typing", "type_answer", 3],
+    ["new", "production", 0],
+    ["learning", "type_answer", 1],
+    ["forms", "word_forms", 2],
+    ["example", "example", 3],
+  ].map(([id, templateKey, state]) => ({
+    id,
+    templateKey,
+    state: { state },
+    wordSetItemId: "note",
+  }));
+  const seen = new Map([["note", 100]]);
+  assert.deepEqual(
+    filterExposedReviewQueue(cards, seen, 50, true).map((card) => card.id),
+    ["active", "new", "learning", "forms", "example"],
+  );
+  assert.deepEqual(
+    filterExposedReviewQueue(cards, seen, 50).map((card) => card.id),
+    ["new", "learning", "forms", "example"],
+  );
+  assert.equal(filterExposedReviewQueue(cards, seen, 101).length, cards.length);
 });

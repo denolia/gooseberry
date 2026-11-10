@@ -195,6 +195,7 @@ export const wordSetItem = pgTable(
       .notNull(),
 
     position: integer("position").notNull(),
+    lastExposedAt: timestamp("last_exposed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -351,6 +352,37 @@ export const fsrsCardState = pgTable(
       "fsrs_card_state_scheduler_version_not_blank_check",
       sql`char_length(trim(${t.schedulerVersion})) > 0`,
     ),
+  ],
+);
+
+// Idempotent permission for one displayed exercise, separate from a saved grade.
+export const studyExposure = pgTable(
+  "study_exposure",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    studyCardId: uuid("study_card_id")
+      .notNull()
+      .references(() => studyCard.id, { onDelete: "cascade" }),
+    wordSetItemId: uuid("word_set_item_id")
+      .notNull()
+      .references(() => wordSetItem.id, { onDelete: "cascade" }),
+    stateBefore: smallint("state_before").notNull(),
+    repsBefore: integer("reps_before").notNull(),
+    activatedAt: timestamp("activated_at", { withTimezone: true }).notNull(),
+    studyDayStart: timestamp("study_day_start", {
+      withTimezone: true,
+    }).notNull(),
+    studyTimeZone: text("study_time_zone").notNull(),
+    reviewEventId: uuid("review_event_id")
+      .unique()
+      .references(() => reviewEvent.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    check("study_exposure_state_check", sql`${t.stateBefore} BETWEEN 0 AND 3`),
+    check("study_exposure_reps_check", sql`${t.repsBefore} >= 0`),
   ],
 );
 

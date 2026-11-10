@@ -38,17 +38,30 @@ the next scheduled repetition.
 
 ## Answering a card
 
+Prefetch does not mark exposure. Before showing the next prompt, the browser
+authorizes it through `POST /api/word-sets/[id]/review/exposure`, reusing a stable
+presentation UUID for automatic/manual retries. The server atomically checks
+prior exposure for sensitive Review/Relearning cards, marks exposure for every
+allowed type/phase, and returns a receipt. Stale blocked cards are skipped before
+display. A failed authorization shows a retry action and keeps the prompt hidden.
+The local exposure map also removes blocked buffered siblings and filters late
+refill responses. Focus and the 2 am timer renew an already-visible prompt using
+its original receipt, preserving its revealed or typed answer.
+
 When the learner chooses a rating, the browser synchronously:
 
 1. creates a review submission with a new UUID, the rating, the time of the
-   choice, and the time spent on the card;
+   choice, the time spent on the card, and the authorized `exposureId`;
 2. removes the answered card from the in-memory queue;
-3. reveals the next prefetched card; and
+3. starts authorizing the next prefetched card; and
 4. starts the review API request in the background.
 
 The browser does not calculate or persist a new FSRS projection itself. The
-server validates the card, appends the canonical `review_event`, and updates
-the materialized `fsrs_card_state` in one atomic database batch.
+server validates the card and receipt, appends the canonical `review_event`,
+updates the materialized `fsrs_card_state`, consumes the receipt and renews
+exposure in one atomic database batch. A grade does not fail because of its own
+authorized display. `nextAvailableAt` includes the exposure reset and burial
+expiry without changing the stored FSRS due date.
 
 ## Retries and idempotency
 
@@ -67,8 +80,8 @@ After all automatic retries fail, the reviewer shows:
 
 `Retry` sends the same idempotent submission through the automatic retry cycle
 again. `Ignore` dismisses the failure and keeps that card out of the current
-session. An ignored review is not saved, so the card can appear again in a
-later session.
+session. An ignored review is not saved. Its exposure remains durable, so a
+sensitive repetition still waits until the next study day.
 
 ## Navigating away
 
@@ -83,5 +96,6 @@ retry timers also stop when the page is destroyed.
 Pending and failed submissions currently live only in memory. Gooseberry does
 not store an outbox in local storage, IndexedDB, or another persistent browser
 store, and it does not resume unsent reviews the next time the browser opens.
-An unsaved review leaves its card due on the server so it can be reviewed again
-in a later session.
+An unsaved review leaves its FSRS card due on the server. Exposure is persisted
+separately before display, so sensitive repetitions still wait until the next
+study day even if their grade was never saved.

@@ -32,12 +32,29 @@ import { STUDY_CARD_INTRODUCTION_ORDER } from "@/lib/review/policy";
 import { ensureReviewProjections } from "@/db/reviewProjectionRepo";
 import { studyWordAvailabilityCondition } from "@/db/studyAllowance";
 import { studyCardIntroductionCondition } from "@/db/studyPolicy";
+import { getStudyDay, type StudyDayContext } from "@/db/studyDay";
+import {
+  effectiveReviewDueAt,
+  exposureSensitiveCardCondition,
+  firstSensitiveStudyCardCondition,
+  studyExposureAllowedCondition,
+} from "@/db/studyExposurePolicy";
+import {
+  consumeStudyExposure,
+  getStudyExposure,
+  persistStudyExposure,
+  touchStudyExposure,
+  type StudyExposure,
+} from "@/db/studyExposureRepo";
+import { isExposureSensitive } from "@/lib/review/policy";
+import type { RatingPreview } from "@/lib/review/fsrs";
 
 const MAX_REVIEW_WRITE_ATTEMPTS = 3;
 
 export class ReviewCardNotFoundError extends Error {}
 export class ReviewCardNotDueError extends Error {}
 export class ReviewWriteConflictError extends Error {}
+export class ReviewWordSeenTodayError extends ReviewCardNotDueError {}
 
 export type DueReviewCard = {
   id: string;
@@ -62,6 +79,8 @@ type ReviewCardRow = Omit<DueReviewCard, "state" | "revision"> & {
   introducedAt: Date;
   baseline: SerializedFsrsStateProjection | null;
   introductionAllowed: boolean;
+  allowanceAllowed: boolean;
+  lastExposedAt: Date | null;
   isSuspended: boolean;
   buriedUntil: Date | null;
   projection: {
@@ -95,9 +114,11 @@ export async function getDueReviewCards(input: {
   now: Date;
   limit: number;
   excludedStudyCardIds?: string[];
+  studyDay?: StudyDayContext;
 }): Promise<DueReviewCard[]> {
   await ensureStudyCards(input.userId, input.wordSetId);
   await ensureReviewProjections(input.userId, input.wordSetId);
+  const day = input.studyDay ?? (await getStudyDay(input.userId, input.now));
 
   const conditions = [
     eq(wordSet.userId, input.userId),
@@ -105,6 +126,8 @@ export async function getDueReviewCards(input: {
     eligibleStudyCardCondition(),
     availableStudyCardCondition(input.now),
     studyCardIntroductionCondition(input.userId),
+    studyExposureAllowedCondition(day),
+    firstSensitiveStudyCardCondition(input.userId, input.now),
     studyWordAvailabilityCondition(input),
     or(isNull(fsrsCardState.studyCardId), lte(fsrsCardState.dueAt, input.now)),
   ];
@@ -132,12 +155,30 @@ export async function getNextScheduledReviewAt(input: {
   userId: string;
   wordSetId: string;
   now: Date;
+  studyDay?: StudyDayContext;
 }): Promise<Date | null> {
+  return (await getReviewQueueTiming(input)).nextDueAt;
+}
+
+export async function getReviewQueueTiming(input: {
+  userId: string;
+  wordSetId: string;
+  now: Date;
+  studyDay?: StudyDayContext;
+}): Promise<{ nextDueAt: Date | null; exposureDeferredCount: number }> {
+  const day = input.studyDay ?? (await getStudyDay(input.userId, input.now));
+  const effectiveDue = effectiveReviewDueAt(day);
   const [row] = await getDb()
     .select({
-      nextDueAt: sql<Date | null>`min(${fsrsCardState.dueAt})`.mapWith(
-        fsrsCardState.dueAt,
-      ),
+      nextDueAt:
+        sql<Date | null>`min(${effectiveDue}) FILTER (WHERE ${effectiveDue} > ${input.now})`.mapWith(
+          fsrsCardState.dueAt,
+        ),
+      exposureDeferredCount: sql<number>`count(*) FILTER (WHERE
+        ${exposureSensitiveCardCondition()} AND ${wordSetItem.lastExposedAt} >= ${day.startAt}
+        AND ${fsrsCardState.dueAt} <= ${input.now}
+        AND (${studyCard.buriedUntil} IS NULL OR ${studyCard.buriedUntil} <= ${input.now})
+      )`.mapWith(Number),
     })
     .from(studyCard)
     .innerJoin(wordSetItem, eq(wordSetItem.id, studyCard.wordSetItemId))
@@ -154,12 +195,176 @@ export async function getNextScheduledReviewAt(input: {
         eq(wordSet.userId, input.userId),
         eq(wordSet.id, input.wordSetId),
         eligibleStudyCardCondition(),
-        availableStudyCardCondition(input.now),
-        sql`${fsrsCardState.dueAt} > ${input.now}`,
+        eq(studyCard.isSuspended, false),
         sql`${fsrsCardState.state} <> ${FsrsCardState.New}`,
       ),
     );
-  return row?.nextDueAt ?? null;
+  return {
+    nextDueAt: row?.nextDueAt ?? null,
+    exposureDeferredCount: row?.exposureDeferredCount ?? 0,
+  };
+}
+
+// Rating previews show actual availability without changing the FSRS result.
+export function exposureAwareRatingPreviews(
+  templateKey: string,
+  ratings: RatingPreview[],
+  now: Date,
+  day: StudyDayContext,
+): RatingPreview[] {
+  return ratings.map((preview) =>
+    isExposureSensitive(templateKey, preview.state) &&
+    preview.dueAt < day.nextStartAt
+      ? {
+          ...preview,
+          dueAt: day.nextStartAt,
+          intervalMs: Math.max(0, day.nextStartAt.getTime() - now.getTime()),
+        }
+      : preview,
+  );
+}
+
+export async function getRecordedCardAvailableAt(input: {
+  userId: string;
+  wordSetId: string;
+  studyCardId: string;
+  state: FsrsStateProjection;
+  studyDay: StudyDayContext;
+}): Promise<Date> {
+  const row = await getOwnedReviewCard(
+    input.userId,
+    input.wordSetId,
+    input.studyCardId,
+  );
+  if (!row) return input.state.dueAt;
+  const policyUntil =
+    isExposureSensitive(row.templateKey, input.state.state) &&
+    row.lastExposedAt &&
+    row.lastExposedAt >= input.studyDay.startAt
+      ? input.studyDay.nextStartAt.getTime()
+      : 0;
+  return new Date(
+    Math.max(
+      input.state.dueAt.getTime(),
+      row.buriedUntil?.getTime() ?? 0,
+      policyUntil,
+    ),
+  );
+}
+
+export async function activateReviewCard(input: {
+  userId: string;
+  wordSetId: string;
+  studyCardId: string;
+  exposureId: string;
+  now: Date;
+  studyDay?: StudyDayContext;
+}): Promise<{
+  card: DueReviewCard;
+  exposure: StudyExposure;
+  studyDay: StudyDayContext;
+}> {
+  // The queue reconciles identities in bulk. Activation repairs only this
+  // known card if needed; it must not scan or rebuild the entire set per display.
+  await ensureReviewProjections(
+    input.userId,
+    input.wordSetId,
+    input.studyCardId,
+  );
+  const day = input.studyDay ?? (await getStudyDay(input.userId, input.now));
+  const row = await getOwnedReviewCard(
+    input.userId,
+    input.wordSetId,
+    input.studyCardId,
+    input.now,
+  );
+  if (!row) throw new ReviewCardNotFoundError("Review card not found");
+  const card = toDueReviewCard(row);
+  const previous = await getStudyExposure(input.userId, input.exposureId);
+  if (previous) {
+    if (
+      previous.studyCardId !== card.id ||
+      previous.wordSetItemId !== card.wordSetItemId ||
+      previous.reviewEventId
+    ) {
+      throw new ReviewWriteConflictError(
+        "This presentation is no longer available",
+      );
+    }
+    if (
+      previous.stateBefore !== card.state.state ||
+      previous.repsBefore !== card.state.reps
+    ) {
+      throw new ReviewWriteConflictError(
+        "The card changed. Reload the exercise.",
+      );
+    }
+    if (row.isSuspended || (row.buriedUntil && row.buriedUntil > input.now)) {
+      throw new ReviewCardNotDueError("Review card is suspended or buried");
+    }
+    await touchStudyExposure(previous, input.now);
+    return { card, exposure: previous, studyDay: day };
+  }
+  if (
+    !row.introductionAllowed ||
+    !row.allowanceAllowed ||
+    row.isSuspended ||
+    (row.buriedUntil && row.buriedUntil > input.now) ||
+    card.state.dueAt > input.now
+  ) {
+    throw new ReviewCardNotDueError("This exercise is not available yet");
+  }
+  const receipt = await persistStudyExposure({
+    ...input,
+    wordSetItemId: card.wordSetItemId,
+    day,
+    stateBefore: card.state.state,
+    repsBefore: card.state.reps,
+    cardCondition: and(
+      eq(studyCard.id, card.id),
+      eq(studyCard.wordSetItemId, wordSetItem.id),
+      eq(wordSet.userId, input.userId),
+      eq(wordSet.id, input.wordSetId),
+      eligibleStudyCardCondition(),
+      availableStudyCardCondition(input.now),
+      studyCardIntroductionCondition(input.userId),
+      activationAllowanceCondition(input),
+      or(
+        isNull(fsrsCardState.studyCardId),
+        lte(fsrsCardState.dueAt, input.now),
+      ),
+      sql`coalesce(${fsrsCardState.state}, 0) = ${card.state.state}`,
+      sql`coalesce(${fsrsCardState.reps}, 0) = ${card.state.reps}`,
+    )!,
+  });
+  if (!receipt) {
+    const current = await getOwnedReviewCard(
+      input.userId,
+      input.wordSetId,
+      input.studyCardId,
+    );
+    if (
+      current?.lastExposedAt &&
+      current.lastExposedAt >= day.startAt &&
+      isExposureSensitive(
+        current.templateKey,
+        toDueReviewCard(current).state.state,
+      )
+    ) {
+      throw new ReviewWordSeenTodayError(
+        "You have already seen this word today. Repetitions resume after 2 am.",
+      );
+    }
+    throw new ReviewCardNotDueError(
+      "This exercise changed. Reload the next exercise.",
+    );
+  }
+  if (receipt.studyCardId !== card.id || receipt.reviewEventId) {
+    throw new ReviewWriteConflictError(
+      "This presentation is no longer available",
+    );
+  }
+  return { card, exposure: receipt, studyDay: day };
 }
 
 function exerciseIntroductionOrder() {
@@ -179,6 +384,8 @@ export async function recordReview(input: {
   rating: ReviewRatingValue;
   reviewedAt: Date;
   durationMs?: number;
+  exposureId: string;
+  now?: Date;
 }): Promise<FsrsStateProjection> {
   const recordedState = await getRecordedReviewState(input);
   if (recordedState) return recordedState;
@@ -220,6 +427,28 @@ export async function recordReview(input: {
       );
     }
 
+    const permission = await getStudyExposure(input.userId, input.exposureId);
+    if (
+      !permission ||
+      permission.studyCardId !== input.studyCardId ||
+      permission.wordSetItemId !== row.wordSetItemId
+    ) {
+      throw new ReviewCardNotDueError(
+        "Open this exercise before saving its rating",
+      );
+    }
+    if (
+      permission.reviewEventId ||
+      permission.stateBefore !== currentState.state ||
+      permission.repsBefore !== currentState.reps
+    ) {
+      // Another retry may have committed after the initial idempotency read.
+      const alreadyRecorded = await getRecordedReviewState(input);
+      if (alreadyRecorded) return alreadyRecorded;
+      throw new ReviewWriteConflictError(
+        "The card changed. Reload the exercise.",
+      );
+    }
     if (currentState.dueAt.getTime() > input.reviewedAt.getTime()) {
       throw new ReviewCardNotDueError("Review card is not due yet");
     }
@@ -229,11 +458,15 @@ export async function recordReview(input: {
     try {
       await persistReview({
         ...input,
+        exposureId: permission.id,
+        exposedAt: input.now ?? input.reviewedAt,
         expectedRevision: row.projection?.revision ?? null,
         nextState,
       });
       return nextState;
     } catch (error) {
+      const alreadyRecorded = await getRecordedReviewState(input);
+      if (alreadyRecorded) return alreadyRecorded;
       if (!isRevisionConflict(error)) throw error;
     }
   }
@@ -323,7 +556,24 @@ async function getRecordedReviewState(input: {
       );
 }
 
-function baseCardQuery(userId: string, checkIntroduction = false) {
+// Only a brand-new recognition exercise can consume an unseen-word slot.
+// All other introductions require a saved earlier exercise of the same word.
+function activationAllowanceCondition(input: {
+  userId: string;
+  wordSetId?: string;
+  now: Date;
+}) {
+  return sql<boolean>`CASE WHEN ${studyCard.templateKey} = 'recognition'
+    AND coalesce(${fsrsCardState.state}, 0) = ${FsrsCardState.New}
+    THEN ${studyWordAvailabilityCondition(input)} ELSE true END`;
+}
+
+function baseCardQuery(
+  userId: string,
+  checkIntroduction = false,
+  allowanceNow?: Date,
+  wordSetId?: string,
+) {
   return getDb()
     .select({
       id: studyCard.id,
@@ -345,6 +595,10 @@ function baseCardQuery(userId: string, checkIntroduction = false) {
       introductionAllowed: checkIntroduction
         ? studyCardIntroductionCondition(userId)
         : sql<boolean>`true`,
+      allowanceAllowed: allowanceNow
+        ? activationAllowanceCondition({ userId, wordSetId, now: allowanceNow })
+        : sql<boolean>`true`,
+      lastExposedAt: wordSetItem.lastExposedAt,
       isSuspended: studyCard.isSuspended,
       buriedUntil: studyCard.buriedUntil,
       projection: {
@@ -385,8 +639,9 @@ async function getOwnedReviewCard(
   userId: string,
   wordSetId: string,
   studyCardId: string,
+  now?: Date,
 ): Promise<ReviewCardRow | null> {
-  const [row] = await baseCardQuery(userId, true)
+  const [row] = await baseCardQuery(userId, true, now, wordSetId)
     .where(
       and(
         eq(wordSet.userId, userId),
@@ -439,6 +694,8 @@ async function persistReview(input: {
   reviewedAt: Date;
   durationMs?: number;
   reviewEventId: string;
+  exposureId: string;
+  exposedAt: Date;
   expectedRevision: number | null;
   nextState: FsrsStateProjection;
 }) {
@@ -450,6 +707,7 @@ async function persistReview(input: {
     rating: input.rating,
     reviewedAt: input.reviewedAt,
     durationMs: input.durationMs,
+    sourceMetadata: { exposureId: input.exposureId },
   });
   const state = input.nextState;
   const stateWrite =
@@ -498,7 +756,13 @@ async function persistReview(input: {
           SELECT 1 / count(*)::integer AS committed FROM written
         `);
 
-  await db.batch([eventWrite, stateWrite]);
+  await db.batch([
+    eventWrite,
+    stateWrite,
+    db.execute(consumeStudyExposure(input)),
+    db.execute(sql`UPDATE word_set_item SET last_exposed_at = greatest(last_exposed_at, ${input.exposedAt}::timestamptz)
+      WHERE id = (SELECT word_set_item_id FROM study_exposure WHERE id = ${input.exposureId} AND user_id = ${input.userId})`),
+  ]);
 }
 
 function toDueReviewCard(row: ReviewCardRow): DueReviewCard {

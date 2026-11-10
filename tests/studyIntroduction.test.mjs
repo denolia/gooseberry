@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
-import { createPostgresFixture } from "./helpers/postgres.mjs";
+import {
+  createActivatedReviewer,
+  createPostgresFixture,
+} from "./helpers/postgres.mjs";
 
 const fixture = await createPostgresFixture();
 const { client, load } = fixture;
 const repo = load("@/db/reviewRepo");
+const review = createActivatedReviewer(repo);
 const stats = load("@/db/reviewStatsRepo");
 const profiles = load("@/db/profileRepo");
 const userId = "11111111-1111-4111-8111-111111111111";
@@ -53,7 +57,7 @@ const queue = (set, extra = {}) =>
   });
 const keys = (cards) => cards.map(({ templateKey }) => templateKey);
 const answer = (set, card, extra = {}) =>
-  repo.recordReview({
+  review({
     userId,
     wordSetId: set.id,
     studyCardId: card.id,
@@ -272,13 +276,18 @@ test("previously studied directions retain due priority even without recognition
     [userId, set.items[0].id],
   );
   const cards = await queue(set);
-  assert.equal(cards.length, 5);
+  assert.equal(cards.length, 4);
   assert(
     cards
-      .slice(0, 4)
+      .slice(0, 3)
       .every((card) => card.state.reps === 7 && card.state.state === 2),
   );
-  assert.equal(cards[4].templateKey, "recognition");
+  assert.equal(cards[3].templateKey, "recognition");
+  assert.equal(
+    (await client.query("SELECT count(*) FROM fsrs_card_state WHERE reps=7"))
+      .rows[0].count,
+    4,
+  );
   assert.equal(
     (await client.query("SELECT count(*) FROM review_event")).rows[0].count,
     0,

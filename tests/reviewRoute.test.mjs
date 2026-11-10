@@ -30,6 +30,12 @@ function loadRoute({ session = { user: { id: "user-1" } }, card = null } = {}) {
       "@/auth": { auth: async () => session },
       "@/db/reviewRepo": {
         ...errors,
+        getReviewQueueTiming: async () => ({
+          nextDueAt: null,
+          exposureDeferredCount: 0,
+        }),
+        exposureAwareRatingPreviews: (_key, ratings) => ratings,
+        getRecordedCardAvailableAt: async ({ state }) => state.dueAt,
         getNextScheduledReviewAt: async () => null,
         getDueReviewCards: async (input) => {
           calls.get.push(input);
@@ -54,6 +60,18 @@ function loadRoute({ session = { user: { id: "user-1" } }, card = null } = {}) {
           z.literal(3),
           z.literal(4),
         ]),
+      },
+      "@/db/studyDay": {
+        getStudyDay: async (_userId, instant) => ({
+          startAt: instant,
+          nextStartAt: new Date(instant.getTime() + 86400000),
+          timeZone: "UTC",
+        }),
+        serializeStudyDay: (day) => ({
+          startAt: day.startAt.toISOString(),
+          nextStartAt: day.nextStartAt.toISOString(),
+          timeZone: day.timeZone,
+        }),
       },
       zod: { z },
     };
@@ -95,6 +113,7 @@ test("review POST validates and records a four-button rating", async () => {
       body: JSON.stringify({
         reviewId: "22222222-2222-4222-8222-222222222222",
         studyCardId: "11111111-1111-4111-8111-111111111111",
+        exposureId: "33333333-3333-4333-8333-333333333333",
         rating: 3,
         reviewedAt: "2026-01-01T12:00:00.000Z",
         durationMs: 1200,
@@ -106,6 +125,10 @@ test("review POST validates and records a four-button rating", async () => {
   assert.equal(response.status, 200);
   assert.equal(calls.record.length, 1);
   assert.equal(calls.record[0].rating, 3);
+  assert.equal(
+    calls.record[0].exposureId,
+    "33333333-3333-4333-8333-333333333333",
+  );
   assert.equal(
     calls.record[0].reviewEventId,
     "22222222-2222-4222-8222-222222222222",

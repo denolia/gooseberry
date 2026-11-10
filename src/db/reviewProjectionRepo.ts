@@ -32,6 +32,7 @@ import { ReviewRatingSchema } from "@/lib/review/model";
 export async function ensureReviewProjections(
   userId: string,
   wordSetId?: string,
+  studyCardId?: string,
 ) {
   const candidates = await getDb()
     .select({
@@ -61,6 +62,7 @@ export async function ensureReviewProjections(
       and(
         eq(wordSet.userId, userId),
         wordSetId ? eq(wordSet.id, wordSetId) : undefined,
+        studyCardId ? eq(studyCard.id, studyCardId) : undefined,
         or(
           ne(fsrsCardState.schedulerVersion, FSRS_SCHEDULER_VERSION),
           and(

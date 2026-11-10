@@ -57,12 +57,15 @@ removing that content preserves their review histories. Existing recognition
 progress is retained. Typed-answer feedback supports self-rating; the chosen
 rating determines the next review.
 
-Scheduled due reviews come first. New exercises follow word order in rounds,
-rotating exercise types across words so a word's siblings are spaced apart.
+Scheduled due reviews come first. New words start with recognition, then
+production after recognition is saved, then typing, forms and examples after
+production is saved. Profile settings limit new words per day per set.
 
-See [Native review architecture](docs/native-review-architecture.md). Gooseberry
-uses its built-in scheduler settings, without automatic sibling burying or a daily
-new-exercise limit.
+Every displayed card marks its word as seen. Recognition, production and typing
+in Review/Relearning wait until the next 2 am in the saved study time zone if
+that word was already seen today. New/Learning and forms/examples remain
+available when due. This availability rule preserves each card's FSRS schedule.
+See [Native review architecture](docs/native-review-architecture.md).
 
 ## Import Anki Vocabulary
 
@@ -105,6 +108,11 @@ deploying this version. Migration 0011 does not automatically convert older
 imports; reimport into the existing set to recover untouched progress. They are not
 applied to a remote database by development, build or test commands. Tests use
 local SQLite/PGlite fixtures and mocked AI calls.
+
+Study settings require `0012_study_set_settings.sql`; exposure protection requires
+[`0013_study_exposure.sql`](migrations/0013_study_exposure.sql). Apply the complete
+SQL migration, including its native-review exposure backfill, before deploying
+the updated reviewer. A schema-only push does not run that backfill.
 
 Install/dev/build prepares the local SQL.js WASM used by the import worker.
 `ENRICHMENT_DAILY_TOKEN_LIMIT` defaults to 100,000 reserved tokens per user per

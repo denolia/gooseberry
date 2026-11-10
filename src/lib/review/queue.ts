@@ -1,9 +1,26 @@
 import { FsrsCardState } from "@/lib/review/model";
+import { isExposureSensitive } from "@/lib/review/policy";
 
 type QueueCard = {
   id: string;
   state: { state: number; dueAt?: string };
 };
+
+export function filterExposedReviewQueue<
+  T extends QueueCard & { wordSetItemId: string; templateKey: string },
+>(
+  cards: T[],
+  lastSeen: ReadonlyMap<string, number>,
+  dayStart: number,
+  preserveDisplayed = false,
+): T[] {
+  return cards.filter(
+    (card, index) =>
+      (preserveDisplayed && index === 0) ||
+      !isExposureSensitive(card.templateKey, card.state.state) ||
+      (lastSeen.get(card.wordSetItemId) ?? -Infinity) < dayStart,
+  );
+}
 
 export function shouldRefillReviewQueue(
   cards: QueueCard[],

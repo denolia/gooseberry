@@ -33,8 +33,12 @@ const exercises = transpile("../src/components/review/exercises.ts", { diff });
 const controls = transpile("../src/lib/review/controls.ts", {
   "@/lib/review/model": { FsrsCardState, ReviewMode, ReviewRating },
 });
+const policy = transpile("../src/lib/review/policy.ts", {
+  "@/lib/review/model": { FsrsCardState },
+});
 const queue = transpile("../src/lib/review/queue.ts", {
   "@/lib/review/model": { FsrsCardState },
+  "@/lib/review/policy": policy,
 });
 
 const fixture = {
@@ -79,6 +83,17 @@ function text(tree) {
 const nextTick = () => new Promise((resolve) => setImmediate(resolve));
 
 function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
+  const knownCards = new Map();
+  const remember = (incoming) =>
+    incoming.map((card) => {
+      const complete = {
+        ...card,
+        wordSetItemId: card.wordSetItemId ?? `note-${card.id}`,
+      };
+      knownCards.set(card.id, complete);
+      return complete;
+    });
+  cards = remember(cards);
   const hooks = [];
   let cursor = 0;
   let effects = [];
@@ -88,6 +103,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
   const keyboardListeners = new Set();
   const focusListeners = new Set();
   const submissions = [];
+  const activations = [];
   const router = { replace() {} };
   const queryClient = { invalidateQueries() {} };
   const sameDeps = (left, right) =>
@@ -160,7 +176,47 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
     if (originalElement === undefined) delete globalThis.Element;
     else globalThis.Element = originalElement;
   });
-  t.mock.method(globalThis, "fetch", async (_url, requestOptions) => {
+  const day = () => {
+    const instant = new Date();
+    const start = new Date(
+      Date.UTC(
+        instant.getUTCFullYear(),
+        instant.getUTCMonth(),
+        instant.getUTCDate(),
+        2,
+      ),
+    );
+    if (instant < start) start.setUTCDate(start.getUTCDate() - 1);
+    return {
+      startAt: start.toISOString(),
+      nextStartAt: new Date(start.getTime() + 86_400_000).toISOString(),
+      timeZone: "UTC",
+      serverNow: instant.toISOString(),
+    };
+  };
+  t.mock.method(globalThis, "fetch", async (url, requestOptions) => {
+    if (url.endsWith("/exposure")) {
+      const activation = JSON.parse(requestOptions.body);
+      activations.push(activation);
+      const card = knownCards.get(activation.studyCardId);
+      const result = await options.openExposure?.(activation, card);
+      if (result instanceof Response) return result;
+      return Response.json(
+        result ?? {
+          card,
+          studyDay: day(),
+          exposedAt: new Date().toISOString(),
+          exposure: {
+            id: activation.exposureId,
+            studyCardId: card.id,
+            wordSetItemId: card.wordSetItemId,
+            activatedAt: new Date().toISOString(),
+            stateBefore: card.state.state,
+            repsBefore: card.state.reps ?? 0,
+          },
+        },
+      );
+    }
     if (requestOptions?.method === "POST") {
       const submission = JSON.parse(requestOptions.body);
       submissions.push(submission);
@@ -168,13 +224,31 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
     }
     if (firstLoad) {
       firstLoad = false;
-      return Response.json({ cards, nextDueAt: options.nextDueAt });
+      return Response.json({
+        cards,
+        nextDueAt: options.nextDueAt,
+        studyDay: day(),
+        exposureDeferredCount: options.exposureDeferredCount ?? 0,
+      });
     }
-    return Response.json((await options.loadQueue?.()) ?? { cards: [] });
+    const body = (await options.loadQueue?.()) ?? { cards: [] };
+    return Response.json({
+      ...body,
+      cards: remember(body.cards ?? []),
+      studyDay: body.studyDay ?? day(),
+    });
   });
 
   function SourceAudioButton() {}
   const jsx = (type, props) => ({ type, props });
+  const retries = { withAutomaticRetries: (operation) => operation() };
+  const exposureHook = transpile(
+    "../src/components/review/useStudyExposure.ts",
+    {
+      react,
+      "@/lib/review/retry": retries,
+    },
+  );
   const { ReviewSession } = transpile(
     "../src/components/review/ReviewSession.tsx",
     {
@@ -188,9 +262,8 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
       "@/lib/review/controls": controls,
       "@/lib/review/queue": queue,
       "@/lib/review/formatInterval": { formatReviewInterval: () => "1 day" },
-      "@/lib/review/retry": {
-        withAutomaticRetries: (operation) => operation(),
-      },
+      "@/lib/review/retry": retries,
+      "./useStudyExposure": exposureHook,
       "@/lib/review/templates": templates,
       "./exercises": exercises,
       "./ReviewSession.module.css": {
@@ -201,6 +274,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
 
   return {
     submissions,
+    activations,
     focus() {
       focusListeners.forEach((callback) => callback());
     },
@@ -224,8 +298,10 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
       return tree;
     },
     async ready() {
-      this.render();
-      await nextTick();
+      for (let tick = 0; tick < 4; tick++) {
+        this.render();
+        await nextTick();
+      }
       return this.render();
     },
     key(key, { tag, ...overrides } = {}) {
@@ -400,7 +476,7 @@ test("the next typed card starts empty and submits its own card ID", async (t) =
   )[0].props.onClick();
   session.render();
   session.key("2");
-  tree = session.render();
+  tree = await session.ready();
   assert.equal(session.submissions[0].studyCardId, "card-1");
   assert.equal(nodes(tree, (node) => node.type === "input")[0].props.value, "");
   assert.equal(session.audioNodes(tree).length, 0);
@@ -481,7 +557,7 @@ test("a due repetition fetched on focus comes before waiting new exercises", asy
   session.render();
   session.key(" ");
   assert.deepEqual(
-    nodes(session.render(), (node) => node.type === "h2").map(text),
+    nodes(await session.ready(), (node) => node.type === "h2").map(text),
     [repeated.original],
   );
 });
@@ -501,11 +577,12 @@ test("an answer submitted during a refill never returns from the old queue snaps
   });
   await session.ready();
   session.focus();
+  await nextTick();
   session.key(" ");
   session.render();
   session.key("2");
   assert.deepEqual(
-    nodes(session.render(), (node) => node.type === "h2").map(text),
+    nodes(await session.ready(), (node) => node.type === "h2").map(text),
     ["word-2"],
   );
   finishRefill({ cards: [{ ...fixture, id: "card-8", original: "word-8" }] });
@@ -533,7 +610,7 @@ test("a completion screen refreshes when the next scheduled repetition becomes d
   await nextTick();
   assert.equal(refills, 1);
   assert.deepEqual(
-    nodes(session.render(), (node) => node.type === "h2").map(text),
+    nodes(await session.ready(), (node) => node.type === "h2").map(text),
     [fixture.original],
   );
 });
@@ -571,9 +648,200 @@ test("a saved introduction refetches unlocked siblings after an older refill fin
   finishRefill({ cards: [] });
   await nextTick();
   assert.equal(refills, 2);
-  const tree = session.render();
+  const tree = await session.ready();
   assert.match(text(tree), /Production/);
   assert.deepEqual(nodes(tree, (node) => node.type === "h2").map(text), [
     fixture.translation,
   ]);
+});
+
+test("only the active prompt is authorized; showing a word removes mature siblings but keeps Learning and examples", async (t) => {
+  const cards = [
+    {
+      ...fixture,
+      id: "intro",
+      wordSetItemId: "same-note",
+      state: { state: 1 },
+    },
+    {
+      ...fixture,
+      id: "mature-reverse",
+      wordSetItemId: "same-note",
+      templateKey: "production",
+      state: { state: 2 },
+    },
+    {
+      ...fixture,
+      id: "learning-reverse",
+      wordSetItemId: "same-note",
+      templateKey: "production",
+      state: { state: 1 },
+    },
+    {
+      ...fixture,
+      id: "forms",
+      wordSetItemId: "same-note",
+      templateKey: "word_forms",
+      state: { state: 2 },
+    },
+    {
+      ...fixture,
+      id: "example",
+      wordSetItemId: "same-note",
+      templateKey: "example",
+      state: { state: 2 },
+    },
+  ];
+  const session = setup(t, cards);
+  await session.ready();
+  assert.deepEqual(
+    session.activations.map((entry) => entry.studyCardId),
+    ["intro"],
+  );
+  session.render();
+  session.key(" ");
+  session.render();
+  session.key("2");
+  await session.ready();
+  assert.equal(
+    session.submissions[0].exposureId,
+    session.activations[0].exposureId,
+  );
+  assert.equal(session.activations[1].studyCardId, "learning-reverse");
+  session.key(" ");
+  session.render();
+  session.key("2");
+  await session.ready();
+  assert.equal(session.activations[2].studyCardId, "forms");
+  session.key(" ");
+  session.render();
+  session.key("2");
+  await session.ready();
+  assert.equal(session.activations[3].studyCardId, "example");
+  assert(
+    !session.activations.some(
+      (entry) => entry.studyCardId === "mature-reverse",
+    ),
+  );
+});
+
+test("the question and rating shortcuts stay hidden until display authorization succeeds", async (t) => {
+  let finish;
+  const pending = new Promise((resolve) => {
+    finish = resolve;
+  });
+  const session = setup(t, [fixture], ReviewMode.Simple, {
+    openExposure: async () => {
+      await pending;
+    },
+  });
+  const opening = await session.ready();
+  assert.match(text(opening), /Loading review/);
+  assert.equal(nodes(opening, (node) => node.type === "h2").length, 0);
+  session.key(" ");
+  session.render();
+  session.key("2");
+  assert.equal(session.submissions.length, 0);
+  finish();
+  const ready = await session.ready();
+  assert.deepEqual(nodes(ready, (node) => node.type === "h2").map(text), [
+    fixture.original,
+  ]);
+  assert.equal(session.activations.length, 1);
+});
+
+test("an activation error retries the same presentation ID instead of opening a second attempt", async (t) => {
+  let attempts = 0;
+  const session = setup(t, [fixture], ReviewMode.Simple, {
+    openExposure: async () => {
+      if (++attempts === 1) throw new Error("Connection lost");
+    },
+  });
+  const failure = await session.ready();
+  assert.match(text(failure), /Connection lost/);
+  nodes(
+    failure,
+    (node) => node.type === "button" && text(node) === "Try again",
+  )[0].props.onClick();
+  await session.ready();
+  assert.equal(session.activations.length, 2);
+  assert.equal(
+    session.activations[0].exposureId,
+    session.activations[1].exposureId,
+  );
+  session.key(" ");
+  session.render();
+  session.key("2");
+  assert.equal(
+    session.submissions[0].exposureId,
+    session.activations[0].exposureId,
+  );
+});
+
+test("a stale card rejected by another tab is skipped before its prompt appears", async (t) => {
+  const blocked = {
+    ...fixture,
+    id: "blocked",
+    wordSetItemId: "seen-note",
+    state: { state: 2 },
+  };
+  const sibling = {
+    ...blocked,
+    id: "blocked-sibling",
+    templateKey: "production",
+  };
+  const next = { ...fixture, id: "other-word", original: "next word" };
+  const session = setup(t, [blocked, sibling, next], ReviewMode.Simple, {
+    openExposure: async ({ studyCardId }) => {
+      if (studyCardId === blocked.id)
+        return Response.json(
+          {
+            code: "word_seen_today",
+            studyDay: {
+              startAt: new Date(Date.now() - 3_600_000).toISOString(),
+              nextStartAt: new Date(Date.now() + 3_600_000).toISOString(),
+              timeZone: "UTC",
+              serverNow: new Date().toISOString(),
+            },
+          },
+          { status: 409 },
+        );
+    },
+  });
+  const tree = await session.ready();
+  assert.deepEqual(nodes(tree, (node) => node.type === "h2").map(text), [
+    "next word",
+  ]);
+  assert.deepEqual(
+    session.activations.map((entry) => entry.studyCardId),
+    ["blocked", "other-word"],
+  );
+});
+
+test("the 2 am rollover renews a visible prompt without clearing the revealed answer", async (t) => {
+  t.mock.timers.enable({
+    apis: ["Date", "setTimeout"],
+    now: new Date("2026-11-10T01:59:59Z").getTime(),
+  });
+  const session = setup(t, [fixture]);
+  await session.ready();
+  session.key(" ");
+  assert(text(session.render()).includes(fixture.translation));
+  t.mock.timers.tick(1000);
+  const renewed = await session.ready();
+  assert.equal(session.activations.length, 2);
+  assert.equal(
+    session.activations[0].exposureId,
+    session.activations[1].exposureId,
+  );
+  assert(text(renewed).includes(fixture.translation));
+  assert.equal(session.submissions.length, 0);
+});
+
+test("completion explains deferred repetitions and their study-zone reset", async (t) => {
+  const session = setup(t, [], ReviewMode.Simple, { exposureDeferredCount: 3 });
+  assert.match(
+    text(await session.ready()),
+    /Repetitions of words you’ve seen today resume after 2 am/,
+  );
 });

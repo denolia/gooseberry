@@ -10,6 +10,11 @@ import { FsrsCardState, type FsrsCardStateValue } from "@/lib/review/model";
 import { ensureReviewProjections } from "@/db/reviewProjectionRepo";
 import { studyWordAvailabilityCondition } from "@/db/studyAllowance";
 import { studyCardIntroductionCondition } from "@/db/studyPolicy";
+import { getStudyDay } from "@/db/studyDay";
+import {
+  effectiveReviewDueAt,
+  studyExposureAllowedCondition,
+} from "@/db/studyExposurePolicy";
 
 export type WordSetItemReviewStats = {
   wordSetItemId: string;
@@ -37,6 +42,7 @@ export async function getWordSetItemReviewStats(input: {
   await ensureStudyCards(input.userId, input.wordSetId);
   await ensureReviewProjections(input.userId, input.wordSetId);
   const now = input.now ?? new Date();
+  const day = await getStudyDay(input.userId, now);
   const rows = await getDb()
     .select({
       wordSetItemId: wordSetItem.id,
@@ -44,6 +50,7 @@ export async function getWordSetItemReviewStats(input: {
       dueCount: sql<number>`count(${studyCard.id}) FILTER (
         WHERE ${availableStudyCardCondition(now)}
           AND ${studyCardIntroductionCondition(input.userId)}
+          AND ${studyExposureAllowedCondition(day)}
           AND ${studyWordAvailabilityCondition({ ...input, now })}
           AND (${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.dueAt} <= ${now})
       )`,
@@ -59,7 +66,7 @@ export async function getWordSetItemReviewStats(input: {
       // the earliest of the note's eligible card due dates.
       dueAt: sql<Date | null>`CASE
         WHEN count(${studyCard.id}) FILTER (WHERE ${fsrsCardState.studyCardId} IS NULL) > 0 THEN NULL
-        ELSE min(${fsrsCardState.dueAt})
+        ELSE min(${effectiveReviewDueAt(day)})
       END`.mapWith(fsrsCardState.dueAt),
       reps: sql<number>`coalesce(sum(${fsrsCardState.reps}), 0)`,
       lapses: sql<number>`coalesce(sum(${fsrsCardState.lapses}), 0)`,
@@ -107,6 +114,7 @@ export async function getWordSetReviewStats(input: {
 }): Promise<WordSetReviewStats[]> {
   await ensureStudyCards(input.userId);
   await ensureReviewProjections(input.userId);
+  const day = await getStudyDay(input.userId, input.now);
   const rows = await getDb()
     .select({
       wordSetId: wordSet.id,
@@ -115,6 +123,7 @@ export async function getWordSetReviewStats(input: {
       dueCount: sql<number>`count(${studyCard.id}) FILTER (
         WHERE ${availableStudyCardCondition(input.now)}
           AND ${studyCardIntroductionCondition(input.userId)}
+          AND ${studyExposureAllowedCondition(day)}
           AND ${studyWordAvailabilityCondition(input)}
           AND (${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.dueAt} <= ${input.now})
       )`,

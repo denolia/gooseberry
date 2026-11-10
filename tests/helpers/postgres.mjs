@@ -10,6 +10,27 @@ import ts from "@typescript/typescript6";
 const externalRequire = createRequire(import.meta.url);
 const project = fileURLToPath(new URL("../../", import.meta.url));
 
+// Exercise the same display authorization as the browser before saving a grade.
+// Reusing a review UUID must also reuse its presentation receipt after a retry.
+export function createActivatedReviewer(repo) {
+  const presentations = new Map();
+  return async (input) => {
+    let exposureId = presentations.get(input.reviewEventId);
+    if (!exposureId) {
+      const opened = await repo.activateReviewCard({
+        userId: input.userId,
+        wordSetId: input.wordSetId,
+        studyCardId: input.studyCardId,
+        exposureId: crypto.randomUUID(),
+        now: input.reviewedAt,
+      });
+      exposureId = opened.exposure.id;
+      presentations.set(input.reviewEventId, exposureId);
+    }
+    return repo.recordReview({ ...input, exposureId });
+  };
+}
+
 // An isolated, in-memory PostgreSQL engine. Production SQL and migrations run
 // unchanged; DATABASE_URL and all remote services are deliberately unused.
 export async function createPostgresFixture() {

@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
-import { createPostgresFixture } from "./helpers/postgres.mjs";
+import {
+  createActivatedReviewer,
+  createPostgresFixture,
+} from "./helpers/postgres.mjs";
 
 const fixture = await createPostgresFixture();
 const { client, load } = fixture;
 const repo = load("@/db/reviewRepo");
+const review = createActivatedReviewer(repo);
 const stats = load("@/db/reviewStatsRepo");
 const fsrs = load("@/lib/review/fsrs");
 const userId = "11111111-1111-4111-8111-111111111111";
@@ -79,7 +83,7 @@ test("a missing imported projection retains future due date and counters in queu
   const state = { ...baseline, dueAt: new Date("2026-06-10T12:00:00.000Z") };
   const card = await importedCard(state);
   await assert.rejects(
-    repo.recordReview({
+    review({
       userId,
       wordSetId: card.setId,
       studyCardId: card.cardId,
@@ -121,7 +125,7 @@ test("a missing imported projection retains future due date and counters in queu
 test("the first actual review seeds from imported progress without inventing source events", async () => {
   const card = await importedCard();
   const reviewEventId = crypto.randomUUID();
-  const state = await repo.recordReview({
+  const state = await review({
     userId,
     wordSetId: card.setId,
     studyCardId: card.cardId,
@@ -145,7 +149,7 @@ test("the first actual review seeds from imported progress without inventing sou
   await client.query("DELETE FROM fsrs_card_state WHERE study_card_id=$1", [
     card.cardId,
   ]);
-  const repeated = await repo.recordReview({
+  const repeated = await review({
     userId,
     wordSetId: card.setId,
     studyCardId: card.cardId,
@@ -243,7 +247,7 @@ test("suspended and buried directions keep history but do not become due until a
     )
   ).rows) {
     await assert.rejects(
-      repo.recordReview({
+      review({
         userId,
         wordSetId: card.setId,
         studyCardId: entry.id,
@@ -268,8 +272,16 @@ test("suspended and buried directions keep history but do not become due until a
 
 test("projection repair cannot overwrite an actual review committed during recovery", async () => {
   const card = await importedCard();
+  const opened = await repo.activateReviewCard({
+    userId,
+    wordSetId: card.setId,
+    studyCardId: card.cardId,
+    exposureId: crypto.randomUUID(),
+    now,
+  });
   await client.query(
-    "INSERT INTO fsrs_card_state (user_id,study_card_id,due_at,scheduler_version,revision) VALUES ($1,$2,$3,'outdated',0)",
+    `INSERT INTO fsrs_card_state (user_id,study_card_id,due_at,scheduler_version,revision) VALUES ($1,$2,$3,'outdated',0)
+     ON CONFLICT (user_id,study_card_id) DO UPDATE SET scheduler_version='outdated',revision=0`,
     [userId, card.cardId, now],
   );
   const originalQuery = client.query.bind(client);
@@ -285,6 +297,7 @@ test("projection repair cannot overwrite an actual review committed during recov
         userId,
         wordSetId: card.setId,
         studyCardId: card.cardId,
+        exposureId: opened.exposure.id,
         reviewEventId: crypto.randomUUID(),
         rating: 3,
         reviewedAt: now,

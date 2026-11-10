@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
-import { createPostgresFixture } from "./helpers/postgres.mjs";
+import {
+  createActivatedReviewer,
+  createPostgresFixture,
+} from "./helpers/postgres.mjs";
 
 const fixture = await createPostgresFixture();
 const { client, load } = fixture;
 const repo = load("@/db/reviewRepo");
+const review = createActivatedReviewer(repo);
 const stats = load("@/db/reviewStatsRepo");
 const profiles = load("@/db/profileRepo");
 const userId = "11111111-1111-4111-8111-111111111111";
@@ -60,7 +64,7 @@ const settings = (limit, studyTimeZone = "UTC") =>
     studyTimeZone,
   });
 const answer = (set, card, reviewedAt = now) =>
-  repo.recordReview({
+  review({
     userId,
     wordSetId: set.id,
     studyCardId: card.id,

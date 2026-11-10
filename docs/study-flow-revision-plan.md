@@ -7,15 +7,27 @@ Originally audited on **9 November 2026**, against code at commit `28f7fd1` (`Us
 ## Implementation checklist
 
 1. [x] Recognition first, production second.
-2. [ ] Exposure timestamp and 2 am repetition gate.
+2. [x] Exposure timestamp and 2 am repetition gate.
 3. [ ] Study selected sets or all sets.
 4. [ ] Leaves, daily history, and streaks.
 
 Step 1 enforces saved introduction prerequisites in queues, ready counts, and review submission. Saving recognition unlocks production; saving production unlocks typing, forms, and examples the same day. Existing studied/imported card progress remains intact. Short batches, excluded cards, or missing/suspended prerequisite content cannot bypass the order. The client also retries a refill requested while an older fetch was in flight, so a saved introduction cannot leave newly unlocked siblings waiting for the next due timer.
 
-Implementation: [policy order](../src/lib/review/policy.ts), [shared SQL eligibility](../src/db/studyPolicy.ts), [queue and submission](../src/db/reviewRepo.ts), and [regression coverage](../tests/studyIntroduction.test.mjs). The exposure reset, combined scopes, and rewards remain planned.
+Implementation: [policy order](../src/lib/review/policy.ts), [shared SQL eligibility](../src/db/studyPolicy.ts), [queue and submission](../src/db/reviewRepo.ts), and [regression coverage](../tests/studyIntroduction.test.mjs). Combined scopes and rewards remain planned.
 
 Step 1 validation: **418 tests passed**, typecheck and production build passed, and changed-file lint passed. Full-repository lint still reports existing errors outside this change. No browser automation or remote database migration was used.
+
+Step 2 implements the confirmed rule with a note timestamp and keyed presentation receipts. Queues filter exposure before their 20-card limit and choose one mature sensitive sibling per note before exclusions. The client authorizes only the active card before revealing its prompt, filters newly blocked buffered siblings, retries with the same presentation ID, and refreshes on focus/2 am. A prompt spanning rollover keeps its revealed/typed answer while renewing visibility. Grades consume their authorization atomically with the event and FSRS update; they do not reject their own exposure. Failed or abandoned grades still leave exposure recorded.
+
+Implementation: [migration and native-review backfill](../migrations/0013_study_exposure.sql), [2 am boundaries](../src/db/studyDay.ts), [SQL gate and effective availability](../src/db/studyExposurePolicy.ts), [atomic exposure persistence](../src/db/studyExposureRepo.ts), [activation API](../src/app/api/word-sets/[id]/review/exposure/route.ts), [client authorization/retry hook](../src/components/review/useStudyExposure.ts), and [database regression coverage](../tests/studyExposure.test.mjs). Ready counts, next-available times, rating previews and the completion message respect the gate without rewriting FSRS due dates. New-only Ok controls are unchanged.
+
+Performance scope: activation checks/repairs only the active card's projection; only New recognition evaluates the set's unseen-word cohort. Exposure invalidates cached readiness without refetching the entire library per display. The existing post-grade invalidation remains. There are no delayed marker flushes, extra session caches or separate daily marker rows. Receipts currently persist until note/account deletion; timed cleanup and representative production latency/SQL-plan measurements remain follow-up work.
+
+Deployment: apply **all of `0013_study_exposure.sql` before running the updated reviewer**, including the backfill that a schema-only push skips. Retained owner-native reviews seed exposure; imported source reviews and historical ungraded displays do not. No external database was migrated. Exposure resets at 2 am; the existing new-word allowance still resets at midnight until its proposed alignment is approved.
+
+Step 2 validation: **468 tests passed**, typecheck and production build passed, changed-file lint and whitespace checks passed. Coverage includes every type/state combination, ungraded exposure, Learning/Relearning differences, same-ID activation and grade retries, concurrent tabs, mutation races, native backfill, timezone/DST boundaries, buffered siblings and answer preservation at rollover. Full-repository lint still reports preexisting errors outside the changed files. Verification used in-memory PostgreSQL and mocked component checks; no browser automation was used.
+
+Step 2 manual checks: display any card, then reopen the set or use another tab; sensitive Review/Relearning exercises of that note should wait until 2 am. New/Learning and forms/examples should remain eligible. Confirm a New recognition's 10-minute Learning return still appears with grading buttons, and a mature Again/Relearning return waits until the next day. At 2 am, an active answer should remain visible while fresh eligibility refreshes. Simulate a lost activation response and retry; the same presentation must open successfully once.
 
 ## 1. Findings and recommended direction
 
@@ -465,31 +477,31 @@ The same note UUID returned through different scopes must share review history a
 
 ## 9. Implementation phases and acceptance criteria
 
-### Phase 1 — Shared policy and recognition-first progression
+### Step 1 — Shared policy and recognition-first progression
 
 **Change:** add a policy module, for example `src/lib/review/policy.ts`, and matching reusable SQL helpers, for example `src/db/studyPolicy.ts`. Update `reviewRepo.ts`, `studyAllowance.ts`, and `reviewStatsRepo.ts` together. Keep rendering templates and export ordinals separate from introduction order.
 
 **Acceptance:** every genuinely fresh note's first displayed card is recognition regardless of position or batch boundary; production is its next introduced type and may follow the same day; other New introductions remain available regardless of prior exposure. Learning steps remain in initial learning for this feature and can return when due; the exposure gate starts only for sensitive Review/Relearning attempts. Incomplete/suspended prerequisite cards follow the stated policy; imported and started progress is preserved. No new allowance slot is consumed by prefetch or activation.
 
-### Phase 2 — Repetition protection and client consistency
+### Step 2 — Repetition protection and client consistency
 
 **Change:** add `lastExposedAt` to the note row and minimal retry/authorization receipts; share a resolved 2 am study-boundary helper. Apply the timestamp predicate before LIMIT, keep the current batch/refill sizes, add local exposure filtering and atomic active-card authorization, and use receipt-backed grade submission. Drop the earlier separate note-day table. Keep New/Learning/forms/examples exempt and grading controls unchanged. Measure before adding background flushes or caches.
 
 **Acceptance:** every display updates exposure, with no waiting for a grade/leaf/session end. Review/Relearning recognition/production/typing require no earlier exposure since the resolved 2 am boundary; New/Learning/forms/examples remain allowed, including due 10-minute Learning returns. Server-filtered batches exclude currently blocked candidates; local filtering and atomic activation handle stale buffers/tabs. Retries do not block themselves and authorized grades can save. No full-set/history recalculation is introduced per display; next-available times match due times and the 2 am release.
 
-### Phase 3 — Leaves and durable activity
-
-**Change:** migrate `study_activity`; write its receipt atomically with reviews; add activity queries/API and today's progress. Add wallet ledger only if spending is included. Define historical backfill and time-zone transition policy before running data migrations.
-
-**Acceptance:** 19 → 20 → 21 and 39 → 40 completions produce the correct progress/leaves across sets and sessions. Retries count once, failures count zero, concurrent completions at a threshold award once, and deleting a set does not remove credited effort. Imported progress and replay never award leaves.
-
-### Phase 4 — One, several, or all sets
+### Step 3 — One, several, or all sets
 
 **Change:** add common study scope/routes, refactor `ReviewSession` away from a required single-set ID, add library all/selected actions and a due-only filter, and keep old URLs working through wrappers. Update cache invalidation to cover both set readiness and activity.
 
 **Acceptance:** one shared scheduler serves all scopes; due work is globally prioritized; ownership and UUID/list-size validation reject invalid selections; an empty explicit selection does not fall back to all sets; per-set allowances remain independent; leaf progress remains global; mixed-language cards show the correct direction and audio language.
 
-### Phase 5 — History, streaks, and completion messaging
+### Step 4a — Leaves and durable activity
+
+**Change:** migrate `study_activity`; write its receipt atomically with reviews; add activity queries/API and today's progress. Add wallet ledger only if spending is included. Define historical backfill and time-zone transition policy before running data migrations.
+
+**Acceptance:** 19 → 20 → 21 and 39 → 40 completions produce the correct progress/leaves across sets and sessions. Retries count once, failures count zero, concurrent completions at a threshold award once, and deleting a set does not remove credited effort. Imported progress and replay never award leaves.
+
+### Step 4b — History, streaks, and completion messaging
 
 **Change:** add heatmap, accessible daily history, streak display, leaf milestones, and accurate completion/waiting states. Update [study-order.md](study-order.md), [native-review-architecture.md](native-review-architecture.md), and [optimistic-review-updates.md](optimistic-review-updates.md) after behavior is implemented. The older study-order document mixes an October audit with later changes; this report uses the actual current code.
 

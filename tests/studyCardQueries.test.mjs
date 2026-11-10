@@ -37,7 +37,7 @@ function createFixture({ complete = true, empty = false } = {}) {
     CREATE TABLE word_set_item (
       id TEXT PRIMARY KEY, word_set_id TEXT, original TEXT, translation TEXT,
       word_forms TEXT, sample TEXT, sample_translation TEXT, comments TEXT,
-      tags TEXT, position INTEGER, created_at TEXT
+      tags TEXT, position INTEGER, created_at TEXT, last_exposed_at TEXT
     );
     CREATE TABLE study_card (
       id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()), word_set_item_id TEXT,
@@ -68,7 +68,7 @@ function createFixture({ complete = true, empty = false } = {}) {
     "RU",
   ]);
   storage.run(
-    "INSERT INTO word_set_item VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO word_set_item (id,word_set_id,original,translation,word_forms,sample,sample_translation,comments,tags,position,created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     [
       "item-1",
       "set-1",
@@ -132,6 +132,23 @@ function createFixture({ complete = true, empty = false } = {}) {
       return {
         studyCardIntroductionCondition: () =>
           externalRequire("drizzle-orm").sql`true`,
+      };
+    if (name === "@/db/studyDay")
+      return {
+        getStudyDay: async () => ({
+          startAt: now,
+          nextStartAt: new Date(tomorrow),
+          timeZone: "UTC",
+        }),
+      };
+    if (name === "@/db/studyExposurePolicy")
+      return {
+        studyExposureAllowedCondition: () =>
+          externalRequire("drizzle-orm").sql`true`,
+        firstSensitiveStudyCardCondition: () =>
+          externalRequire("drizzle-orm").sql`true`,
+        effectiveReviewDueAt: () =>
+          externalRequire("drizzle-orm").sql`fsrs_card_state.due_at`,
       };
     if (!name.startsWith("@/")) return externalRequire(name);
     if (modules.has(name)) return modules.get(name);
@@ -326,7 +343,7 @@ test("availability treats Unicode whitespace exactly like String.trim", async ()
 
 test("new cards use recognition, production, then typing and scheduled reviews take priority", async () => {
   const { repo, storage, setState } = createFixture({ complete: false });
-  storage.run(`INSERT INTO word_set_item
+  storage.run(`INSERT INTO word_set_item (id,word_set_id,original,translation,word_forms,sample,sample_translation,comments,tags,position,created_at)
     SELECT 'item-2', word_set_id, 'kissa', 'кот', word_forms, sample,
       sample_translation, comments, tags, 1, created_at
     FROM word_set_item WHERE id = 'item-1'`);
@@ -352,7 +369,7 @@ test("new-card ordering keeps word order and template priority across prefetch e
   const { repo, storage } = createFixture();
   for (let position = 1; position < 8; position += 1) {
     storage.run(
-      `INSERT INTO word_set_item
+      `INSERT INTO word_set_item (id,word_set_id,original,translation,word_forms,sample,sample_translation,comments,tags,position,created_at)
       SELECT ?, word_set_id, original || ?, translation, word_forms, sample,
         sample_translation, comments, tags, ?, created_at
       FROM word_set_item WHERE id = 'item-1'`,

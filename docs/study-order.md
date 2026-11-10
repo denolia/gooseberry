@@ -8,7 +8,9 @@ Every genuinely new note starts with recognition (source → target). Saving tha
 
 This is server eligibility, not just a sort preference: queues and ready counts exclude locked introductions, and review submission rejects attempts to bypass prerequisites. Prefetch/exclusions never count as completed prerequisites. Existing studied directions keep their schedules; native history, imported studied baselines, and projections identify prior progress. Missing or paused recognition prevents an unseen note from consuming a daily new-word slot through its optional content.
 
-The fetch size remains 20 and the client retains its refill strategy. A post-save refill requested during an older fetch runs afterward so newly unlocked cards do not wait for the 10-minute learning timer. The proposed exposure rule and 2 am reset are not implemented in this step.
+The fetch size remains 20 and the client retains its refill strategy. A post-save refill requested during an older fetch runs afterward so newly unlocked cards do not wait for the 10-minute learning timer.
+
+Every displayed card now records note exposure. Recognition, production and typing in Review/Relearning defer after any earlier exposure since the last 2 am in the saved study time zone. New/Learning and forms/examples bypass this gate but still record exposure. This permits the 10-minute Learning return while protecting mature recall. Server filtering, active-card authorization and a local buffer guard enforce the rule across refills and sessions. See [exposure behavior and persistence](native-review-architecture.md#exposure-and-the-2-am-reset). The new-word allowance retains its existing midnight reset.
 
 Implementation: [introduction order](../src/lib/review/policy.ts), [SQL prerequisites](../src/db/studyPolicy.ts), [queues/submission](../src/db/reviewRepo.ts), [daily cohort](../src/db/studyAllowance.ts), and [tests](../tests/studyIntroduction.test.mjs). See the [remaining implementation steps](study-flow-revision-plan.md#implementation-checklist).
 

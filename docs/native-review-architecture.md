@@ -26,17 +26,40 @@ Each exercise has its own canonical `review_event` history and replaceable `fsrs
 
 Scheduled due reviews precede new exercises, earliest due first. New notes start with recognition; its first saved introduction unlocks production, whose first saved introduction unlocks typing, forms, and example exercises. New material uses that fixed type order, then note position. Prerequisites are checked before batching/exclusions and again on submission; existing studied directions keep their own schedules even if an earlier type has never been studied. Canonical native history, imported studied baselines, and current projections preserve these decisions across cache rebuilds.
 
-Profile study settings default to 20 new words per day per set, currently resetting at midnight in the saved study time zone. Unseen notes need an available recognition card to enter the daily cohort; optional content alone cannot reserve a slot. Started words retain their unlocked siblings and due repetitions are uncapped. The proposed 2 am exposure reset is a later implementation step. See the [study-order walkthrough](study-order.md) and [revision checklist](study-flow-revision-plan.md#implementation-checklist).
+Profile study settings default to 20 new words per day per set, currently resetting at midnight in the saved study time zone. Unseen notes need an available recognition card to enter the daily cohort; optional content alone cannot reserve a slot. Started words retain their unlocked siblings and due repetitions are uncapped by that allowance. See the [study-order walkthrough](study-order.md) and [revision checklist](study-flow-revision-plan.md#implementation-checklist).
+
+## Exposure and the 2 am reset
+
+Every activated study card updates its note's `last_exposed_at`, including ungraded or abandoned prompts. Prefetch and statistics reads do not. Only recognition, production and typing in Review/Relearning check that marker: any exposure since the current study day's 2 am boundary defers them until the next boundary. New/Learning and forms/examples ignore this gate but still record exposure. A 10-minute Learning return remains available; a sensitive Relearning return after Again waits until the next study day. Only New shows Ok; grading controls are unchanged.
+
+[`studyDay.ts`](../src/db/studyDay.ts) resolves boundaries in the saved study time zone, defaulting to UTC. PostgreSQL moves a nonexistent spring 2 am past the gap and uses the later fall occurrence. The daily new-word allowance still resets at midnight. Exposure eligibility uses the note UUID; separately saved duplicate words remain independent.
+
+[`studyExposurePolicy.ts`](../src/db/studyExposurePolicy.ts) filters before the queue limit and selects at most one due sensitive sibling per note before exclusions. Earliest due wins, with recognition/production/typing and UUID tie breakers. Forms/examples and initial-learning cards are retained. Ready counts apply the exposure gate to individual cards; these are a snapshot, not a forecast of how many will remain after further exposures. Effective availability is the latest of FSRS due, burial expiry and applicable exposure reset; the stored FSRS due date is unchanged.
+
+```mermaid
+flowchart TD
+    A[Prefetch up to 20 eligible exercises] --> B[Authorize active card on server]
+    B --> C{Sensitive repetition and word seen today?}
+    C -->|Yes| D[Skip before showing and refill]
+    C -->|No| E[Atomically mark exposure and create receipt]
+    E --> F[Show card and remove blocked buffered siblings]
+    F --> G[Save rating using the receipt]
+    G --> A
+```
 
 ## Persistence and sessions
 
-Authenticated routes validate ownership and eligible card identities. The repository reads the current projection, calculates the next state, then atomically appends its event and conditionally updates the projection by revision. Conflicts reload and retry. The Neon HTTP driver uses atomic batches rather than interactive callback transactions. Repeated submissions reuse their event UUID and do not create duplicate reviews.
+Authenticated routes validate ownership and eligible card identities. `POST /api/word-sets/[id]/review/exposure` authorizes the active prompt under a note-row lock, records the marker and creates a `study_exposure` receipt. Concurrent sensitive activations cannot both pass. Retries reuse the presentation UUID; resuming the same ungraded prompt can renew visibility across 2 am without clearing its answer. The prompt stays hidden until authorization succeeds. A committed authorization whose response is lost may conservatively mark a prompt that never rendered.
+
+Rating POSTs require that receipt's `exposureId`. The repository reads the current projection, calculates the next state, then atomically appends its event, conditionally updates the projection by revision, consumes the receipt and renews exposure. An authorized grade is not rejected by its own marker. Conflicts reload and retry. The Neon HTTP driver uses atomic batches rather than interactive callback transactions. Repeated submissions reuse their event UUID and do not create duplicate reviews.
+
+Activation repairs only the active card's missing/outdated projection, and only new recognition needs the set's unseen-word cohort check. It does not reconcile all set identities or refetch library statistics per display. Receipts use keyed lookups; exposure eligibility reads only the note timestamp. Receipts currently remain until their note/account is deleted; timed receipt cleanup and production throughput benchmarking are not implemented.
 
 The session at `/anki/[id]/review` shows the exercise direction, prompt and revealed answer. New exercises have an introduction control; existing exercises use simple/full self-rating controls, interval previews and keyboard shortcuts. Typed comparison normalizes Unicode, whitespace and case while retaining accents and punctuation. After reveal, a grapheme-level diff marks incorrect typed fragments in red with strikethrough and missing/corrected answer fragments in green with underline. It provides feedback; the learner's chosen rating controls scheduling.
 
 Only the type-in answer field requests disabled autocomplete, autocorrection, capitalization, spellchecking and writing suggestions. These are browser/keyboard hints; device settings can override them. See the [HTML writing-suggestions specification](https://html.spec.whatwg.org/multipage/interaction.html#writing-suggestions).
 
-The browser prefetches exercises and saves ratings in the background. Failed writes support retry/ignore. Pending writes live only in memory; see [review request handling and durability](optimistic-review-updates.md). Synthetic pronunciation is a separate user action.
+The browser prefetches exercises and saves ratings in the background. A local exposure map filters late refill responses; activation handles stale cards from other tabs/devices. Focus and the 2 am timer renew the visible prompt and refresh availability. Exposure errors support retry before showing the prompt; failed grade writes support retry/ignore. Pending writes live only in memory; see [review request handling and durability](optimistic-review-updates.md). Synthetic pronunciation is a separate user action.
 
 ## Import and content edits
 
@@ -55,3 +78,5 @@ Migration `0005` establishes review tables and recognition identities. Migration
 Import/content metadata requires [`0009`](../migrations/0009_anki_text_import.sql); requested enrichment requires [`0010`](../migrations/0010_requested_enrichment.sql). Migration [`0011`](../migrations/0011_imported_study_progress.sql) adds imported baselines, progress options, suspension and burial. It does not convert previously imported notes automatically; reimport into their existing set to recover untouched progress. New notes receive all five identities in the same atomic batch as their content. Development/build/test commands do not apply these migrations to remote databases.
 
 Migration [`0012`](../migrations/0012_study_set_settings.sql) adds the profile's daily new-word limit and study time zone. Apply it before deploying the updated queue/profile code.
+
+Migration [`0013`](../migrations/0013_study_exposure.sql) adds the note timestamp and authorization receipts. Apply the complete SQL before deploying this reviewer; a schema-only push omits the backfill. The backfill uses only retained native reviews belonging to the note's owner, across every card type. Historical ungraded displays are unavailable and imported source reviews do not mark exposure.

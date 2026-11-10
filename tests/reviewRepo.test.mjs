@@ -187,6 +187,28 @@ function loadRepo({
       "@/db/studyPolicy": {
         studyCardIntroductionCondition: () => ({ op: "introduction" }),
       },
+      "@/db/studyDay": {
+        getStudyDay: async (_userId, instant) => ({
+          startAt: new Date(instant.getTime() - 3600000),
+          nextStartAt: new Date(instant.getTime() + 3600000),
+          timeZone: "UTC",
+        }),
+      },
+      "@/db/studyExposurePolicy": {
+        studyExposureAllowedCondition: () => ({ op: "exposure" }),
+        firstSensitiveStudyCardCondition: () => ({ op: "first-sensitive" }),
+      },
+      "@/db/studyExposureRepo": {
+        getStudyExposure: async () => ({
+          id: "presentation",
+          studyCardId: row.id,
+          wordSetItemId: row.wordSetItemId,
+          stateBefore: 1,
+          repsBefore: 0,
+          reviewEventId: null,
+        }),
+        consumeStudyExposure: () => ({ op: "consume" }),
+      },
       "@/lib/review/policy": {
         STUDY_CARD_INTRODUCTION_ORDER: [
           "recognition",

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
-import { createPostgresFixture } from "./helpers/postgres.mjs";
+import {
+  createActivatedReviewer,
+  createPostgresFixture,
+} from "./helpers/postgres.mjs";
 
 const fixture = await createPostgresFixture();
 const { client, load } = fixture;
@@ -269,7 +272,8 @@ test("reimport recovers progress in an existing fresh set but preserves locally 
     recognition.id,
   ]);
   const reviews = load("@/db/reviewRepo");
-  await reviews.recordReview({
+  const recordReview = createActivatedReviewer(reviews);
+  await recordReview({
     userId,
     wordSetId: fresh.wordSetId,
     studyCardId: recognition.id,
@@ -467,7 +471,8 @@ test("reimport cannot replace a native schedule that has no imported baseline", 
     )
   ).rows[0];
   const reviews = load("@/db/reviewRepo");
-  await reviews.recordReview({
+  const recordReview = createActivatedReviewer(reviews);
+  await recordReview({
     userId,
     wordSetId: first.wordSetId,
     studyCardId: recognition.id,

@@ -3,7 +3,9 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import {
   getDueReviewCards,
-  getNextScheduledReviewAt,
+  getReviewQueueTiming,
+  exposureAwareRatingPreviews,
+  getRecordedCardAvailableAt,
   recordReview,
   ReviewCardNotDueError,
   ReviewCardNotFoundError,
@@ -11,10 +13,12 @@ import {
 } from "@/db/reviewRepo";
 import { previewRatings } from "@/lib/review/fsrs";
 import { ReviewRatingSchema } from "@/lib/review/model";
+import { getStudyDay, serializeStudyDay } from "@/db/studyDay";
 
 const SubmitReviewSchema = z.object({
   reviewId: z.string().uuid().optional(),
   studyCardId: z.string().uuid(),
+  exposureId: z.string().uuid(),
   rating: ReviewRatingSchema,
   reviewedAt: z.string().datetime().optional(),
   durationMs: z
@@ -43,6 +47,7 @@ export async function GET(
   try {
     const { id } = await params;
     const now = new Date();
+    const studyDay = await getStudyDay(session.user.id, now);
     const url = new URL(request.url);
     const excludedStudyCardIds = ReviewQueueQuerySchema.parse(
       url.searchParams.getAll("exclude"),
@@ -53,22 +58,30 @@ export async function GET(
       now,
       limit: REVIEW_QUEUE_SIZE,
       excludedStudyCardIds,
+      studyDay,
     });
     const responseCards = cards.map((card) => ({
       ...card,
-      ratings: previewRatings(card.state, now),
+      ratings: exposureAwareRatingPreviews(
+        card.templateKey,
+        previewRatings(card.state, now),
+        now,
+        studyDay,
+      ),
     }));
-    const nextDueAt = await getNextScheduledReviewAt({
+    const timing = await getReviewQueueTiming({
       userId: session.user.id,
       wordSetId: id,
       now,
+      studyDay,
     });
 
     return NextResponse.json({
       cards: responseCards,
       // Keep the original field during the client rollout.
       card: responseCards[0] ?? null,
-      nextDueAt,
+      ...timing,
+      studyDay: serializeStudyDay(studyDay, now),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -97,17 +110,28 @@ export async function POST(
   try {
     const { id } = await params;
     const input = SubmitReviewSchema.parse(await request.json());
+    const now = new Date();
     const state = await recordReview({
       userId: session.user.id,
       wordSetId: id,
       studyCardId: input.studyCardId,
+      exposureId: input.exposureId,
+      now,
       reviewEventId: input.reviewId ?? crypto.randomUUID(),
       rating: input.rating,
       durationMs: input.durationMs,
       reviewedAt: input.reviewedAt ? new Date(input.reviewedAt) : new Date(),
     });
 
-    return NextResponse.json({ success: true, state });
+    const day = await getStudyDay(session.user.id, now);
+    const nextAvailableAt = await getRecordedCardAvailableAt({
+      userId: session.user.id,
+      wordSetId: id,
+      studyCardId: input.studyCardId,
+      state,
+      studyDay: day,
+    });
+    return NextResponse.json({ success: true, state, nextAvailableAt });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
