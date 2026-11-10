@@ -38,20 +38,21 @@ Every activated study card updates its note's `last_exposed_at`, including ungra
 
 ```mermaid
 flowchart TD
-    A[Prefetch up to 20 eligible exercises] --> B[Authorize active card on server]
-    B --> C{Sensitive repetition and word seen today?}
-    C -->|Yes| D[Skip before showing and refill]
-    C -->|No| E[Atomically mark exposure and create receipt]
-    E --> F[Show card and remove blocked buffered siblings]
-    F --> G[Save rating using the receipt]
+    A[Prefetch up to 20 eligible exercises] --> B[Show active card and mark exposure locally]
+    B --> H[Record display in background with silent retries]
+    B --> F[Keep controls enabled and filter waiting siblings]
+    F --> G[Save rating in background and advance immediately]
+    G --> E[Server creates a missing receipt and saves review]
     G --> A
 ```
 
 ## Persistence and sessions
 
-Authenticated routes validate ownership and eligible card identities. `POST /api/word-sets/[id]/review/exposure` authorizes the active prompt under a note-row lock, records the marker and creates a `study_exposure` receipt. Concurrent sensitive activations cannot both pass. Retries reuse the presentation UUID; resuming the same ungraded prompt can renew visibility across 2 am without clearing its answer. The prompt stays hidden until authorization succeeds. A committed authorization whose response is lost may conservatively mark a prompt that never rendered.
+Authenticated routes validate ownership and eligible card identities. The browser displays the active prefetched prompt immediately, marks exposure locally and sends `POST /api/word-sets/[id]/review/exposure` with `displayed: true` in the background. Reading, typing, reveal, rating and advancement never wait for that request. Buttons stay enabled; errors are retried silently. Retries reuse the presentation UUID; focus and rollover can renew visibility across 2 am without clearing an answer, including while the first response is pending. Late responses never replace the visible prompt.
 
-Rating POSTs require that receipt's `exposureId`. The repository reads the current projection, calculates the next state, then atomically appends its event, conditionally updates the projection by revision, consumes the receipt and renews exposure. An authorized grade is not rejected by its own marker. Conflicts reload and retry. The Neon HTTP driver uses atomic batches rather than interactive callback transactions. Repeated submissions reuse their event UUID and do not create duplicate reviews.
+This removes per-card confirmation waits while retaining 20-card batches. Cross-tab/device exposure exclusion is best effort. If a buffered prompt becomes stale, its exposure request still records the actual display using an owner-scoped marker update, and its response does not interrupt the exercise. A request lost before reaching the server can lose an unconfirmed exposure. Waiting candidates are never activated early to hide network latency.
+
+Rating POSTs carry the client-generated presentation `exposureId`. If its receipt is missing because the display request was lost or is still in flight, the server creates it during the grade request without consulting prior exposure. New-word allowance, prerequisites, ownership, due/suspension checks and projection revision guards still apply. The repository reads the current projection, calculates the next state, then atomically appends its event, conditionally updates the projection by revision, consumes the receipt and renews exposure. A missing exposure confirmation does not reject a grade; an existing mismatched or consumed receipt remains invalid. The Neon HTTP driver uses atomic batches rather than interactive callback transactions. Repeated submissions reuse their event UUID and do not create duplicate reviews.
 
 Activation repairs only the active card's missing/outdated projection, and only new recognition needs the set's unseen-word cohort check. It does not reconcile all set identities or refetch library statistics per display. Receipts use keyed lookups; exposure eligibility reads only the note timestamp. Receipts currently remain until their note/account is deleted; timed receipt cleanup and production throughput benchmarking are not implemented.
 
@@ -59,7 +60,7 @@ The session at `/anki/[id]/review` shows the exercise direction, prompt and reve
 
 Only the type-in answer field requests disabled autocomplete, autocorrection, capitalization, spellchecking and writing suggestions. These are browser/keyboard hints; device settings can override them. See the [HTML writing-suggestions specification](https://html.spec.whatwg.org/multipage/interaction.html#writing-suggestions).
 
-The browser prefetches exercises and saves ratings in the background. A local exposure map filters late refill responses; activation handles stale cards from other tabs/devices. Focus and the 2 am timer renew the visible prompt and refresh availability. Exposure errors support retry before showing the prompt; failed grade writes support retry/ignore. Pending writes live only in memory; see [review request handling and durability](optimistic-review-updates.md). Synthetic pronunciation is a separate user action.
+The browser prefetches exercises and saves ratings in the background. A local exposure map filters late refill responses. Focus and the 2 am timer refresh the visible prompt's exposure and queue availability independently. Exposure errors do not affect the interface; failed grade writes retain their existing retry/ignore toast. Pending writes live only in memory; see [review request handling and durability](optimistic-review-updates.md). Synthetic pronunciation is a separate user action.
 
 ## Import and content edits
 

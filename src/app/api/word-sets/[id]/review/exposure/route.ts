@@ -11,10 +11,12 @@ import {
 } from "@/db/reviewRepo";
 import { getStudyDay, serializeStudyDay } from "@/db/studyDay";
 import { previewRatings } from "@/lib/review/fsrs";
+import { recordDisplayedStudyCardExposure } from "@/db/studyExposureRepo";
 
 const ActivateSchema = z.object({
   exposureId: z.string().uuid(),
   studyCardId: z.string().uuid(),
+  displayed: z.boolean().default(false),
 });
 
 export async function POST(
@@ -59,6 +61,19 @@ export async function POST(
         studyDay: serializeStudyDay(studyDay, now),
       });
     } catch (error) {
+      if (
+        input.displayed &&
+        (error instanceof ReviewCardNotDueError ||
+          error instanceof ReviewCardNotFoundError ||
+          error instanceof ReviewWriteConflictError)
+      ) {
+        await recordDisplayedStudyCardExposure({
+          userId: session.user.id,
+          wordSetId: id,
+          studyCardId: input.studyCardId,
+          now,
+        });
+      }
       if (error instanceof ReviewWordSeenTodayError) {
         return NextResponse.json(
           {

@@ -29,6 +29,7 @@ export async function persistStudyExposure(input: {
   now: Date;
   day: StudyDayContext;
   cardCondition: SQL;
+  enforceExposureGate?: boolean;
 }): Promise<StudyExposure | null> {
   const db = getDb();
   // The second statement gets a fresh snapshot after acquiring this note's lock.
@@ -48,7 +49,7 @@ export async function persistStudyExposure(input: {
             INNER JOIN word_set ON word_set.id = word_set_item.word_set_id
             LEFT JOIN fsrs_card_state ON fsrs_card_state.study_card_id = study_card.id
               AND fsrs_card_state.user_id = ${input.userId}
-            WHERE ${input.cardCondition} AND ${studyExposureAllowedCondition(input.day)}
+            WHERE ${input.cardCondition} AND ${input.enforceExposureGate === false ? sql`true` : studyExposureAllowedCondition(input.day)}
           )
         RETURNING id
       ) INSERT INTO study_exposure
@@ -69,6 +70,22 @@ export async function touchStudyExposure(receipt: StudyExposure, now: Date) {
       SELECT 1 FROM study_exposure WHERE id = ${receipt.id} AND user_id = ${receipt.userId}
         AND review_event_id IS NULL
     )`);
+}
+
+// A prefetched prompt can become stale in another tab before it renders.
+// Record its actual display even when it cannot receive a grading receipt.
+export async function recordDisplayedStudyCardExposure(input: {
+  userId: string;
+  wordSetId: string;
+  studyCardId: string;
+  now: Date;
+}) {
+  await getDb().execute(sql`UPDATE word_set_item AS item
+    SET last_exposed_at = greatest(item.last_exposed_at, ${input.now}::timestamptz)
+    FROM study_card AS card, word_set AS owned_set
+    WHERE item.id = card.word_set_item_id AND owned_set.id = item.word_set_id
+      AND owned_set.user_id = ${input.userId} AND owned_set.id = ${input.wordSetId}
+      AND card.id = ${input.studyCardId}`);
 }
 
 export function consumeStudyExposure(input: {

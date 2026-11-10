@@ -725,32 +725,97 @@ test("only the active prompt is authorized; showing a word removes mature siblin
   );
 });
 
-test("the question and rating shortcuts stay hidden until display authorization succeeds", async (t) => {
+test("cards and ratings work immediately while exposure confirmation is pending", async (t) => {
   let finish;
   const pending = new Promise((resolve) => {
     finish = resolve;
   });
-  const session = setup(t, [fixture], ReviewMode.Simple, {
-    openExposure: async () => {
-      await pending;
+  const session = setup(
+    t,
+    [fixture, { ...fixture, id: "next", original: "next word" }],
+    ReviewMode.Simple,
+    {
+      openExposure: async () => {
+        await pending;
+      },
     },
-  });
+  );
   const opening = await session.ready();
-  assert.match(text(opening), /Loading review/);
-  assert.equal(nodes(opening, (node) => node.type === "h2").length, 0);
+  assert.doesNotMatch(text(opening), /Loading review/);
+  assert.deepEqual(nodes(opening, (node) => node.type === "h2").map(text), [
+    fixture.original,
+  ]);
   session.key(" ");
-  session.render();
+  const revealed = session.render();
+  assert(text(revealed).includes(fixture.translation));
+  assert.doesNotMatch(text(revealed), /Syncing exercise/);
+  assert(
+    nodes(
+      revealed,
+      (node) => node.type === "button" && /Yes|No/.test(text(node)),
+    ).every((node) => !node.props.disabled),
+  );
   session.key("2");
-  assert.equal(session.submissions.length, 0);
+  assert.equal(session.submissions.length, 1);
+  assert.equal(
+    session.submissions[0].exposureId,
+    session.activations[0].exposureId,
+  );
+  assert.deepEqual(
+    nodes(session.render(), (node) => node.type === "h2").map(text),
+    ["next word"],
+  );
   finish();
   const ready = await session.ready();
   assert.deepEqual(nodes(ready, (node) => node.type === "h2").map(text), [
-    fixture.original,
+    "next word",
   ]);
-  assert.equal(session.activations.length, 1);
+  assert.equal(session.activations.length, 2);
+  assert.equal(session.activations[0].displayed, true);
 });
 
-test("an activation error retries the same presentation ID instead of opening a second attempt", async (t) => {
+test("advancing uses the existing batch immediately even when the next display request is slow", async (t) => {
+  let finish;
+  const pending = new Promise((resolve) => {
+    finish = resolve;
+  });
+  let refills = 0;
+  const cards = Array.from({ length: 8 }, (_, index) => ({
+    ...fixture,
+    id: `word-${index}`,
+    original: `word ${index}`,
+  }));
+  const session = setup(t, cards, ReviewMode.Simple, {
+    openExposure: async ({ studyCardId }) => {
+      if (studyCardId === "word-1") await pending;
+    },
+    loadQueue: async () => {
+      refills++;
+      return { cards: [] };
+    },
+  });
+  await session.ready();
+  assert.equal(session.activations.length, 1);
+  session.key(" ");
+  session.render();
+  session.key("2");
+  const next = session.render();
+  assert.deepEqual(nodes(next, (node) => node.type === "h2").map(text), [
+    "word 1",
+  ]);
+  assert.doesNotMatch(text(next), /Loading review/);
+  await session.ready();
+  assert.equal(refills, 0);
+  assert.equal(session.submissions.length, 1);
+  assert.deepEqual(
+    session.activations.map((entry) => entry.studyCardId),
+    ["word-0", "word-1"],
+  );
+  finish();
+  await session.ready();
+});
+
+test("exposure errors are silent and focus can retry the same presentation without clearing an answer", async (t) => {
   let attempts = 0;
   const session = setup(t, [fixture], ReviewMode.Simple, {
     openExposure: async () => {
@@ -758,19 +823,23 @@ test("an activation error retries the same presentation ID instead of opening a 
     },
   });
   const failure = await session.ready();
-  assert.match(text(failure), /Connection lost/);
-  nodes(
-    failure,
-    (node) => node.type === "button" && text(node) === "Try again",
-  )[0].props.onClick();
+  assert.doesNotMatch(
+    text(failure),
+    /Connection lost|Try again|Syncing exercise/,
+  );
+  assert.deepEqual(nodes(failure, (node) => node.type === "h2").map(text), [
+    fixture.original,
+  ]);
+  session.key(" ");
+  assert(text(session.render()).includes(fixture.translation));
+  session.focus();
   await session.ready();
+  assert(text(session.render()).includes(fixture.translation));
   assert.equal(session.activations.length, 2);
   assert.equal(
     session.activations[0].exposureId,
     session.activations[1].exposureId,
   );
-  session.key(" ");
-  session.render();
   session.key("2");
   assert.equal(
     session.submissions[0].exposureId,
@@ -778,7 +847,7 @@ test("an activation error retries the same presentation ID instead of opening a 
   );
 });
 
-test("a stale card rejected by another tab is skipped before its prompt appears", async (t) => {
+test("a stale exposure response never removes the visible prompt, while its mature sibling stays filtered", async (t) => {
   const blocked = {
     ...fixture,
     id: "blocked",
@@ -810,12 +879,48 @@ test("a stale card rejected by another tab is skipped before its prompt appears"
   });
   const tree = await session.ready();
   assert.deepEqual(nodes(tree, (node) => node.type === "h2").map(text), [
+    fixture.original,
+  ]);
+  assert.equal(session.activations.length, 1);
+  session.key(" ");
+  session.render();
+  session.key("2");
+  const advanced = await session.ready();
+  assert.deepEqual(nodes(advanced, (node) => node.type === "h2").map(text), [
     "next word",
   ]);
   assert.deepEqual(
     session.activations.map((entry) => entry.studyCardId),
     ["blocked", "other-word"],
   );
+});
+
+test("an exposure request that keeps failing does not block rating or advancing", async (t) => {
+  const session = setup(
+    t,
+    [fixture, { ...fixture, id: "next", original: "next word" }],
+    ReviewMode.Simple,
+    {
+      openExposure: async () => {
+        throw new Error("Offline exposure");
+      },
+    },
+  );
+  await session.ready();
+  session.key(" ");
+  const revealed = session.render();
+  assert.doesNotMatch(text(revealed), /Offline exposure|Syncing exercise/);
+  const ratings = nodes(
+    revealed,
+    (node) => node.type === "button" && /Yes|No/.test(text(node)),
+  );
+  assert(ratings.length > 0 && ratings.every((node) => !node.props.disabled));
+  session.key("2");
+  const next = await session.ready();
+  assert.deepEqual(nodes(next, (node) => node.type === "h2").map(text), [
+    "next word",
+  ]);
+  assert.equal(session.submissions.length, 1);
 });
 
 test("the 2 am rollover renews a visible prompt without clearing the revealed answer", async (t) => {
@@ -836,6 +941,43 @@ test("the 2 am rollover renews a visible prompt without clearing the revealed an
   );
   assert(text(renewed).includes(fixture.translation));
   assert.equal(session.submissions.length, 0);
+});
+
+test("rollover can renew a visible prompt even while its first confirmation is pending", async (t) => {
+  t.mock.timers.enable({
+    apis: ["Date", "setTimeout"],
+    now: new Date("2026-11-10T01:59:59Z").getTime(),
+  });
+  let finish;
+  let attempts = 0;
+  const pending = new Promise((resolve) => {
+    finish = resolve;
+  });
+  const session = setup(t, [fixture], ReviewMode.Simple, {
+    openExposure: async () => {
+      if (++attempts === 1) {
+        await pending;
+        throw new Error("Old response lost");
+      }
+    },
+  });
+  await session.ready();
+  session.key(" ");
+  assert(text(session.render()).includes(fixture.translation));
+  t.mock.timers.tick(1000);
+  const renewed = await session.ready();
+  assert.equal(session.activations.length, 2);
+  assert.equal(
+    session.activations[0].exposureId,
+    session.activations[1].exposureId,
+  );
+  assert(text(renewed).includes(fixture.translation));
+  assert.doesNotMatch(text(renewed), /Syncing exercise/);
+  finish();
+  const settled = await session.ready();
+  assert.doesNotMatch(text(settled), /Old response lost/);
+  session.key("2");
+  assert.equal(session.submissions.length, 1);
 });
 
 test("completion explains deferred repetitions and their study-zone reset", async (t) => {

@@ -427,7 +427,34 @@ export async function recordReview(input: {
       );
     }
 
-    const permission = await getStudyExposure(input.userId, input.exposureId);
+    let permission = await getStudyExposure(input.userId, input.exposureId);
+    if (!permission && input.exposureId) {
+      // A rating may arrive before its best-effort display request. Create the
+      // same presentation receipt here without waiting for that marker write.
+      const now = input.now ?? input.reviewedAt;
+      permission = await persistStudyExposure({
+        ...input,
+        now,
+        wordSetItemId: row.wordSetItemId,
+        day: await getStudyDay(input.userId, now),
+        stateBefore: currentState.state,
+        repsBefore: currentState.reps,
+        enforceExposureGate: false,
+        cardCondition: and(
+          eq(studyCard.id, input.studyCardId),
+          eq(studyCard.wordSetItemId, wordSetItem.id),
+          eq(wordSet.userId, input.userId),
+          eq(wordSet.id, input.wordSetId),
+          eligibleStudyCardCondition(),
+          availableStudyCardCondition(now),
+          studyCardIntroductionCondition(input.userId),
+          activationAllowanceCondition({ ...input, now }),
+          row.projection
+            ? eq(fsrsCardState.revision, row.projection.revision)
+            : isNull(fsrsCardState.studyCardId),
+        )!,
+      });
+    }
     if (
       !permission ||
       permission.studyCardId !== input.studyCardId ||

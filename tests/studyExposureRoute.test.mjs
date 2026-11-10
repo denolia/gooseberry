@@ -6,6 +6,7 @@ import { z } from "zod";
 
 function setup({ session = { user: { id: "user-1" } }, failure } = {}) {
   const calls = [];
+  const displays = [];
   class ReviewCardNotDueError extends Error {}
   const errors = {
     ReviewCardNotDueError,
@@ -50,6 +51,11 @@ function setup({ session = { user: { id: "user-1" } }, failure } = {}) {
       "@/lib/review/fsrs": {
         previewRatings: () => [{ rating: 3, intervalMs: 600000 }],
       },
+      "@/db/studyExposureRepo": {
+        recordDisplayedStudyCardExposure: async (input) => {
+          displays.push(input);
+        },
+      },
       "@/db/reviewRepo": {
         ...errors,
         exposureAwareRatingPreviews: (_key, ratings) => ratings,
@@ -92,7 +98,7 @@ function setup({ session = { user: { id: "user-1" } }, failure } = {}) {
       }),
       { params: Promise.resolve({ id: "owned-set" }) },
     );
-  return { calls, submit };
+  return { calls, displays, submit };
 }
 
 test("display authorization returns the card, receipt and study-zone boundary", async () => {
@@ -125,6 +131,7 @@ test("seen words provide an explicit skip reason; unavailable or unowned cards d
   const body = await response.json();
   assert.equal(body.code, "word_seen_today");
   assert.equal(body.studyDay.nextStartAt, "2026-11-11T01:00:00.000Z");
+  assert.equal(seen.displays.length, 0);
   assert.equal(
     (await setup({ failure: "ReviewCardNotFoundError" }).submit()).status,
     404,
@@ -133,4 +140,26 @@ test("seen words provide an explicit skip reason; unavailable or unowned cards d
     (await setup({ failure: "ReviewWriteConflictError" }).submit()).status,
     409,
   );
+});
+
+test("reported displays are recorded even when a stale prompt cannot be graded", async () => {
+  for (const failure of [
+    "ReviewWordSeenTodayError",
+    "ReviewCardNotDueError",
+    "ReviewCardNotFoundError",
+    "ReviewWriteConflictError",
+  ]) {
+    const app = setup({ failure });
+    const response = await app.submit({
+      studyCardId: "11111111-1111-4111-8111-111111111111",
+      exposureId: "22222222-2222-4222-8222-222222222222",
+      displayed: true,
+    });
+    assert([404, 409].includes(response.status));
+    assert.equal(app.displays.length, 1);
+    assert.equal(app.displays[0].studyCardId, app.calls[0].studyCardId);
+    assert.equal(app.displays[0].userId, "user-1");
+    assert.equal(app.displays[0].wordSetId, "owned-set");
+    assert.equal(app.displays[0].now.getTime(), app.calls[0].now.getTime());
+  }
 });

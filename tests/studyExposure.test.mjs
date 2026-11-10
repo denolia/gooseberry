@@ -204,6 +204,41 @@ test("prefetch and statistics do not record exposure or scheduling events", asyn
   );
 });
 
+test("recording an already displayed stale card is owner-scoped, monotonic, and cannot authorize a grade", async () => {
+  const set = await makeSet();
+  const exposures = load("@/db/studyExposureRepo");
+  const recordDisplay = (extra = {}) =>
+    exposures.recordDisplayedStudyCardExposure({
+      userId,
+      wordSetId: set.id,
+      studyCardId: set.cards.recognition,
+      now,
+      ...extra,
+    });
+  await recordDisplay({ userId: otherId });
+  await recordDisplay({ wordSetId: crypto.randomUUID() });
+  assert.equal(await marker(set), null);
+  await client.query("UPDATE study_card SET is_suspended=true WHERE id=$1", [
+    set.cards.recognition,
+  ]);
+  await recordDisplay();
+  assert.equal((await marker(set)).toISOString(), now.toISOString());
+  await recordDisplay({ now: new Date(now.getTime() - 60000) });
+  assert.equal((await marker(set)).toISOString(), now.toISOString());
+  await assert.rejects(
+    activate(set, "production"),
+    repo.ReviewWordSeenTodayError,
+  );
+  assert.equal(
+    (await client.query("SELECT count(*) FROM study_exposure")).rows[0].count,
+    0,
+  );
+  assert.equal(
+    (await client.query("SELECT count(*) FROM review_event")).rows[0].count,
+    0,
+  );
+});
+
 test("queue selects one sensitive sibling before exclusions and retains exempt cards", async () => {
   const set = await makeSet();
   const cards = await queue(set);
@@ -361,7 +396,7 @@ test("failed grades retain exposure but roll back scheduling and receipt consump
   await grade(set, opened);
 });
 
-test("missing or mismatched authorization cannot save a review", async () => {
+test("a missing presentation ID or a mismatched existing receipt cannot save a review", async () => {
   const set = await makeSet();
   await assert.rejects(
     repo.recordReview({
@@ -386,6 +421,113 @@ test("missing or mismatched authorization cannot save a review", async () => {
   await assert.rejects(
     activate(set, "recognition", { userId: otherId }),
     repo.ReviewCardNotFoundError,
+  );
+});
+
+test("a rating can arrive before any display request and still save exactly once", async () => {
+  const set = await makeSet();
+  const exposureId = crypto.randomUUID();
+  const input = {
+    userId,
+    wordSetId: set.id,
+    studyCardId: set.cards.recognition,
+    exposureId,
+    reviewEventId: crypto.randomUUID(),
+    rating: 3,
+    reviewedAt: now,
+  };
+  const state = await repo.recordReview(input);
+  assert.equal(state.reps, 6);
+  assert.deepEqual(await repo.recordReview(input), state);
+  assert.equal((await marker(set)).toISOString(), now.toISOString());
+  const receipts = (await client.query("SELECT * FROM study_exposure")).rows;
+  assert.equal(receipts.length, 1);
+  assert.equal(receipts[0].id, exposureId);
+  assert.equal(receipts[0].review_event_id, input.reviewEventId);
+  assert.equal(
+    (await client.query("SELECT count(*) FROM review_event")).rows[0].count,
+    1,
+  );
+});
+
+test("a best-effort display marker without a receipt does not block saving the visible exercise", async () => {
+  const set = await makeSet();
+  await load("@/db/studyExposureRepo").recordDisplayedStudyCardExposure({
+    userId,
+    wordSetId: set.id,
+    studyCardId: set.cards.recognition,
+    now,
+  });
+  const state = await repo.recordReview({
+    userId,
+    wordSetId: set.id,
+    studyCardId: set.cards.recognition,
+    exposureId: crypto.randomUUID(),
+    reviewEventId: crypto.randomUUID(),
+    rating: 3,
+    reviewedAt: now,
+  });
+  assert.equal(state.reps, 6);
+  await assert.rejects(
+    activate(set, "production"),
+    repo.ReviewWordSeenTodayError,
+  );
+});
+
+test("concurrent display and rating requests share a presentation without blocking the rating", async () => {
+  const set = await makeSet();
+  const exposureId = crypto.randomUUID();
+  const [, saved] = await Promise.allSettled([
+    activate(set, "recognition", { exposureId }),
+    repo.recordReview({
+      userId,
+      wordSetId: set.id,
+      studyCardId: set.cards.recognition,
+      exposureId,
+      reviewEventId: crypto.randomUUID(),
+      rating: 3,
+      reviewedAt: now,
+    }),
+  ]);
+  assert.equal(saved.status, "fulfilled");
+  assert.equal(saved.value.reps, 6);
+  assert.equal(
+    (await client.query("SELECT count(*) FROM study_exposure")).rows[0].count,
+    1,
+  );
+  assert.equal(
+    (await client.query("SELECT count(*) FROM review_event")).rows[0].count,
+    1,
+  );
+});
+
+test("a grade-created presentation cannot bypass a zero new-word allowance", async () => {
+  const set = await makeSet({ fresh: true });
+  await profiles.updateUserPreferences({
+    userId,
+    reviewMode: "simple",
+    newWordsPerDay: 0,
+  });
+  await assert.rejects(
+    repo.recordReview({
+      userId,
+      wordSetId: set.id,
+      studyCardId: set.cards.recognition,
+      exposureId: crypto.randomUUID(),
+      reviewEventId: crypto.randomUUID(),
+      rating: 3,
+      reviewedAt: now,
+    }),
+    repo.ReviewCardNotDueError,
+  );
+  assert.equal(await marker(set), null);
+  assert.equal(
+    (await client.query("SELECT count(*) FROM study_exposure")).rows[0].count,
+    0,
+  );
+  assert.equal(
+    (await client.query("SELECT count(*) FROM review_event")).rows[0].count,
+    0,
   );
 });
 

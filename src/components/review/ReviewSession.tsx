@@ -19,7 +19,7 @@ import {
   mergeReviewQueue,
   shouldRefillReviewQueue,
 } from "@/lib/review/queue";
-import type { StudyDay, StudyExposurePermission } from "@/lib/review/exposure";
+import type { StudyDay } from "@/lib/review/exposure";
 import {
   getStudyCardTemplate,
   type StudyCardTemplateKey,
@@ -96,7 +96,7 @@ export function ReviewSession({
   const queueRefreshPendingRef = useRef(false);
   const studyDayRef = useRef<StudyDay | null>(null);
   const seenNotesRef = useRef(new Map<string, number>());
-  const activeExposureRef = useRef<StudyExposurePermission | null>(null);
+  const presentedCardIdRef = useRef<string | null>(null);
   const revealedCardIdRef = useRef<string | null>(null);
   const audioButtonRef = useRef<HTMLButtonElement | null>(null);
   const shownAt = useRef(0);
@@ -121,10 +121,17 @@ export function ReviewSession({
     for (const [noteId, seenAt] of seenNotesRef.current) {
       if (seenAt < start) seenNotesRef.current.delete(noteId);
     }
+    const visible = cardsRef.current[0];
+    if (visible && presentedCardIdRef.current === visible.id) {
+      seenNotesRef.current.set(
+        visible.wordSetItemId,
+        Math.max(seenNotesRef.current.get(visible.wordSetItemId) ?? 0, start),
+      );
+    }
     return incoming;
   }, []);
 
-  const onActivated = useCallback(
+  const onRecorded = useCallback(
     (result: ActivatedStudyCard<ReviewCard>) => {
       if (cardsRef.current[0]?.id !== result.card.id) return;
       const day = acceptStudyDay(result.studyDay);
@@ -136,16 +143,13 @@ export function ReviewSession({
           seenAt,
         ),
       );
-      if (activeExposureRef.current?.id !== result.exposure.id)
-        shownAt.current = performance.now();
-      activeExposureRef.current = result.exposure;
       void queryClient.invalidateQueries({
         queryKey: ["wordSets"],
         refetchType: "none",
       });
       updateCards(
         filterExposedReviewQueue(
-          [result.card, ...cardsRef.current.slice(1)],
+          cardsRef.current,
           seenNotesRef.current,
           new Date(day.startAt).getTime(),
           true,
@@ -153,6 +157,38 @@ export function ReviewSession({
       );
     },
     [acceptStudyDay, queryClient, updateCards],
+  );
+
+  const onPresented = useCallback(
+    (cardId: string) => {
+      const current = cardsRef.current[0];
+      if (current?.id !== cardId) return;
+      if (presentedCardIdRef.current !== cardId) {
+        presentedCardIdRef.current = cardId;
+        shownAt.current = performance.now();
+      }
+      const day = studyDayRef.current;
+      if (!day) return;
+      const dayStart = new Date(day.startAt).getTime();
+      // The local map guards the buffer immediately; server confirmation records
+      // the exact timestamp. Fetching a waiting card never marks it as seen.
+      seenNotesRef.current.set(
+        current.wordSetItemId,
+        Math.max(
+          seenNotesRef.current.get(current.wordSetItemId) ?? 0,
+          dayStart,
+        ),
+      );
+      updateCards(
+        filterExposedReviewQueue(
+          cardsRef.current,
+          seenNotesRef.current,
+          dayStart,
+          true,
+        ),
+      );
+    },
+    [updateCards],
   );
 
   const updateFailedReviews = useCallback(
@@ -284,45 +320,15 @@ export function ReviewSession({
     [acceptStudyDay, updateCards, wordSetId],
   );
 
-  const onUnavailable = useCallback(
-    (cardId: string, result: { code?: string; studyDay?: StudyDay }) => {
-      const current = cardsRef.current[0];
-      if (current?.id !== cardId) return;
-      activeExposureRef.current = null;
-      let remaining = cardsRef.current.slice(1);
-      if (result.code === "word_seen_today" && result.studyDay) {
-        const day = acceptStudyDay(result.studyDay);
-        seenNotesRef.current.set(
-          current.wordSetItemId,
-          new Date(day.serverNow ?? day.startAt).getTime(),
-        );
-        remaining = filterExposedReviewQueue(
-          remaining,
-          seenNotesRef.current,
-          new Date(day.startAt).getTime(),
-        );
-        setExposureDeferredCount((count) => Math.max(1, count));
-      }
-      updateCards(remaining);
-      setRevealed(false);
-      setTypedAnswer("");
-      revealedCardIdRef.current = null;
-      if (shouldRefillReviewQueue(remaining)) void loadCards();
-    },
-    [acceptStudyDay, loadCards, updateCards],
-  );
-
   const {
-    authorized: exposureAuthorized,
-    error: exposureError,
+    getPresentationId,
     clear: clearExposure,
-    retry: retryExposure,
     renew: renewExposure,
   } = useStudyExposure<ReviewCard>({
     studyCardId: card?.id,
     wordSetId,
-    onActivated,
-    onUnavailable,
+    onPresented,
+    onRecorded,
   });
 
   const sendReview = useCallback(
@@ -402,8 +408,10 @@ export function ReviewSession({
 
   useEffect(() => {
     const refresh = () => {
-      if (status === "authenticated")
-        void renewExposure().then(() => loadCards());
+      if (status === "authenticated") {
+        void renewExposure();
+        void loadCards();
+      }
     };
     window.addEventListener("focus", refresh);
     return () => window.removeEventListener("focus", refresh);
@@ -416,9 +424,8 @@ export function ReviewSession({
         const visible =
           typeof document === "undefined" ||
           document.visibilityState !== "hidden";
-        void (visible ? renewExposure() : Promise.resolve()).then(() =>
-          loadCards(),
-        );
+        if (visible) void renewExposure();
+        void loadCards();
       },
       Math.min(
         2_147_483_647,
@@ -429,32 +436,24 @@ export function ReviewSession({
   }, [studyDay, loadCards, renewExposure, status]);
 
   const revealAnswer = useCallback(() => {
-    if (
-      !card ||
-      !exposureAuthorized ||
-      activeExposureRef.current?.studyCardId !== card.id
-    )
-      return;
+    if (!card) return;
     revealedCardIdRef.current = card.id;
     setRevealed(true);
-  }, [card, exposureAuthorized]);
+  }, [card]);
 
   const submitRating = useCallback(
     (rating: Rating) => {
-      const permission = activeExposureRef.current;
-      if (
-        !card ||
-        !exposureAuthorized ||
-        permission?.studyCardId !== card.id ||
-        revealedCardIdRef.current !== card.id
-      )
-        return;
+      if (!card || revealedCardIdRef.current !== card.id) return;
+
+      onPresented(card.id);
+      const presentationId = getPresentationId();
+      if (!presentationId) return;
 
       revealedCardIdRef.current = null;
       const submission: ReviewSubmission = {
         reviewId: crypto.randomUUID(),
         studyCardId: card.id,
-        exposureId: permission.id,
+        exposureId: presentationId,
         rating,
         reviewedAt: new Date().toISOString(),
         durationMs: Math.max(
@@ -463,7 +462,7 @@ export function ReviewSession({
         ),
       };
       const remainingCards = cardsRef.current.slice(1);
-      activeExposureRef.current = null;
+      presentedCardIdRef.current = null;
       clearExposure();
       updateCards(remainingCards);
       setRevealed(false);
@@ -481,7 +480,8 @@ export function ReviewSession({
     [
       card,
       clearExposure,
-      exposureAuthorized,
+      getPresentationId,
+      onPresented,
       loadCards,
       sendReview,
       updateCards,
@@ -561,12 +561,7 @@ export function ReviewSession({
     </aside>
   ) : null;
 
-  if (
-    status === "loading" ||
-    loading ||
-    (!card && loadingMore) ||
-    (card && !exposureAuthorized && !exposureError)
-  ) {
+  if (status === "loading" || loading || (!card && loadingMore)) {
     return (
       <div className={styles.centered} aria-busy="true">
         Loading review…
@@ -576,20 +571,16 @@ export function ReviewSession({
 
   if (status !== "authenticated") return null;
 
-  if ((error || exposureError) && (!card || !exposureAuthorized)) {
+  if (error && !card) {
     return (
       <>
         <div className={styles.centered}>
           <p className={styles.error} role="alert">
-            {exposureError ?? error}
+            {error}
           </p>
           <button
             className={styles.primaryButton}
-            onClick={() =>
-              exposureError
-                ? retryExposure()
-                : void loadCards({ replace: true })
-            }
+            onClick={() => void loadCards({ replace: true })}
           >
             Try again
           </button>
