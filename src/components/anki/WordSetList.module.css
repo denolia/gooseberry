@@ -322,7 +322,7 @@
   flex: 0 0 auto;
 }
 
-.studyButton {
+.openButton {
   padding: 0.55rem 0.8rem;
   border: 1px solid var(--accent);
   background: var(--accent);
@@ -336,21 +336,9 @@
     transform 0.2s ease;
 }
 
-.studyButton:hover {
+.openButton:hover {
   background: var(--accent-strong);
   transform: translateY(-1px);
-}
-
-.studyButtonDisabled {
-  border-color: var(--border-color);
-  background: var(--button-secondary-bg);
-  color: var(--text-muted);
-  cursor: default;
-}
-
-.studyButtonDisabled:hover {
-  background: var(--button-secondary-bg);
-  transform: none;
 }
 
 .moreMenu {
@@ -431,7 +419,7 @@
     gap: 0.45rem;
   }
 
-  .studyButton {
+  .openButton {
     padding-inline: 0.65rem;
   }
 }

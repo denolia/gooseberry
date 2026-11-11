@@ -329,14 +329,10 @@ export function WordSetList() {
                   </Link>
                   <div className={styles.cardActions}>
                     <Link
-                      className={`${styles.studyButton} ${reviewStats.dueCount === 0 ? styles.studyButtonDisabled : ""}`}
-                      href={`/anki/${set.id}/review`}
-                      aria-disabled={reviewStats.dueCount === 0}
-                      onClick={(event) => {
-                        if (reviewStats.dueCount === 0) event.preventDefault();
-                      }}
+                      className={styles.openButton}
+                      href={`/anki/${set.id}`}
                     >
-                      {t("wordSetList.study")}
+                      {t("wordSetList.open")}
                     </Link>
                     <details className={styles.moreMenu}>
                       <summary

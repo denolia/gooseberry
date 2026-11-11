@@ -358,7 +358,7 @@
     "exported": "· Exported",
     "allCaughtUp": "All caught up",
     "valueValueReady": "{value0} {value1} ready",
-    "study": "Study",
+    "open": "Open",
     "moreActionsForValue": "More actions for {value0}",
     "deleteSet": "Delete set",
     "readyExercises": "{count, plural, one {# exercise ready} other {# exercises ready}}",

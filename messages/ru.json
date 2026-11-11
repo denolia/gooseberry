@@ -358,7 +358,7 @@
     "exported": "· Экспортировано",
     "allCaughtUp": "Всё повторено",
     "valueValueReady": "Готово: {value0} {value1}",
-    "study": "Учить",
+    "open": "Открыть",
     "moreActionsForValue": "Другие действия с набором «{value0}»",
     "deleteSet": "Удалить набор",
     "readyExercises": "{count, plural, one {Доступно # упражнение} few {Доступно # упражнения} many {Доступно # упражнений} other {Доступно # упражнения}}",
