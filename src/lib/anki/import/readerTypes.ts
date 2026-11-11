@@ -1,3 +1,4 @@
+import type { UiMessage } from "@/i18n/messages";
 // JSON-safe source records. Protobuf blobs are retained as base64 in `raw`;
 // Scheduling conversion happens separately after explicit template mapping.
 export type AnkiJsonValue =
@@ -99,7 +100,7 @@ export type AnkiPackage = {
     sourceBytes: number;
     databaseBytes: number;
     omittedMediaCount: number;
-    warnings: string[];
+    warnings: UiMessage[];
   };
 };
 

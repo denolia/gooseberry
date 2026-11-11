@@ -13,7 +13,10 @@ export async function POST(
 ) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -21,7 +24,7 @@ export async function POST(
     const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
       return NextResponse.json(
-        { error: "Word set not found" },
+        { errorCode: "wordSetManager.wordSetNotFound" },
         { status: 404 },
       );
     }
@@ -29,7 +32,10 @@ export async function POST(
     const items = await getWordSetItems(id);
     const cardCount = items.length;
     if (cardCount === 0) {
-      return NextResponse.json({ error: "Word set is empty" }, { status: 400 });
+      return NextResponse.json(
+        { errorCode: "errors.wordSetIsEmpty" },
+        { status: 400 },
+      );
     }
 
     const expires =
@@ -48,7 +54,7 @@ export async function POST(
   } catch (error) {
     console.error("Error creating Anki export link:", error);
     return NextResponse.json(
-      { error: "Failed to prepare AnkiDroid export" },
+      { errorCode: "errors.failedToPrepareAnkidroidExport" },
       { status: 500 },
     );
   }

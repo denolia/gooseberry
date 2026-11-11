@@ -1,3 +1,4 @@
+import { messageErrors, i18n } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -153,6 +154,8 @@ function setup(t, { save, queryOverrides } = {}) {
     ).outputText;
     const exports = {};
     new Function("require", "exports", code)((name) => {
+      if (name === "@/i18n/errors") return messageErrors;
+      if (name === "@/i18n/client") return i18n;
       if (name === "react/jsx-runtime")
         return { jsx, jsxs: jsx, Fragment: "fragment" };
       if (name.endsWith(".module.css")) return { default: {} };
@@ -294,14 +297,22 @@ test("a failed move keeps the modal and destination ready for retry", async (t) 
   const app = setup(t, {
     save: async () =>
       ++attempts === 1
-        ? Response.json({ error: "Destination changed" }, { status: 409 })
+        ? Response.json(
+            {
+              errorCode: "errors.chooseASetWithTheSameSourceAndTargetLanguages",
+            },
+            { status: 409 },
+          )
         : Response.json({ success: true }),
   });
   app.render();
   app.choose("Travel");
   app.submit();
   await tick();
-  assert.match(text(app.render()), /Destination changed/);
+  assert.match(
+    text(app.render()),
+    /Choose a set with the same source and target languages/,
+  );
   assert.equal(app.moved.length, 0);
   assert(!app.button("Move").props.disabled);
   app.submit();

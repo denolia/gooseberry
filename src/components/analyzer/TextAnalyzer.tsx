@@ -1,4 +1,19 @@
 "use client";
+import {
+  languageLabelKey,
+  getLanguageCode,
+  SourceLanguage,
+  SourceLanguages,
+  TargetLanguage,
+} from "@/components/ui/Languages";
+import type { UiMessage } from "@/i18n/messages";
+import {
+  messageFromError,
+  errorFromResponse,
+  MessageError,
+} from "@/i18n/errors";
+
+import { useI18n } from "@/i18n/client";
 
 import {
   useCallback,
@@ -26,12 +41,6 @@ import {
   TranslationResponse,
   TranslationResponseSchema,
 } from "@/app/utils/translationSchema";
-import {
-  getLanguageCode,
-  SourceLanguage,
-  SourceLanguages,
-  TargetLanguage,
-} from "@/components/ui/Languages";
 import { useLanguages } from "@/lib/languages/useLanguages";
 import { BottomPanelLayout } from "@/components/ui/BottomPanelLayout";
 import type { ReaderTextRange } from "@/lib/audio/readerText";
@@ -130,6 +139,7 @@ function responseForCandidate(
 }
 
 export function TextAnalyzer() {
+  const { t } = useI18n();
   const { data: session, status } = useSession();
   const hasPremium = session?.user?.tier === "premium";
   const router = useRouter();
@@ -141,7 +151,7 @@ export function TextAnalyzer() {
   const [selectionPreviewIds, setSelectionPreviewIds] = useState<number[]>([]);
   const [analysis, setAnalysis] = useState<SelectionAnalysis>();
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage | null>(null);
   const [cacheReady, setCacheReady] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [popoverStage, setPopoverStage] = useState<"actions" | "translation">(
@@ -292,7 +302,7 @@ export function TextAnalyzer() {
     setAnalysis(undefined);
     setSelectedTokenIds([]);
     setSelectionPreviewIds([]);
-    setError("");
+    setError(null);
   }, [currentSourceLanguage, currentTargetLanguage]);
 
   function openText() {
@@ -309,7 +319,7 @@ export function TextAnalyzer() {
     setAnalysis(undefined);
     setSelectedTokenIds([]);
     setSelectionPreviewIds([]);
-    setError("");
+    setError(null);
   }
 
   function closePopover() {
@@ -348,7 +358,7 @@ export function TextAnalyzer() {
     activeRequest.current?.abort();
     activeRequest.current = null;
     setIsLoading(false);
-    setError("");
+    setError(null);
     setFocusPopover(keyboard);
     setPopoverStage("actions");
     setPopoverOpen(true);
@@ -383,7 +393,7 @@ export function TextAnalyzer() {
     setSelectionPreviewIds([]);
     setAnalysis(undefined);
     setIsLoading(true);
-    setError("");
+    setError(null);
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
@@ -399,11 +409,11 @@ export function TextAnalyzer() {
       const body = await response.json();
       if (controller.signal.aborted || activeRequest.current !== controller)
         return;
-      if (!response.ok) throw new Error(body.error || "Analysis failed.");
+      if (!response.ok) throw errorFromResponse(body, "errors.analysisFailed");
       setAnalysis(SelectionAnalysisSchema.parse(body));
     } catch (caught) {
       if (!controller.signal.aborted && activeRequest.current === controller) {
-        setError(caught instanceof Error ? caught.message : "Analysis failed.");
+        setError(messageFromError(caught, "errors.analysisFailed"));
       }
     } finally {
       if (activeRequest.current === controller) {
@@ -487,18 +497,15 @@ export function TextAnalyzer() {
     });
     if (!response.ok) {
       const body = await response.json();
-      throw new Error(body.error || "Could not prepare the card.");
+      throw errorFromResponse(body, "errors.couldNotPrepareTheCard");
     }
-    if (!response.body) throw new Error("Translation response is unavailable.");
+    if (!response.body)
+      throw new MessageError("errors.translationResponseIsUnavailable");
     for await (const value of readJsonLines(response.body)) {
       if (!value || typeof value !== "object") continue;
       const event = value as Record<string, unknown>;
       if (event.type === "error") {
-        throw new Error(
-          typeof event.error === "string"
-            ? event.error
-            : "Could not prepare the card.",
-        );
+        throw errorFromResponse(event, "errors.couldNotPrepareTheCard");
       }
       if (event.type === "result") {
         const translated = TranslationResponseSchema.parse(event.response);
@@ -516,12 +523,16 @@ export function TextAnalyzer() {
         };
       }
     }
-    throw new Error("Translation was interrupted. Please try again.");
+    throw new MessageError("errors.translationWasInterruptedPleaseTryAgain");
   }
 
   if (status === "loading") return <div className={styles.empty} />;
   if (status !== "authenticated") {
-    return <div className={styles.empty}>Please sign in to analyze text.</div>;
+    return (
+      <div className={styles.empty}>
+        {t("textAnalyzer.pleaseSignInToAnalyzeText")}
+      </div>
+    );
   }
 
   const candidates = analysis
@@ -532,9 +543,9 @@ export function TextAnalyzer() {
     <div className={styles.container}>
       <header className={styles.intro}>
         <div>
-          <h1>Reader</h1>
+          <h1>{t("textAnalyzer.reader")}</h1>
           {!readerText && (
-            <p>Open a text, then click a word or select a phrase.</p>
+            <p>{t("textAnalyzer.openATextThenClickAWordOrSelectA")}</p>
           )}
         </div>
       </header>
@@ -545,7 +556,9 @@ export function TextAnalyzer() {
             ref={editorRef}
             value={text}
             onChange={(event) => setText(event.target.value)}
-            placeholder={`Paste ${currentSourceLanguage} text…`}
+            placeholder={t("textAnalyzer.pasteValueText", {
+              value0: t(languageLabelKey(currentSourceLanguage)),
+            })}
             rows={6}
             maxLength={20000}
           />
@@ -556,7 +569,7 @@ export function TextAnalyzer() {
                 className={styles.exampleButton}
                 onClick={() => setText(SAMPLE_TEXT)}
               >
-                Use an example
+                {t("textAnalyzer.useAnExample")}
               </button>
             )}
             <span>{text.length.toLocaleString()} / 20,000</span>
@@ -566,7 +579,7 @@ export function TextAnalyzer() {
               onClick={openText}
               disabled={!text.trim()}
             >
-              Open text
+              {t("textAnalyzer.openText")}
             </button>
           </div>
         </div>
@@ -574,7 +587,10 @@ export function TextAnalyzer() {
 
       {readerText && (
         <>
-          <section className={styles.reader} aria-label="Text reader">
+          <section
+            className={styles.reader}
+            aria-label={t("textAnalyzer.textReader")}
+          >
             <div
               className={styles.tokens}
               ref={readerRef}
@@ -635,14 +651,14 @@ export function TextAnalyzer() {
                 className={styles.fullTranslationButton}
                 onClick={() => openTranslation(readerText)}
               >
-                Translate full text →
+                {t("textAnalyzer.translateFullText")}
               </button>
               <button
                 type="button"
                 className={styles.editButton}
                 onClick={editText}
               >
-                Edit text
+                {t("textAnalyzer.editText")}
               </button>
             </div>
           </section>
@@ -668,9 +684,9 @@ export function TextAnalyzer() {
                       }
                       title={
                         !hasPremium
-                          ? "Available with Premium"
+                          ? t("textAnalyzer.availableWithPremium")
                           : !audioAvailable
-                            ? "Loading audio settings…"
+                            ? t("textAnalyzer.loadingAudioSettings")
                             : undefined
                       }
                     >
@@ -684,7 +700,7 @@ export function TextAnalyzer() {
                       >
                         <path d="M6 3.5 16 10 6 16.5z" />
                       </svg>
-                      Listen
+                      {t("textAnalyzer.listen")}
                     </button>
                     <button
                       type="button"
@@ -696,32 +712,35 @@ export function TextAnalyzer() {
                         aria-hidden="true"
                         focusable="false"
                       />
-                      Translate
+                      {t("textAnalyzer.translate")}
                     </button>
                   </div>
                   {!hasPremium && (
                     <p className={styles.selectionNotice}>
-                      Audio reading is available with{" "}
-                      <Link href="/profile">Premium</Link>.
+                      {t("textAnalyzer.audioReadingIsAvailableWith")}{" "}
+                      <Link href="/profile">
+                        {t("premiumTierControl.premium")}
+                      </Link>
+                      .
                     </p>
                   )}
                 </>
               ) : isLoading ? (
                 <div className={styles.loadingCard} role="status">
                   <span className={styles.pulse} aria-hidden="true" />
-                  Checking the selected words and their context…
+                  {t("textAnalyzer.checkingTheSelectedWordsAndTheirContext")}
                 </div>
               ) : error ? (
                 <div className={styles.analysisError}>
                   <p className={styles.error} role="alert">
-                    {error}
+                    {t(error.key, error.values)}
                   </p>
                   <button
                     type="button"
                     className={styles.translationButton}
                     onClick={() => void analyzeSelection(selectedTokenIds)}
                   >
-                    Retry analysis
+                    {t("textAnalyzer.retryAnalysis")}
                   </button>
                 </div>
               ) : candidates.length ? (
@@ -735,9 +754,9 @@ export function TextAnalyzer() {
                       >
                         <div className={styles.matchMeta}>
                           <span>{candidate.kind.replaceAll("-", " ")}</span>
-                          {isBest && <span>best match</span>}
+                          {isBest && <span>{t("textAnalyzer.bestMatch")}</span>}
                           {isDiscontinuous(candidate.tokenIds, tokens) && (
-                            <span>discontinuous</span>
+                            <span>{t("textAnalyzer.discontinuous")}</span>
                           )}
                         </div>
                         <TranslationCard
@@ -775,7 +794,7 @@ export function TextAnalyzer() {
 
   return readerText ? (
     <BottomPanelLayout
-      label="Reader controls"
+      label={t("textAnalyzer.readerControls")}
       panel={
         <ReaderAudioPlayer
           ref={audioPlayerRef}

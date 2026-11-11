@@ -1,10 +1,13 @@
+import { loadSource, messageErrors } from "./helpers/i18n.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import ts from "@typescript/typescript6";
 import * as languages from "../src/components/ui/Languages.ts";
 import * as readerConfig from "../src/lib/audio/readerConfig.ts";
-import * as bodies from "../src/lib/http/readJson.ts";
+const bodies = loadSource(
+  new URL("../src/lib/http/readJson.ts", import.meta.url),
+);
 import { loadReaderSpeechCache } from "./helpers/readerSpeechCache.mjs";
 
 const validInput = {
@@ -39,6 +42,7 @@ function loadRoute({
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
     const dependencies = {
       "@/auth": { auth: async () => session },
       "@/components/ui/Languages": languages,
@@ -190,11 +194,14 @@ test("reader enforces the chunk limit independently of the free pronunciation li
       .status,
     200,
   );
-  assert.equal(
-    (await route.POST(request({ ...validInput, text: "x".repeat(1001) })))
-      .status,
-    400,
+  const tooLong = await route.POST(
+    request({ ...validInput, text: "x".repeat(1001) }),
   );
+  assert.equal(tooLong.status, 400);
+  assert.deepEqual(await tooLong.json(), {
+    errorCode: "errors.eachTextChunkMustBeValueCharactersOrFewer",
+    errorValues: { value0: 1000 },
+  });
   assert.equal(
     (await route.POST(request({ ...validInput, text: "  " }))).status,
     400,

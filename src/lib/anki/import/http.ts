@@ -1,3 +1,4 @@
+import { errorEnvelope } from "@/i18n/errors";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AnkiImportError } from "@/db/ankiImportRepo";
@@ -13,14 +14,19 @@ export async function importBody<T>(request: Request, schema: z.ZodType<T>) {
 export function importErrorResponse(error: unknown) {
   if (error instanceof AnkiImportError || error instanceof BodyReadError) {
     return NextResponse.json(
-      { error: error.message },
+      {
+        ...errorEnvelope(
+          error,
+          "errors.importFailedYourExistingVocabularyAndReviewsHaveNotBeenChanged",
+        ),
+      },
       { status: error.status },
     );
   }
   if (error instanceof z.ZodError) {
     return NextResponse.json(
       {
-        error: "Invalid import data",
+        errorCode: "errors.invalidImportData",
         details: error.issues
           .map((issue) => ({ path: issue.path, message: issue.message }))
           .slice(0, 10),
@@ -36,8 +42,8 @@ export function importErrorResponse(error: unknown) {
   );
   return NextResponse.json(
     {
-      error:
-        "Import failed. Your existing vocabulary and reviews have not been changed.",
+      errorCode:
+        "errors.importFailedYourExistingVocabularyAndReviewsHaveNotBeenChanged",
     },
     { status: 500 },
   );

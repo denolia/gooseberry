@@ -1,3 +1,4 @@
+import { messageErrors } from "./helpers/i18n.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -19,6 +20,7 @@ function loadRoute({ session = { user: { id: "user-1" } } } = {}) {
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
     const mocks = {
       "@/auth": { auth: async () => session },
       "@/components/ui/Languages": {

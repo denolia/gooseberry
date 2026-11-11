@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
   experimental: {
@@ -7,4 +8,4 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["sql.js", "ankipack"],
 };
 
-export default nextConfig;
+export default createNextIntlPlugin()(nextConfig);

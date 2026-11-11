@@ -1,3 +1,6 @@
+import type { ErrorMessageKey, MessageValues } from "@/i18n/messages";
+
+import { MessageError } from "@/i18n/errors";
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db/drizzle";
 import { enrichmentRequest, wordSet, wordSetItem } from "@/db/schema";
@@ -8,12 +11,13 @@ import {
   ENRICHMENT_FIELDS,
 } from "@/lib/anki/enrichment";
 
-export class EnrichmentError extends Error {
+export class EnrichmentError extends MessageError {
   constructor(
-    message: string,
+    key: ErrorMessageKey,
     public status: number,
+    values?: MessageValues,
   ) {
-    super(message);
+    super(key, values);
   }
 }
 
@@ -38,7 +42,7 @@ export async function getEnrichmentItem(
       ),
     )
     .limit(1);
-  if (!row) throw new EnrichmentError("Word not found.", 404);
+  if (!row) throw new EnrichmentError("errors.wordNotFound", 404);
   return { ...row, sourceFields: await getImportNoteContext(itemId, userId) };
 }
 
@@ -99,7 +103,7 @@ export async function reserveEnrichment(input: {
   if (existing) {
     if (!matchesRequest(existing, input))
       throw new EnrichmentError(
-        "This request was already used for different content.",
+        "errors.thisRequestWasAlreadyUsedForDifferentContent",
         409,
       );
     return { request: existing, isNew: false };
@@ -139,7 +143,7 @@ export async function reserveEnrichment(input: {
     if (repeated) {
       if (!matchesRequest(repeated, input))
         throw new EnrichmentError(
-          "This request was already used for different content.",
+          "errors.thisRequestWasAlreadyUsedForDifferentContent",
           409,
         );
       return { request: repeated, isNew: false };
@@ -156,11 +160,11 @@ export async function reserveEnrichment(input: {
       .limit(1);
     if (pending)
       throw new EnrichmentError(
-        "Generation is already running for this word. Try checking it again shortly.",
+        "errors.generationIsAlreadyRunningForThisWordTryCheckingItAgain",
         409,
       );
     throw new EnrichmentError(
-      "The generation allowance or request limit has been reached, or this word changed. Refresh and try again later.",
+      "errors.theGenerationAllowanceOrRequestLimitHasBeenReachedOrThis",
       429,
     );
   }
@@ -169,7 +173,8 @@ export async function reserveEnrichment(input: {
     input.itemId,
     input.requestKey,
   );
-  if (!request) throw new Error("Could not load the generation request.");
+  if (!request)
+    throw new MessageError("errors.couldNotLoadTheGenerationRequest");
   return { request, isNew: true };
 }
 
@@ -210,16 +215,17 @@ export async function applyEnrichment(input: {
     input.itemId,
     input.requestKey,
   );
-  if (!request) throw new EnrichmentError("Generation request not found.", 404);
+  if (!request)
+    throw new EnrichmentError("errors.generationRequestNotFound", 404);
   if (request.status === "applied") return;
   if (request.status !== "completed")
-    throw new EnrichmentError("This proposal is not ready to save.", 409);
+    throw new EnrichmentError("errors.thisProposalIsNotReadyToSave", 409);
   if (
     request.contentRevision !== input.contentRevision ||
     current.item.contentRevision !== input.contentRevision
   )
     throw new EnrichmentError(
-      "This word changed since generation. Review the latest content before generating again.",
+      "errors.thisWordChangedSinceGenerationReviewTheLatestContentBeforeGenerating",
       409,
     );
   const entries = Object.entries(input.values) as [EnrichmentField, string][];
@@ -233,7 +239,7 @@ export async function applyEnrichment(input: {
     )
   )
     throw new EnrichmentError(
-      "Only the requested missing fields can be saved.",
+      "errors.onlyTheRequestedMissingFieldsCanBeSaved",
       400,
     );
   const values = Object.fromEntries(
@@ -292,7 +298,7 @@ export async function applyEnrichment(input: {
     );
     if (latest?.status !== "applied")
       throw new EnrichmentError(
-        "This word changed. Your generated proposal was not saved.",
+        "errors.thisWordChangedYourGeneratedProposalWasNotSaved",
         409,
       );
   }

@@ -1,3 +1,4 @@
+import type { UiMessage } from "@/i18n/messages";
 import type { AnkiNote, AnkiNoteType } from "./readerTypes";
 import type { StudyCardTemplateKey } from "@/lib/review/templates";
 
@@ -94,9 +95,10 @@ export function sanitizeAnkiText(value: string): string {
     .trim();
 }
 
-export function unsupportedNoteTypeReason(model: AnkiNoteType): string | null {
-  if (model.type !== 0)
-    return "Cloze and other nonstandard note types are not supported yet.";
+export function unsupportedNoteTypeReason(
+  model: AnkiNoteType,
+): UiMessage | null {
+  if (model.type !== 0) return { key: "importDeck.clozeUnsupported" };
   if (
     /image[\s_-]*occlusion/i.test(model.name) ||
     model.templates.some((template) =>
@@ -105,7 +107,7 @@ export function unsupportedNoteTypeReason(model: AnkiNoteType): string | null {
       ),
     )
   ) {
-    return "Cloze and image occlusion templates are not supported yet.";
+    return { key: "importDeck.occlusionUnsupported" };
   }
   return null;
 }

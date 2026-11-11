@@ -16,6 +16,13 @@ The goal is not just to return a direct translation, but to give enough context 
 - Generates selected missing fields on request, with editable proposals before saving
 - Exports study material for Anki in `.csv` and `.apkg` formats
 
+## Interface Languages
+
+The interface supports English and Russian. On first use it follows the browser
+language; signed-in users can change and save it in Profile settings. See
+[localization behavior and deployment](docs/localization.md). Apply
+[`0014_interface_locale.sql`](migrations/0014_interface_locale.sql) before deploying.
+
 ## Supported Translation Directions
 
 Source and target selectors support 21 configured languages, including Finnish,

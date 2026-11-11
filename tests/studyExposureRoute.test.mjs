@@ -1,3 +1,4 @@
+import { messageErrors } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -36,6 +37,7 @@ function setup({ session = { user: { id: "user-1" } }, failure } = {}) {
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
     const modules = {
       zod: { z },
       "next/server": { NextResponse: Response },

@@ -1,3 +1,4 @@
+import { messageErrors } from "./helpers/i18n.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -32,6 +33,7 @@ function loadPremiumRepo() {
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
     const mocks = {
       "drizzle-orm": {
         and: () => true,

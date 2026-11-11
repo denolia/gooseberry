@@ -1,3 +1,4 @@
+import { messageErrors } from "./helpers/i18n.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -20,6 +21,7 @@ test("speech generator requests a clear MP3 pronunciation", async () => {
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
     if (name === "./readerConfig") return readerConfig;
     if (name === "./readerSpeechCache")
       return {

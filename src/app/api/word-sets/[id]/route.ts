@@ -31,7 +31,10 @@ export async function GET(
 ) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -40,7 +43,7 @@ export async function GET(
 
     if (!wordSet) {
       return NextResponse.json(
-        { error: "Word set not found" },
+        { errorCode: "wordSetManager.wordSetNotFound" },
         { status: 404 },
       );
     }
@@ -52,7 +55,7 @@ export async function GET(
   } catch (error) {
     console.error("Error fetching word set:", error);
     return NextResponse.json(
-      { error: "Failed to fetch word set" },
+      { errorCode: "errors.failedToFetchWordSet" },
       { status: 500 },
     );
   }
@@ -65,7 +68,10 @@ export async function PATCH(
 ) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -77,7 +83,7 @@ export async function PATCH(
 
     if (!wordSet) {
       return NextResponse.json(
-        { error: "Word set not found" },
+        { errorCode: "wordSetManager.wordSetNotFound" },
         { status: 404 },
       );
     }
@@ -86,13 +92,13 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid input", details: error.message },
+        { errorCode: "errors.invalidInput", details: error.message },
         { status: 400 },
       );
     }
     console.error("Error updating word set:", error);
     return NextResponse.json(
-      { error: "Failed to update word set" },
+      { errorCode: "errors.failedToUpdateWordSet" },
       { status: 500 },
     );
   }
@@ -105,7 +111,10 @@ export async function DELETE(
 ) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -115,7 +124,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Error deleting word set:", error);
     return NextResponse.json(
-      { error: "Failed to delete word set" },
+      { errorCode: "errors.failedToDeleteWordSet" },
       { status: 500 },
     );
   }

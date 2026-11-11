@@ -56,6 +56,7 @@ export const userPreference = pgTable(
     defaultSourceLang: text("default_source_lang").default("German").notNull(),
     defaultTargetLang: text("default_target_lang").default("English").notNull(),
     reviewMode: text("review_mode").default("simple").notNull(),
+    uiLocale: text("ui_locale"),
     newWordsPerDay: integer("new_words_per_day").default(20).notNull(),
     studyTimeZone: text("study_time_zone").default("UTC").notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -63,6 +64,10 @@ export const userPreference = pgTable(
       .notNull(),
   },
   (t) => [
+    check(
+      "user_preference_ui_locale_check",
+      sql`${t.uiLocale} IN ('en', 'ru')`,
+    ),
     check(
       "user_preference_review_mode_check",
       sql`${t.reviewMode} IN ('simple', 'full')`,

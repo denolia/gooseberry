@@ -1,3 +1,4 @@
+import type { MessageKey } from "@/i18n/messages";
 export const Languages = {
   German: "German",
   Norwegian: "Norwegian",
@@ -175,4 +176,37 @@ export function isTargetLanguageCode(
     typeof value === "string" &&
     targetLanguageCodeSet.has(value as TargetLanguageCode)
   );
+}
+
+const LANGUAGE_LABEL_KEYS: Record<SourceLanguage, MessageKey> = {
+  [Languages.German]: "common.german",
+  [Languages.Norwegian]: "common.norwegian",
+  [Languages.English]: "signedOutLanding.english",
+  [Languages.Spanish]: "common.spanish",
+  [Languages.Finnish]: "common.finnish",
+  [Languages.Hungarian]: "common.hungarian",
+  [Languages.French]: "common.french",
+  [Languages.Italian]: "common.italian",
+  [Languages.Portuguese]: "common.portuguese",
+  [Languages.Dutch]: "common.dutch",
+  [Languages.Swedish]: "common.swedish",
+  [Languages.Danish]: "common.danish",
+  [Languages.Polish]: "common.polish",
+  [Languages.Turkish]: "common.turkish",
+  [Languages.Ukrainian]: "common.ukrainian",
+  [Languages.Japanese]: "common.japanese",
+  [Languages.Korean]: "common.korean",
+  [Languages.Chinese]: "common.chinese",
+  [Languages.Arabic]: "common.arabic",
+  [Languages.Hindi]: "common.hindi",
+  [Languages.Russian]: "common.russian",
+};
+
+/** Resolve a stable study-language name/code to its interface label key. */
+export function languageLabelKey(value: string): MessageKey {
+  if (isSourceLanguage(value)) return LANGUAGE_LABEL_KEYS[value];
+  const language = SourceLanguageOptions.find(
+    (language) => LanguageCodes[language] === value,
+  );
+  return language ? LANGUAGE_LABEL_KEYS[language] : "common.unknownLanguage";
 }

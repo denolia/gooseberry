@@ -56,7 +56,10 @@ export async function POST(
 ) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -70,7 +73,7 @@ export async function POST(
 
     if (format !== "apkg" && format !== "csv") {
       return NextResponse.json(
-        { error: "Invalid format. Use 'apkg' or 'csv'" },
+        { errorCode: "errors.invalidFormatUseApkgOrCsv" },
         { status: 400 },
       );
     }
@@ -78,8 +81,8 @@ export async function POST(
     if (includeAudio && !(await hasPremiumAccess(session.user.id))) {
       return NextResponse.json(
         {
-          error:
-            "AI pronunciation in Anki decks is a Premium feature. Request access from your profile.",
+          errorCode:
+            "errors.aiPronunciationInAnkiDecksIsAPremiumFeatureRequestAccess",
         },
         { status: 403 },
       );
@@ -89,7 +92,7 @@ export async function POST(
     const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
       return NextResponse.json(
-        { error: "Word set not found" },
+        { errorCode: "wordSetManager.wordSetNotFound" },
         { status: 404 },
       );
     }
@@ -98,7 +101,10 @@ export async function POST(
     const items = await getWordSetItems(id);
 
     if (items.length === 0) {
-      return NextResponse.json({ error: "Word set is empty" }, { status: 400 });
+      return NextResponse.json(
+        { errorCode: "errors.wordSetIsEmpty" },
+        { status: 400 },
+      );
     }
 
     let ankiNotes = items.map((item) => mapWordSetItemToAnkiNote(item, true));
@@ -110,8 +116,8 @@ export async function POST(
     ) {
       return NextResponse.json(
         {
-          error:
-            "Some words have no usable exercise. Complete their missing content before exporting an Anki deck, or export CSV to keep incomplete words.",
+          errorCode:
+            "errors.someWordsHaveNoUsableExerciseCompleteTheirMissingContentBefore",
         },
         { status: 400 },
       );
@@ -120,7 +126,9 @@ export async function POST(
     if (includeAudio && items.length > MAX_AUDIO_EXPORT_ITEMS) {
       return NextResponse.json(
         {
-          error: `Audio exports currently support up to ${MAX_AUDIO_EXPORT_ITEMS} cards. Remove some cards from this set or export without pronunciation.`,
+          errorCode:
+            "errors.audioExportsCurrentlySupportUpToValueCardsRemoveSomeCards",
+          errorValues: { value0: MAX_AUDIO_EXPORT_ITEMS },
         },
         { status: 400 },
       );
@@ -204,10 +212,7 @@ export async function POST(
 
       if (apkgBuffer.length > MAX_DIRECT_EXPORT_BYTES) {
         return NextResponse.json(
-          {
-            error:
-              "This deck is too large to download with audio right now. Try exporting without AI pronunciation.",
-          },
+          { errorCode: "errors.thisDeckIsTooLargeToDownloadWithAudioRightNow" },
           { status: 413 },
         );
       }
@@ -228,7 +233,7 @@ export async function POST(
   } catch (error) {
     console.error("Error exporting word set:", error);
     return NextResponse.json(
-      { error: "Failed to export word set" },
+      { errorCode: "errors.failedToExportWordSet" },
       { status: 500 },
     );
   }

@@ -1,3 +1,4 @@
+import { errorEnvelope } from "@/i18n/errors";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -41,7 +42,10 @@ export async function GET(
 ) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -86,13 +90,16 @@ export async function GET(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid review queue request", details: error.message },
+        {
+          errorCode: "errors.invalidReviewQueueRequest",
+          details: error.message,
+        },
         { status: 400 },
       );
     }
     console.error("Error loading review card:", error);
     return NextResponse.json(
-      { error: "Failed to load review card" },
+      { errorCode: "errors.failedToLoadReviewCard" },
       { status: 500 },
     );
   }
@@ -104,7 +111,10 @@ export async function POST(
 ) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -135,26 +145,32 @@ export async function POST(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid review", details: error.message },
+        { errorCode: "errors.invalidReview", details: error.message },
         { status: 400 },
       );
     }
     if (error instanceof ReviewCardNotFoundError) {
-      return NextResponse.json({ error: error.message }, { status: 404 });
+      return NextResponse.json(
+        { ...errorEnvelope(error, "errors.failedToRecordReview") },
+        { status: 404 },
+      );
     }
     if (error instanceof ReviewCardNotDueError) {
-      return NextResponse.json({ error: error.message }, { status: 409 });
+      return NextResponse.json(
+        { ...errorEnvelope(error, "errors.failedToRecordReview") },
+        { status: 409 },
+      );
     }
     if (error instanceof ReviewWriteConflictError) {
       return NextResponse.json(
-        { error: "The card changed. Please try again." },
+        { errorCode: "errors.theCardChangedPleaseTryAgain" },
         { status: 409 },
       );
     }
 
     console.error("Error recording review:", error);
     return NextResponse.json(
-      { error: "Failed to record review" },
+      { errorCode: "errors.failedToRecordReview" },
       { status: 500 },
     );
   }

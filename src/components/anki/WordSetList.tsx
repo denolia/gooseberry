@@ -1,4 +1,15 @@
 "use client";
+import { formatError, MessageError } from "@/i18n/errors";
+import {
+  languageLabelKey,
+  getLanguageCode,
+  SourceLanguageCode,
+  SourceLanguageSelectOptions,
+  TargetLanguageCode,
+  TargetLanguageSelectOptions,
+} from "@/components/ui/Languages";
+
+import { useI18n } from "@/i18n/client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -7,13 +18,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { EllipsisVertical } from "lucide-react";
 import styles from "./WordSetList.module.css";
-import {
-  getLanguageCode,
-  SourceLanguageCode,
-  SourceLanguageSelectOptions,
-  TargetLanguageCode,
-  TargetLanguageSelectOptions,
-} from "@/components/ui/Languages";
 import { useLanguages } from "@/lib/languages/useLanguages";
 import { StudyPlant } from "@/components/review/StudyPlant";
 import { plantReadinessStage } from "@/lib/review/stats";
@@ -33,6 +37,7 @@ interface WordSet {
 }
 
 export function WordSetList() {
+  const { t } = useI18n();
   const { data: session, status } = useSession();
   const { currentSourceLanguage, currentTargetLanguage } = useLanguages();
   const router = useRouter();
@@ -57,7 +62,7 @@ export function WordSetList() {
     enabled: status === "authenticated" && Boolean(session?.user?.id),
     queryFn: async (): Promise<WordSet[]> => {
       const response = await fetch("/api/word-sets");
-      if (!response.ok) throw new Error("Failed to load word sets");
+      if (!response.ok) throw new MessageError("errors.failedToLoadWordSets");
       const data = await response.json();
       return data.wordSets;
     },
@@ -75,7 +80,7 @@ export function WordSetList() {
         }),
       });
 
-      if (!response.ok) throw new Error("Failed to create word set");
+      if (!response.ok) throw new MessageError("errors.failedToCreateWordSet");
       return response.json();
     },
     onSuccess: (data) => {
@@ -92,7 +97,7 @@ export function WordSetList() {
         method: "DELETE",
       });
 
-      if (!response.ok) throw new Error("Failed to delete word set");
+      if (!response.ok) throw new MessageError("errors.failedToDeleteWordSet");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: wordSetsQueryKey });
@@ -106,17 +111,17 @@ export function WordSetList() {
     try {
       await createMutation.mutateAsync();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to create word set");
+      alert(formatError(t, err, "errors.failedToCreateWordSet"));
     }
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    if (!confirm(t("wordSetList.deleteConfirmation", { name }))) return;
 
     try {
       await deleteMutation.mutateAsync({ id });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete word set");
+      alert(formatError(t, err, "errors.failedToDeleteWordSet"));
     }
   };
 
@@ -124,13 +129,13 @@ export function WordSetList() {
     status === "loading" ||
     (status === "authenticated" && !!session?.user?.id && isPending)
   ) {
-    return <div className={styles.loading}>Loading...</div>;
+    return <div className={styles.loading}>{t("wordSetList.loading")}</div>;
   }
 
   if (status === "unauthenticated") {
     return (
       <div className={styles.unauthenticated}>
-        Please sign in to manage word sets.
+        {t("wordSetList.pleaseSignInToManageWordSets")}
       </div>
     );
   }
@@ -138,28 +143,31 @@ export function WordSetList() {
   if (!session?.user?.id) {
     return (
       <div className={styles.error}>
-        Your session could not be initialized. Please sign out and sign in
-        again.
+        {t("wordSetList.yourSessionCouldNotBeInitializedPleaseSignOutAnd")}
       </div>
     );
   }
 
   if (error) {
-    return <div className={styles.error}>{error.message}</div>;
+    return (
+      <div className={styles.error}>
+        {formatError(t, error, "errors.failedToLoadWordSets")}
+      </div>
+    );
   }
 
   return (
     <div className={styles.container}>
       <div className={styles.header}>
         <div>
-          <h2>Your study sets</h2>
+          <h2>{t("wordSetList.yourStudySets")}</h2>
           <p className={styles.setMeta}>
-            Save words as you translate. Study, refine, or export them here.
+            {t("wordSetList.saveWordsAsYouTranslateStudyRefineOrExportThem")}
           </p>
         </div>
         <div className={styles.headerActions}>
           <Link className={styles.importButton} href="/anki/import">
-            Import Anki deck
+            {t("wordSetList.importAnkiDeck")}
           </Link>
           <button
             className={styles.createButton}
@@ -175,7 +183,9 @@ export function WordSetList() {
               setShowCreateForm(!showCreateForm);
             }}
           >
-            {showCreateForm ? "Cancel" : "+ New set"}
+            {showCreateForm
+              ? t("moveWordDialog.cancel")
+              : t("translationCard.newSet")}
           </button>
         </div>
       </div>
@@ -184,9 +194,9 @@ export function WordSetList() {
         <form onSubmit={handleCreate} className={styles.createForm}>
           <input
             type="text"
-            aria-label="Set name"
+            aria-label={t("importDeck.setName")}
             maxLength={200}
-            placeholder="Set name (e.g., 'German Verbs')"
+            placeholder={t("wordSetList.setNameEGGermanVerbs")}
             value={createName}
             onChange={(e) => setCreateName(e.target.value)}
             className={styles.input}
@@ -194,7 +204,7 @@ export function WordSetList() {
           />
           <div className={styles.languageRow}>
             <select
-              aria-label="Source language"
+              aria-label={t("wordSetList.sourceLanguage")}
               value={createSourceLang}
               onChange={(e) =>
                 setCreateSourceLang(e.target.value as SourceLanguageCode)
@@ -203,13 +213,13 @@ export function WordSetList() {
             >
               {SourceLanguageSelectOptions.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {t(languageLabelKey(option.value))}
                 </option>
               ))}
             </select>
             <span>→</span>
             <select
-              aria-label="Translation language"
+              aria-label={t("importDeck.translationLanguage")}
               value={createTargetLang}
               onChange={(e) =>
                 setCreateTargetLang(e.target.value as TargetLanguageCode)
@@ -218,7 +228,7 @@ export function WordSetList() {
             >
               {TargetLanguageSelectOptions.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {t(languageLabelKey(option.value))}
                 </option>
               ))}
             </select>
@@ -228,7 +238,9 @@ export function WordSetList() {
             className={styles.submitButton}
             disabled={createMutation.isPending}
           >
-            {createMutation.isPending ? "Creating..." : "Create set"}
+            {createMutation.isPending
+              ? t("wordSetList.creating")
+              : t("wordSetList.createSet")}
           </button>
         </form>
       )}
@@ -236,22 +248,25 @@ export function WordSetList() {
       {wordSets.length > 0 && (
         <input
           className={styles.search}
-          aria-label="Search sets"
-          placeholder="Find a set…"
+          aria-label={t("wordSetList.searchSets")}
+          placeholder={t("wordSetList.findASet")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       )}
       {wordSets.length === 0 ? (
         <div className={styles.empty}>
-          Your next translation can be your first card. Create a set here or
-          save a word directly from a translation.
+          {t("wordSetList.yourNextTranslationCanBeYourFirstCardCreateA")}
         </div>
       ) : (
         <div className={styles.list}>
           {!wordSets.some((set) =>
             set.name.toLowerCase().includes(search.toLowerCase()),
-          ) && <p className={styles.empty}>No sets match “{search}”.</p>}
+          ) && (
+            <p className={styles.empty}>
+              {t("wordSetList.noMatches", { search })}
+            </p>
+          )}
           {wordSets
             .filter((set) =>
               set.name.toLowerCase().includes(search.toLowerCase()),
@@ -267,7 +282,9 @@ export function WordSetList() {
                   <Link
                     className={styles.cardContent}
                     href={`/anki/${set.id}/review`}
-                    aria-label={`Study ${set.name}`}
+                    aria-label={t("wordSetList.studyValue", {
+                      value0: set.name,
+                    })}
                     aria-disabled={reviewStats.dueCount === 0}
                     onClick={(event) => {
                       if (reviewStats.dueCount === 0) event.preventDefault();
@@ -284,14 +301,17 @@ export function WordSetList() {
                       <h3 className={styles.setName}>{set.name}</h3>
                       <div className={styles.setMeta}>
                         {set.sourceLang.toUpperCase()} →{" "}
-                        {set.targetLang.toUpperCase()} · {reviewStats.itemCount}{" "}
-                        {reviewStats.itemCount === 1 ? "word" : "words"}
+                        {set.targetLang.toUpperCase()} ·{" "}
+                        {t("common.wordCount", {
+                          count: reviewStats.itemCount,
+                        })}
                         {" · "}
-                        {reviewStats.cardCount}{" "}
-                        {reviewStats.cardCount === 1 ? "exercise" : "exercises"}
+                        {t("common.exerciseCount", {
+                          count: reviewStats.cardCount,
+                        })}
                         {set.lastExportedAt && (
                           <span className={styles.exported}>
-                            · Exported{" "}
+                            {t("wordSetList.exported")}{" "}
                             {new Date(set.lastExportedAt).toLocaleDateString()}
                           </span>
                         )}
@@ -300,8 +320,10 @@ export function WordSetList() {
                         className={`${styles.readiness} ${reviewStats.dueCount > 0 ? styles.hasReviews : ""}`}
                       >
                         {reviewStats.dueCount === 0
-                          ? "All caught up"
-                          : `${reviewStats.dueCount} ${reviewStats.dueCount === 1 ? "exercise" : "exercises"} ready`}
+                          ? t("wordSetList.allCaughtUp")
+                          : t("wordSetList.readyExercises", {
+                              count: reviewStats.dueCount,
+                            })}
                       </p>
                     </div>
                   </Link>
@@ -314,10 +336,14 @@ export function WordSetList() {
                         if (reviewStats.dueCount === 0) event.preventDefault();
                       }}
                     >
-                      Study
+                      {t("wordSetList.study")}
                     </Link>
                     <details className={styles.moreMenu}>
-                      <summary aria-label={`More actions for ${set.name}`}>
+                      <summary
+                        aria-label={t("wordSetList.moreActionsForValue", {
+                          value0: set.name,
+                        })}
+                      >
                         <EllipsisVertical
                           size={18}
                           aria-hidden="true"
@@ -325,12 +351,14 @@ export function WordSetList() {
                         />
                       </summary>
                       <div className={styles.moreMenuContent}>
-                        <Link href={`/anki/${set.id}`}>Open set</Link>
+                        <Link href={`/anki/${set.id}`}>
+                          {t("importDeck.openSet")}
+                        </Link>
                         <button
                           disabled={deleteMutation.isPending}
                           onClick={() => void handleDelete(set.id, set.name)}
                         >
-                          Delete set
+                          {t("wordSetList.deleteSet")}
                         </button>
                       </div>
                     </details>

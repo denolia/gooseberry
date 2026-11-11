@@ -1,3 +1,4 @@
+import type { MessageKey } from "@/i18n/messages";
 export const READER_CHUNK_CHARACTERS = 1000;
 export const MAX_READER_CHARACTERS = 20000;
 
@@ -22,12 +23,16 @@ export type ReaderVoice = (typeof READER_VOICES)[number]["id"];
 // These multipliers control native audio playback; generation always produces
 // normal-speed audio.
 export const READER_SPEEDS = [
-  { id: "very-slow", label: "Very slow", speed: 0.3 },
-  { id: "slow", label: "Slow", speed: 0.5 },
-  { id: "Slower", label: "Slower", speed: 0.7 },
-  { id: "normal", label: "Normal", speed: 1 },
-  { id: "fast", label: "Fast", speed: 1.5 },
-] as const;
+  { id: "very-slow", labelKey: "common.verySlow", speed: 0.3 },
+  { id: "slow", labelKey: "common.slow", speed: 0.5 },
+  { id: "Slower", labelKey: "common.slower", speed: 0.7 },
+  { id: "normal", labelKey: "common.normal", speed: 1 },
+  { id: "fast", labelKey: "common.fast", speed: 1.5 },
+] as const satisfies readonly {
+  id: string;
+  labelKey: MessageKey;
+  speed: number;
+}[];
 
 export type ReaderSpeed = (typeof READER_SPEEDS)[number]["id"];
 

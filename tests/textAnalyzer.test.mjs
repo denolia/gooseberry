@@ -1,3 +1,4 @@
+import { messageErrors, i18n } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -227,6 +228,8 @@ function setup(
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
+    if (name === "@/i18n/client") return i18n;
     const dependencies = {
       react,
       "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
@@ -944,7 +947,10 @@ test("Translate and Retry are explicit, results have only the card translation a
   const ui = setup(t, {
     response: (_request, index) =>
       index === 1
-        ? Response.json({ error: "Analysis unavailable" }, { status: 503 })
+        ? Response.json(
+            { errorCode: "errors.couldNotAnalyzeThisSelectionPleaseTryAgain" },
+            { status: 503 },
+          )
         : Response.json(analysis()),
   });
   await ui.ready();
@@ -955,7 +961,7 @@ test("Translate and Retry are explicit, results have only the card translation a
   const id = ui.popup().props.id;
   ui.translate();
   await ui.settle();
-  assert.match(text(ui.popup()), /Analysis unavailable/);
+  assert.match(text(ui.popup()), /Could not analyze this selection/);
   assert.equal(ui.popup().props.id, id);
   assert.equal(
     nodes(

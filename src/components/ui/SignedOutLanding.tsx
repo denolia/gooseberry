@@ -1,4 +1,7 @@
 "use client";
+import { languageLabelKey } from "@/components/ui/Languages";
+
+import { useI18n } from "@/i18n/client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { signIn } from "next-auth/react";
@@ -64,25 +67,29 @@ const glyphs = [
 const steps = [
   {
     number: "01",
-    title: "Find a word.",
-    text: "A word that stops you. A sentence you almost understand. Start with whatever makes you curious.",
-    detail: "Translate words & phrases",
+    titleKey: "signedOutLanding.findAWord",
+    textKey:
+      "signedOutLanding.aWordThatStopsYouASentenceYouAlmostUnderstandStart",
+    detailKey: "signedOutLanding.translateWordsPhrases",
   },
   {
     number: "02",
-    title: "Find the meaning.",
-    text: "Go beyond the translation. Explore grammar, examples, and the little details that make a word click.",
-    detail: "Understand in context",
+    titleKey: "signedOutLanding.findTheMeaning",
+    textKey:
+      "signedOutLanding.goBeyondTheTranslationExploreGrammarExamplesAndTheLittleDetails",
+    detailKey: "signedOutLanding.understandInContext",
   },
   {
     number: "03",
-    title: "Make it yours.",
-    text: "Collect your discoveries in word sets. Export them to Anki and keep them with you for the long run.",
-    detail: "Collect & practice with Anki",
+    titleKey: "signedOutLanding.makeItYours",
+    textKey:
+      "signedOutLanding.collectYourDiscoveriesInWordSetsExportThemToAnkiAnd",
+    detailKey: "signedOutLanding.collectPracticeWithAnki",
   },
-];
+] as const;
 
 export function SignedOutLanding() {
+  const { t } = useI18n();
   const [activeWord, setActiveWord] = useState(0);
   const [paused, setPaused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(true);
@@ -140,22 +147,29 @@ export function SignedOutLanding() {
       data-paused={paused || reducedMotion || !pageVisible}
     >
       <a className={styles.skipLink} href="#landing-main">
-        Skip to content
+        {t("signedOutLanding.skipToContent")}
       </a>
       <header className={styles.header}>
-        <Link href="/" className={styles.logo} aria-label="Learn.words home">
+        <Link
+          href="/"
+          className={styles.logo}
+          aria-label={t("signedOutLanding.learnWordsHome")}
+        >
           LEARN.words
         </Link>
-        <nav className={styles.navigation} aria-label="Landing page">
+        <nav
+          className={styles.navigation}
+          aria-label={t("signedOutLanding.landingPage")}
+        >
           <a className={styles.aboutLink} href="#how-it-works">
-            The idea
+            {t("signedOutLanding.theIdea")}
           </a>
           <button
             className={styles.signIn}
             onClick={startLearning}
             disabled={signingIn}
           >
-            {signingIn ? "Connecting…" : "Sign in"}
+            {signingIn ? t("signedOutLanding.connecting") : t("header.signIn")}
             <span aria-hidden="true">↗</span>
           </button>
         </nav>
@@ -169,18 +183,23 @@ export function SignedOutLanding() {
         >
           <div className={styles.heroCopy}>
             <p className={styles.eyebrow}>
-              <span className={styles.blueDot} /> A little curiosity. A whole
-              new world.
+              <span className={styles.blueDot} />{" "}
+              {t("signedOutLanding.aLittleCuriosityAWholeNewWorld")}
             </p>
             <h1 id="landing-title">
-              Strange letters.
+              {t("signedOutLanding.strangeLetters")}
               <br />
-              Familiar <span className={styles.meaning}>feelings.</span>
+              {t("signedOutLanding.familiar")}{" "}
+              <span className={styles.meaning}>
+                {t("signedOutLanding.feelings")}
+              </span>
             </h1>
             <p className={styles.intro}>
-              Then, suddenly, it clicks.
+              {t("signedOutLanding.thenSuddenlyItClicks")}
               <br />
-              Turn the words you discover into a language that feels like yours.
+              {t(
+                "signedOutLanding.turnTheWordsYouDiscoverIntoALanguageThatFeels",
+              )}
             </p>
             <div className={styles.heroActions}>
               <button
@@ -188,18 +207,20 @@ export function SignedOutLanding() {
                 onClick={startLearning}
                 disabled={signingIn}
               >
-                {signingIn ? "Connecting…" : "Find your first word"}
+                {signingIn
+                  ? t("signedOutLanding.connecting")
+                  : t("signedOutLanding.findYourFirstWord")}
                 <span aria-hidden="true">↗</span>
               </button>
               <span className={styles.ctaNote}>
-                Your curiosity. Your vocabulary.
+                {t("signedOutLanding.yourCuriosityYourVocabulary")}
               </span>
             </div>
           </div>
 
           <div className={styles.wordScene} data-paused={motionPaused}>
             <div className={styles.sceneTopline}>
-              <span>From letters to possibility</span>
+              <span>{t("signedOutLanding.fromLettersToPossibility")}</span>
               <span>0{activeWord + 1} / 04</span>
             </div>
             <div className={styles.constellation} aria-hidden="true">
@@ -248,7 +269,9 @@ export function SignedOutLanding() {
             </div>
             <div className={styles.wordMeaning}>
               <span className={styles.wordLanguage}>
-                {word.language} <span aria-hidden="true">→</span> English
+                {t(languageLabelKey(word.language))}{" "}
+                <span aria-hidden="true">→</span>{" "}
+                {t("signedOutLanding.english")}
               </span>
               <p>
                 <span lang={word.code}>{word.word}</span>
@@ -259,12 +282,15 @@ export function SignedOutLanding() {
               <div
                 className={styles.languageButtons}
                 role="group"
-                aria-label="Explore a word"
+                aria-label={t("signedOutLanding.exploreAWord")}
               >
                 {words.map((item, index) => (
                   <button
                     key={item.code}
-                    aria-label={`Explore ${item.language}: ${item.word}`}
+                    aria-label={t("signedOutLanding.exploreValueValue", {
+                      value0: t(languageLabelKey(item.language)),
+                      value1: item.word,
+                    })}
                     aria-pressed={activeWord === index}
                     className={
                       activeWord === index ? styles.languageActive : undefined
@@ -284,24 +310,33 @@ export function SignedOutLanding() {
                 onClick={() => setPaused((current) => !current)}
                 aria-label={
                   reducedMotion
-                    ? "Animations disabled by reduced motion preference"
+                    ? t(
+                        "signedOutLanding.animationsDisabledByReducedMotionPreference",
+                      )
                     : paused
-                      ? "Play animations"
-                      : "Pause animations"
+                      ? t("signedOutLanding.playAnimations")
+                      : t("signedOutLanding.pauseAnimations")
                 }
               >
                 <span aria-hidden="true">
                   {paused || reducedMotion ? "▷" : "Ⅱ"}
                 </span>
-                {reducedMotion ? "Still mode" : paused ? "Play" : "Pause"}
+                {reducedMotion
+                  ? t("signedOutLanding.stillMode")
+                  : paused
+                    ? t("signedOutLanding.play")
+                    : t("signedOutLanding.pause")}
               </button>
             </div>
           </div>
 
           <div className={styles.heroFooter}>
-            <span>Different alphabets. Shared humanity.</span>
+            <span>
+              {t("signedOutLanding.differentAlphabetsSharedHumanity")}
+            </span>
             <a href="#how-it-works">
-              Make sense of it <span aria-hidden="true">↓</span>
+              {t("signedOutLanding.makeSenseOfIt")}{" "}
+              <span aria-hidden="true">↓</span>
             </a>
           </div>
         </section>
@@ -312,16 +347,19 @@ export function SignedOutLanding() {
           aria-labelledby="how-title"
         >
           <div className={styles.sectionHeading}>
-            <p className={styles.eyebrow}>Less memorising. More meaning.</p>
+            <p className={styles.eyebrow}>
+              {t("signedOutLanding.lessMemorisingMoreMeaning")}
+            </p>
             <h2 id="how-title">
-              A word is only
+              {t("signedOutLanding.aWordIsOnly")}
               <br />
-              the <span>beginning.</span>
+              {t("signedOutLanding.the")}{" "}
+              <span>{t("signedOutLanding.beginning")}</span>
             </h2>
             <p>
-              A conversation. A connection. A new way to see things.
+              {t("signedOutLanding.aConversationAConnectionANewWayToSeeThings")}
               <br />
-              Build a vocabulary that means something to you.
+              {t("signedOutLanding.buildAVocabularyThatMeansSomethingToYou")}
             </p>
           </div>
           <div className={styles.steps}>
@@ -331,10 +369,10 @@ export function SignedOutLanding() {
                   {step.number}
                   <span aria-hidden="true"> /</span>
                 </span>
-                <h3>{step.title}</h3>
-                <p>{step.text}</p>
+                <h3>{t(step.titleKey)}</h3>
+                <p>{t(step.textKey)}</p>
                 <span className={styles.stepDetail}>
-                  {step.detail}
+                  {t(step.detailKey)}
                   <span aria-hidden="true">↗</span>
                 </span>
               </article>
@@ -348,7 +386,7 @@ export function SignedOutLanding() {
         >
           <div className={styles.exampleCard}>
             <div className={styles.cardTopline}>
-              <span>A little moment of understanding</span>
+              <span>{t("signedOutLanding.aLittleMomentOfUnderstanding")}</span>
               <span aria-hidden="true">↗</span>
             </div>
             <p className={styles.exampleWord} lang={word.code}>
@@ -360,27 +398,30 @@ export function SignedOutLanding() {
               <p>{word.translation}</p>
             </div>
             <div className={styles.cardBottomline}>
-              <span>{word.language} → English</span>
-              <span>Example preview</span>
+              <span>
+                {t(languageLabelKey(word.language))}{" "}
+                {t("signedOutLanding.english2")}
+              </span>
+              <span>{t("signedOutLanding.examplePreview")}</span>
             </div>
           </div>
           <div className={styles.contextCopy}>
-            <p className={styles.eyebrow}>Let it become second nature</p>
-            <h2 id="context-title">
-              Translated
-              <br />
-              <span>and understood.</span>
-            </h2>
-            <p>
-              See a word in a sentence. Get to know its forms. Save it for
-              later. Give every new discovery a little space to stay.
+            <p className={styles.eyebrow}>
+              {t("signedOutLanding.letItBecomeSecondNature")}
             </p>
+            <h2 id="context-title">
+              {t("signedOutLanding.translated")}
+              <br />
+              <span>{t("signedOutLanding.andUnderstood")}</span>
+            </h2>
+            <p>{t("signedOutLanding.seeAWordInASentenceGetToKnowIts")}</p>
             <button
               className={styles.textButton}
               onClick={startLearning}
               disabled={signingIn}
             >
-              Start making connections <span aria-hidden="true">↗</span>
+              {t("signedOutLanding.startMakingConnections")}{" "}
+              <span aria-hidden="true">↗</span>
             </button>
           </div>
         </section>
@@ -389,16 +430,21 @@ export function SignedOutLanding() {
           <span className={styles.finalGlyph} aria-hidden="true">
             æ
           </span>
-          <p className={styles.eyebrow}>There’s a word for what comes next.</p>
+          <p className={styles.eyebrow}>
+            {t("signedOutLanding.thereSAWordForWhatComesNext")}
+          </p>
           <h2 id="start-title">
-            Go find <span>yours.</span>
+            {t("signedOutLanding.goFind")}{" "}
+            <span>{t("signedOutLanding.yours")}</span>
           </h2>
           <button
             className={styles.primaryButton}
             onClick={startLearning}
             disabled={signingIn}
           >
-            {signingIn ? "Connecting…" : "Start with Google"}
+            {signingIn
+              ? t("signedOutLanding.connecting")
+              : t("signedOutLanding.startWithGoogle")}
             <span aria-hidden="true">↗</span>
           </button>
         </section>
@@ -408,14 +454,14 @@ export function SignedOutLanding() {
         <Link href="/" className={styles.logo}>
           LEARN.words
         </Link>
-        <span>Stay curious. The world has a lot to say.</span>
-        <a href="#landing-main">Back to top ↑</a>
+        <span>{t("signedOutLanding.stayCuriousTheWorldHasALotToSay")}</span>
+        <a href="#landing-main">{t("signedOutLanding.backToTop")}</a>
       </footer>
       {signInError && (
         <div className={styles.error} role="alert">
-          Couldn’t connect to Google. Please try signing in again.
+          {t("signedOutLanding.couldnTConnectToGooglePleaseTrySigningInAgain")}
           <button
-            aria-label="Dismiss sign-in error"
+            aria-label={t("signedOutLanding.dismissSignInError")}
             onClick={() => setSignInError(false)}
           >
             ×

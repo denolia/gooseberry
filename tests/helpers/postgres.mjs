@@ -1,3 +1,4 @@
+import { messageErrors } from "./i18n.mjs";
 import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -57,6 +58,7 @@ export async function createPostgresFixture() {
     });
   const modules = new Map();
   function load(name, parent = path.join(project, "src")) {
+    if (name === "@/i18n/errors") return messageErrors;
     if (name === "@/db/drizzle") return { getDb: () => database };
     const filename = name.startsWith("@/")
       ? path.join(project, "src", `${name.slice(2)}.ts`)

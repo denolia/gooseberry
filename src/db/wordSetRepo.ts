@@ -1,3 +1,5 @@
+import { MessageError } from "@/i18n/errors";
+import type { ErrorMessageKey, MessageValues } from "@/i18n/messages";
 import { getDb } from "@/db/drizzle";
 import { studyCard, wordSet, wordSetItem } from "@/db/schema";
 import { and, eq, desc, inArray, sql } from "drizzle-orm";
@@ -243,12 +245,13 @@ export async function deleteWordSetItem(wordSetId: string, itemId: string) {
   return item ?? null;
 }
 
-export class MoveWordSetItemError extends Error {
+export class MoveWordSetItemError extends MessageError {
   constructor(
-    message: string,
+    key: ErrorMessageKey,
     public status: 400 | 404 | 409,
+    values?: MessageValues,
   ) {
-    super(message);
+    super(key, values);
   }
 }
 
@@ -260,20 +263,20 @@ export async function moveWordSetItem(input: {
 }) {
   const { userId, sourceWordSetId, destinationWordSetId, itemId } = input;
   if (sourceWordSetId === destinationWordSetId) {
-    throw new MoveWordSetItemError("Choose another set.", 400);
+    throw new MoveWordSetItemError("errors.chooseAnotherSet", 400);
   }
   const [source, destination] = await Promise.all([
     getWordSet(sourceWordSetId, userId),
     getWordSet(destinationWordSetId, userId),
   ]);
   if (!source || !destination)
-    throw new MoveWordSetItemError("Word set not found.", 404);
+    throw new MoveWordSetItemError("errors.wordSetNotFound", 404);
   if (
     source.sourceLang !== destination.sourceLang ||
     source.targetLang !== destination.targetLang
   ) {
     throw new MoveWordSetItemError(
-      "Choose a set with the same source and target languages.",
+      "errors.chooseASetWithTheSameSourceAndTargetLanguages",
       400,
     );
   }
@@ -307,7 +310,7 @@ export async function moveWordSetItem(input: {
     while (cause && typeof cause === "object") {
       if ("code" in cause && cause.code === "23505") {
         throw new MoveWordSetItemError(
-          "This set already contains this imported word. Choose another set.",
+          "errors.thisSetAlreadyContainsThisImportedWordChooseAnotherSet",
           409,
         );
       }
@@ -321,7 +324,7 @@ export async function moveWordSetItem(input: {
   if (item?.wordSetId === destinationWordSetId)
     return { id: item.id, wordSetId: destinationWordSetId };
   throw new MoveWordSetItemError(
-    "This word is no longer in the source set. Refresh and try again.",
+    "errors.thisWordIsNoLongerInTheSourceSetRefreshAnd",
     409,
   );
 }

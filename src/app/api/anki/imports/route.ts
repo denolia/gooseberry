@@ -7,7 +7,10 @@ import { importBody, importErrorResponse } from "@/lib/anki/import/http";
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   try {
     return NextResponse.json({
       imports: await listAnkiImports(session.user.id),
@@ -19,7 +22,10 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   try {
     const input = await importBody(request, BeginImportSchema);
     return NextResponse.json(await beginAnkiImport(session.user.id, input), {

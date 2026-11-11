@@ -1,7 +1,9 @@
-export class BodyReadError extends Error {
+import { MessageError } from "@/i18n/errors";
+import type { ErrorMessageKey, MessageValues } from "@/i18n/messages";
+export class BodyReadError extends MessageError {
   status: number;
-  constructor(message: string, status: number) {
-    super(message);
+  constructor(key: ErrorMessageKey, status: number, values?: MessageValues) {
+    super(key, values);
     this.status = status;
   }
 }
@@ -12,9 +14,10 @@ export async function readBoundedJson(
 ): Promise<unknown> {
   const declared = request.headers.get("content-length");
   if (declared && (!/^\d+$/.test(declared) || Number(declared) > maxBytes))
-    throw new BodyReadError("The request is too large.", 413);
+    throw new BodyReadError("errors.theRequestIsTooLarge", 413);
   const reader = request.body?.getReader();
-  if (!reader) throw new BodyReadError("A JSON request body is required.", 400);
+  if (!reader)
+    throw new BodyReadError("errors.aJsonRequestBodyIsRequired", 400);
   const chunks: Uint8Array[] = [];
   let size = 0;
   try {
@@ -24,7 +27,7 @@ export async function readBoundedJson(
       size += value.byteLength;
       if (size > maxBytes) {
         await reader.cancel();
-        throw new BodyReadError("The request is too large.", 413);
+        throw new BodyReadError("errors.theRequestIsTooLarge", 413);
       }
       chunks.push(value);
     }
@@ -40,6 +43,6 @@ export async function readBoundedJson(
   try {
     return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
   } catch {
-    throw new BodyReadError("The request must contain valid JSON.", 400);
+    throw new BodyReadError("errors.theRequestMustContainValidJson", 400);
   }
 }

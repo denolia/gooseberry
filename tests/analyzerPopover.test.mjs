@@ -1,3 +1,4 @@
+import { messageErrors, i18n } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -213,6 +214,8 @@ function setup(
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
+    if (name === "@/i18n/client") return i18n;
     const dependencies = {
       react,
       "react/jsx-runtime": { jsx, jsxs: jsx },

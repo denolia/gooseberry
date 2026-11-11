@@ -28,14 +28,20 @@ function normalizeSourceLanguage(value: unknown): SourceLanguage | null {
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return NextResponse.json(
+      { errorCode: "errors.invalidRequest" },
+      { status: 400 },
+    );
   }
 
   const input =
@@ -45,13 +51,16 @@ export async function POST(request: Request) {
 
   if (!text || !sourceLanguage) {
     return NextResponse.json(
-      { error: "Text and a valid source language are required" },
+      { errorCode: "errors.textAndAValidSourceLanguageAreRequired" },
       { status: 400 },
     );
   }
   if (text.length > MAX_SPEECH_CHARACTERS) {
     return NextResponse.json(
-      { error: `Text must be ${MAX_SPEECH_CHARACTERS} characters or fewer` },
+      {
+        errorCode: "errors.textMustBeValueCharactersOrFewer",
+        errorValues: { value0: MAX_SPEECH_CHARACTERS },
+      },
       { status: 400 },
     );
   }
@@ -73,7 +82,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Speech generation failed:", error);
     return NextResponse.json(
-      { error: "Could not generate pronunciation" },
+      { errorCode: "errors.couldNotGeneratePronunciation" },
       { status: 502 },
     );
   }

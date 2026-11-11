@@ -1,3 +1,4 @@
+import { MessageError, errorFromResponse } from "@/i18n/errors";
 import type { AnkiCard, AnkiNote, AnkiRevlog } from "./readerTypes";
 
 export const MAX_IMPORT_REQUEST_BYTES = 3 * 1024 * 1024;
@@ -65,8 +66,8 @@ export function createImportBatches(
       addedBytes = recordBytes;
     }
     if (bytes + addedBytes > maxBytes) {
-      throw new Error(
-        "One item in this deck is too large to import. Shorten its text in Anki and try again.",
+      throw new MessageError(
+        "errors.oneItemInThisDeckIsTooLargeToImportShorten",
       );
     }
     (batch[kind] as ImportBatch[K][number][]).push(record);
@@ -80,12 +81,12 @@ export function createImportBatches(
   return batches;
 }
 
-class ImportRequestError extends Error {
-  readonly retryable: boolean;
-
-  constructor(message: string, retryable: boolean) {
-    super(message);
-    this.retryable = retryable;
+class ImportRequestError extends MessageError {
+  constructor(
+    error: MessageError,
+    readonly retryable: boolean,
+  ) {
+    super(error.userMessage.key, error.userMessage.values);
   }
 }
 
@@ -112,7 +113,9 @@ export async function importRequest<T>(
 ): Promise<T> {
   const body = payload === undefined ? undefined : JSON.stringify(payload);
   if (body && encoder.encode(body).byteLength > MAX_IMPORT_REQUEST_BYTES) {
-    throw new Error("This deck contains too much information to send at once.");
+    throw new MessageError(
+      "errors.thisDeckContainsTooMuchInformationToSendAtOnce",
+    );
   }
 
   for (let attempt = 0; ; attempt++) {
@@ -128,9 +131,7 @@ export async function importRequest<T>(
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new ImportRequestError(
-          typeof result.error === "string"
-            ? result.error
-            : "We could not save your import. Try again.",
+          errorFromResponse(result, "errors.weCouldNotSaveYourImportTryAgain"),
           response.status === 429 || response.status >= 500,
         );
       }

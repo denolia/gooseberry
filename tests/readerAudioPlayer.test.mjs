@@ -1,3 +1,4 @@
+import { messageErrors, i18n } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -16,6 +17,8 @@ function load(path, dependencies = {}) {
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
+    if (name === "@/i18n/client") return i18n;
     assert(name in dependencies, `Unexpected dependency ${name}`);
     return dependencies[name];
   }, exports);
@@ -1035,7 +1038,7 @@ test("the native five-position speed slider changes real audio rates without res
     assert.equal(player.speed().props.value, index);
     assert.equal(
       player.speed().props["aria-valuetext"],
-      `${speed.speed}× — ${speed.label}`,
+      `${speed.speed}× — ${i18n.useI18n().t(speed.labelKey)}`,
     );
     assert.equal(audio.playbackRate, speed.speed);
     assert.equal(audio.defaultPlaybackRate, speed.speed);
@@ -1722,19 +1725,22 @@ test("failed prefetch does not interrupt the current sentence and becomes retrya
     props: { text: "Eins. Zwei." },
     response: (_request, index) =>
       index === 2
-        ? Response.json({ error: "Next sentence failed" }, { status: 502 })
+        ? Response.json(
+            { errorCode: "errors.couldNotGenerateAudioPleaseTryAgain" },
+            { status: 502 },
+          )
         : new Response("mp3"),
   });
   await player.ready();
   await player.click("Listen");
   assert.equal(player.requests.length, 2);
   assert.equal(player.audioCaches[0].size, 1);
-  assert.doesNotMatch(text(player.render()), /Next sentence failed/);
+  assert.doesNotMatch(text(player.render()), /Could not generate audio/);
   assert.deepEqual(player.readingRange, { start: 0, end: 5 });
   assert(player.button("Pause"));
   player.audios[0].onended();
   await player.settle();
-  assert.match(text(player.render()), /Next sentence failed/);
+  assert.match(text(player.render()), /Could not generate audio/);
   assert.equal(player.readingRange, null);
   assert.equal(player.requests.length, 2);
   await player.click("Listen");

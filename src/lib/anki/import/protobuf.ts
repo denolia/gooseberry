@@ -14,27 +14,34 @@ export function protobufFields(bytes: Uint8Array): WireFields {
     for (let i = 0; i < 10 && at < bytes.length; i++) {
       const byte = bytes[at++];
       if (i === 9 && byte > 1)
-        throw new AnkiPackageError("An Anki configuration varint is invalid.");
+        throw new AnkiPackageError("errors.anAnkiConfigurationVarintIsInvalid");
       value |= BigInt(byte & 127) << BigInt(i * 7);
       if (!(byte & 128)) return value;
     }
-    throw new AnkiPackageError("An Anki configuration record is truncated.");
+    throw new AnkiPackageError("errors.anAnkiConfigurationRecordIsTruncated");
   }
   while (at < bytes.length) {
     if (++count > 10000)
-      throw new AnkiPackageError("An Anki configuration has too many protobuf fields.");
+      throw new AnkiPackageError(
+        "errors.anAnkiConfigurationHasTooManyProtobufFields",
+      );
     const tag = Number(varint());
     const number = Math.floor(tag / 8);
     const wire = tag & 7;
     if (!Number.isSafeInteger(tag) || number < 1 || number > 536870911)
-      throw new AnkiPackageError("An Anki configuration field is invalid.");
+      throw new AnkiPackageError("errors.anAnkiConfigurationFieldIsInvalid");
     let value: WireValue;
     if (wire === 0) {
       value = varint();
     } else {
-      const length = wire === 2 ? Number(varint()) : wire === 1 ? 8 : wire === 5 ? 4 : -1;
-      if (length < 0 || !Number.isSafeInteger(length) || at + length > bytes.length)
-        throw new AnkiPackageError("An Anki configuration record is invalid.");
+      const length =
+        wire === 2 ? Number(varint()) : wire === 1 ? 8 : wire === 5 ? 4 : -1;
+      if (
+        length < 0 ||
+        !Number.isSafeInteger(length) ||
+        at + length > bytes.length
+      )
+        throw new AnkiPackageError("errors.anAnkiConfigurationRecordIsInvalid");
       value = bytes.subarray(at, at + length);
       at += length;
     }
@@ -45,12 +52,18 @@ export function protobufFields(bytes: Uint8Array): WireFields {
   return fields;
 }
 
-export function protobufInteger(fields: WireFields, number: number, fallback = "0") {
+export function protobufInteger(
+  fields: WireFields,
+  number: number,
+  fallback = "0",
+) {
   const values = fields.get(number);
   const value = values?.[values.length - 1];
   if (value === undefined) return fallback;
   if (typeof value !== "bigint")
-    throw new AnkiPackageError("An Anki integer configuration field is malformed.");
+    throw new AnkiPackageError(
+      "errors.anAnkiIntegerConfigurationFieldIsMalformed",
+    );
   return value.toString();
 }
 
@@ -59,12 +72,16 @@ export function protobufBytes(fields: WireFields, number: number) {
   const value = values?.[values.length - 1];
   if (value === undefined) return new Uint8Array();
   if (!(value instanceof Uint8Array))
-    throw new AnkiPackageError("An Anki text configuration field is malformed.");
+    throw new AnkiPackageError(
+      "errors.anAnkiTextConfigurationFieldIsMalformed",
+    );
   return value;
 }
 
 export function protobufText(fields: WireFields, number: number) {
-  return new TextDecoder("utf-8", { fatal: true }).decode(protobufBytes(fields, number));
+  return new TextDecoder("utf-8", { fatal: true }).decode(
+    protobufBytes(fields, number),
+  );
 }
 
 export function base64(bytes: Uint8Array) {

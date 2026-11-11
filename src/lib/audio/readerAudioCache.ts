@@ -32,9 +32,7 @@ export class ReaderAudioCache {
       !Number.isFinite(maxEntries) ||
       maxEntries < 0
     ) {
-      throw new RangeError(
-        "Audio cache limits must be finite and non-negative",
-      );
+      throw new RangeError("errors.audioCacheLimitsMustBeFiniteAndNonNegative");
     }
   }
 

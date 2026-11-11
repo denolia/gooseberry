@@ -16,7 +16,10 @@ type Context = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, { params }: Context) {
   const session = await auth();
   if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   try {
     return NextResponse.json(
       await getAnkiImport(importId((await params).id), session.user.id),
@@ -28,7 +31,10 @@ export async function GET(_request: Request, { params }: Context) {
 export async function PUT(request: Request, { params }: Context) {
   const session = await auth();
   if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   try {
     const id = importId((await params).id);
     const input = await importBody(request, ImportBatchSchema);
@@ -40,7 +46,10 @@ export async function PUT(request: Request, { params }: Context) {
 export async function DELETE(_request: Request, { params }: Context) {
   const session = await auth();
   if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   try {
     return NextResponse.json(
       await removeAnkiImport(importId((await params).id), session.user.id),

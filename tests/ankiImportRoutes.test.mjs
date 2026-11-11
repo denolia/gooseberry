@@ -1,3 +1,4 @@
+import { hasError, messageErrors } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -9,7 +10,7 @@ import ts from "@typescript/typescript6";
 const externalRequire = createRequire(import.meta.url);
 const root = fileURLToPath(new URL("../src", import.meta.url));
 const jobId = "11111111-1111-4111-8111-111111111111";
-class AnkiImportError extends Error {
+class AnkiImportError extends messageErrors.MessageError {
   constructor(message, status) {
     super(message);
     this.status = status;
@@ -29,7 +30,7 @@ function routes({ authorized = true, notFound = false } = {}) {
   ]) {
     backend[name] = async (...args) => {
       calls.push({ name, args });
-      if (notFound) throw new AnkiImportError("Import not found", 404);
+      if (notFound) throw new AnkiImportError("errors.importNotFound", 404);
       return { jobId, status: "receiving", wordSetId: null };
     };
   }
@@ -43,6 +44,7 @@ function routes({ authorized = true, notFound = false } = {}) {
   };
   const cache = new Map();
   function load(name, parent = root) {
+    if (name === "@/i18n/errors") return messageErrors;
     if (name in overrides) return overrides[name];
     const filename = name.startsWith("@/")
       ? path.join(root, `${name.slice(2)}.ts`)
@@ -268,7 +270,7 @@ test("private job and raw-source reads return owner-scoped not-found responses",
     context(),
   );
   assert.equal(source.status, 404);
-  assert.deepEqual(await source.json(), { error: "Import not found" });
+  assert.deepEqual(await source.json(), { errorCode: "errors.importNotFound" });
 });
 
 test("shared mapping strips media, preserves explicit example pairs and rejects invalid source ordinals", () => {
@@ -303,6 +305,6 @@ test("shared mapping strips media, preserves explicit example pairs and rejects 
           },
         ],
       }),
-    /unknown source field/,
+    hasError("errors.mappingReferencesAnUnknownSourceField"),
   );
 });

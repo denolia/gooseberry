@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json(
-        { error: "Unauthorized" },
+        { errorCode: "errors.unauthorized" },
         {
           status: 401,
         },
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       !isTargetLanguage(targetLanguage)
     ) {
       return NextResponse.json(
-        { error: "Choose valid source and target languages." },
+        { errorCode: "errors.chooseValidSourceAndTargetLanguages" },
         { status: 400 },
       );
     }
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
 
     if (typeof text !== "string" || !text.trim()) {
       return NextResponse.json(
-        { error: "Enter text to translate." },
+        { errorCode: "errors.enterTextToTranslate" },
         {
           status: 400,
         },
@@ -190,9 +190,9 @@ export async function POST(request: Request) {
           });
           send({
             type: "error",
-            error: abortController.signal.aborted
-              ? "Translation timed out. Please try again."
-              : "Could not finish the translation. Please try again.",
+            errorCode: abortController.signal.aborted
+              ? "errors.translationTimedOutPleaseTryAgain"
+              : "errors.couldNotFinishTheTranslationPleaseTryAgain",
           });
         } finally {
           if (!usageFinalized)
@@ -220,7 +220,7 @@ export async function POST(request: Request) {
       phase,
     });
     return NextResponse.json(
-      { error: "Translation failed" },
+      { errorCode: "errors.translationFailed" },
       {
         status: 500,
       },

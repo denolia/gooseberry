@@ -1,11 +1,14 @@
+import { hasError, loadSource } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
+const {
   createImportBatches,
   importJsonByteLength,
   importRequest,
   MAX_IMPORT_REQUEST_BYTES,
-} from "../src/lib/anki/import/clientTransport.ts";
+} = loadSource(
+  new URL("../src/lib/anki/import/clientTransport.ts", import.meta.url),
+);
 import {
   deckWithDescendants,
   importDisplayName,
@@ -240,7 +243,7 @@ test("one oversized record fails before any upload can start", () => {
         },
         1000,
       ),
-    /One item.*too large/,
+    hasError("errors.oneItemInThisDeckIsTooLargeToImportShorten"),
   );
 });
 
@@ -268,11 +271,14 @@ test("permanent validation failures and pause requests are never retried", async
   let calls = 0;
   t.mock.method(globalThis, "fetch", async () => {
     calls++;
-    return Response.json({ error: "Wrong field selection" }, { status: 400 });
+    return Response.json(
+      { errorCode: "errors.mappingReferencesAnUnknownSourceField" },
+      { status: 400 },
+    );
   });
   await assert.rejects(
     importRequest("/api/anki/imports", "POST", {}),
-    /Wrong field selection/,
+    hasError("errors.mappingReferencesAnUnknownSourceField"),
   );
   assert.equal(calls, 1);
   const controller = new AbortController();
@@ -294,7 +300,7 @@ test("oversized request bodies never reach a server function", async (t) => {
     importRequest("/api/anki/imports", "POST", {
       text: "ä".repeat(MAX_IMPORT_REQUEST_BYTES),
     }),
-    /too much information/,
+    hasError("errors.thisDeckContainsTooMuchInformationToSendAtOnce"),
   );
   assert.equal(calls, 0);
 });

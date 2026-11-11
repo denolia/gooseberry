@@ -22,7 +22,10 @@ const CreateWordSetSchema = z.object({
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -47,7 +50,7 @@ export async function GET() {
   } catch (error) {
     console.error("Error listing word sets:", error);
     return NextResponse.json(
-      { error: "Failed to list word sets" },
+      { errorCode: "errors.failedToListWordSets" },
       { status: 500 },
     );
   }
@@ -57,7 +60,10 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -73,13 +79,13 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid input", details: error.message },
+        { errorCode: "errors.invalidInput", details: error.message },
         { status: 400 },
       );
     }
     console.error("Error creating word set:", error);
     return NextResponse.json(
-      { error: "Failed to create word set" },
+      { errorCode: "errors.failedToCreateWordSet" },
       { status: 500 },
     );
   }

@@ -1,3 +1,4 @@
+import type { MessageKey } from "@/i18n/messages";
 import { z } from "zod";
 
 export const ENRICHMENT_FIELDS = [
@@ -9,13 +10,13 @@ export const ENRICHMENT_FIELDS = [
   "comments",
 ] as const;
 export type EnrichmentField = (typeof ENRICHMENT_FIELDS)[number];
-export const ENRICHMENT_LABELS: Record<EnrichmentField, string> = {
-  original: "Source word",
-  translation: "Translation",
-  wordForms: "Word forms",
-  sample: "Example",
-  sampleTranslation: "Example translation",
-  comments: "Usage notes",
+export const ENRICHMENT_LABEL_KEYS: Record<EnrichmentField, MessageKey> = {
+  original: "common.sourceWord",
+  translation: "cardEditor.translation",
+  wordForms: "importDeck.wordForms",
+  sample: "cardEditor.example",
+  sampleTranslation: "common.exampleTranslation",
+  comments: "common.usageNotes",
 };
 export const EnrichmentFieldsSchema = z
   .array(z.enum(ENRICHMENT_FIELDS))

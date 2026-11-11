@@ -1,4 +1,8 @@
 "use client";
+import { formatError, MessageError } from "@/i18n/errors";
+
+import { useI18n } from "@/i18n/client";
+
 import { useEffect, useState } from "react";
 import styles from "./TranslationSelector.module.css";
 
@@ -26,6 +30,7 @@ export function TranslationSelector({
   onClose,
   onItemsAdded,
 }: TranslationSelectorProps) {
+  const { t } = useI18n();
   const [translations, setTranslations] = useState<Translation[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
@@ -39,7 +44,8 @@ export function TranslationSelector({
   const loadTranslations = async () => {
     try {
       const response = await fetch("/api/history/list");
-      if (!response.ok) throw new Error("Failed to load translations");
+      if (!response.ok)
+        throw new MessageError("errors.failedToLoadTranslations");
       const data = await response.json();
       setTranslations(data.history);
     } catch (err) {
@@ -80,7 +86,7 @@ export function TranslationSelector({
         }),
       });
 
-      if (!response.ok) throw new Error("Failed to add items");
+      if (!response.ok) throw new MessageError("errors.failedToAddItems");
 
       const data = await response.json();
       onItemsAdded({
@@ -88,7 +94,7 @@ export function TranslationSelector({
         skippedCount: data.skippedCount ?? 0,
       });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to add items");
+      alert(formatError(t, err, "errors.failedToAddItems"));
     } finally {
       setAdding(false);
     }
@@ -110,7 +116,9 @@ export function TranslationSelector({
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
-          <h2 className={styles.title}>Select Translations to Add</h2>
+          <h2 className={styles.title}>
+            {t("translationSelector.selectTranslationsToAdd")}
+          </h2>
           <button onClick={onClose} className={styles.closeButton}>
             ✕
           </button>
@@ -119,31 +127,35 @@ export function TranslationSelector({
         <div className={styles.controls}>
           <input
             type="text"
-            placeholder="Search translations..."
+            placeholder={t("translationSelector.searchTranslations")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className={styles.searchInput}
           />
           <button onClick={toggleAll} className={styles.selectAllButton}>
             {selectedIds.size === filteredTranslations.length
-              ? "Deselect All"
-              : "Select All"}
+              ? t("translationSelector.deselectAll")
+              : t("translationSelector.selectAll")}
           </button>
         </div>
 
         <div className={styles.selectedCount}>
-          {selectedIds.size} item{selectedIds.size !== 1 ? "s" : ""} selected
+          {t("translationSelector.selectedItems", { count: selectedIds.size })}
         </div>
 
         {loading ? (
-          <div className={styles.loading}>Loading translations...</div>
+          <div className={styles.loading}>
+            {t("translationSelector.loadingTranslations")}
+          </div>
         ) : (
           <div className={styles.list}>
             {filteredTranslations.length === 0 ? (
               <div className={styles.empty}>
                 {searchTerm
-                  ? "No translations match your search"
-                  : "No translations yet. Translate some words first!"}
+                  ? t("translationSelector.noTranslationsMatchYourSearch")
+                  : t(
+                      "translationSelector.noTranslationsYetTranslateSomeWordsFirst",
+                    )}
               </div>
             ) : (
               filteredTranslations.map((translation) => (
@@ -185,7 +197,7 @@ export function TranslationSelector({
 
         <div className={styles.footer}>
           <button onClick={onClose} className={styles.cancelButton}>
-            Cancel
+            {t("moveWordDialog.cancel")}
           </button>
           <button
             onClick={handleAdd}
@@ -193,8 +205,8 @@ export function TranslationSelector({
             className={styles.addButton}
           >
             {adding
-              ? "Adding..."
-              : `Add ${selectedIds.size} item${selectedIds.size !== 1 ? "s" : ""}`}
+              ? t("translationSelector.adding")
+              : t("translationSelector.addItems", { count: selectedIds.size })}
           </button>
         </div>
       </div>

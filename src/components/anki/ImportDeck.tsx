@@ -1,16 +1,21 @@
 "use client";
-
-import Link from "next/link";
-import { useSession } from "next-auth/react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  languageLabelKey,
   SourceLanguageSelectOptions,
   TargetLanguageSelectOptions,
   getLanguageCode,
   isSourceLanguageCode,
   isTargetLanguageCode,
 } from "@/components/ui/Languages";
+import type { UiMessage, MessageKey, Translate } from "@/i18n/messages";
+import { messageFromError, MessageError } from "@/i18n/errors";
+
+import { useI18n } from "@/i18n/client";
+
+import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLanguages } from "@/lib/languages/useLanguages";
 import {
   deckWithDescendants,
@@ -88,11 +93,11 @@ type ResumeImport = {
 
 const EMPTY_CONTENT = { notes: [], cards: [], revlogs: [] };
 const EMPTY_MAPPING: FieldMapping = { fields: [], separator: " " };
-const READ_LABELS: Record<AnkiReadProgress["phase"], string> = {
-  archive: "Opening your deck…",
-  database: "Reading its vocabulary…",
-  notes: "Preparing the preview…",
-  complete: "Preparing the preview…",
+const READ_LABELS: Record<AnkiReadProgress["phase"], MessageKey> = {
+  archive: "importDeck.openingYourDeck",
+  database: "importDeck.readingItsVocabulary",
+  notes: "importDeck.preparingThePreview",
+  complete: "importDeck.preparingThePreview",
 };
 
 function storageKey(userId: string, sha256: string) {
@@ -192,14 +197,15 @@ function exerciseMatchLabel(
   key: StudyCardTemplateKey,
   sourceLabel: string,
   targetLabel: string,
+  t: Translate,
 ) {
   const direction =
     key === "recognition"
       ? `${sourceLabel} → ${targetLabel}`
       : key === "word_forms"
-        ? `${sourceLabel} → word forms`
+        ? `${sourceLabel} → ${t("importDeck.wordForms2")}`
         : `${targetLabel} → ${sourceLabel}`;
-  return `${getStudyCardTemplate(key).label} · ${direction}`;
+  return `${t(getStudyCardTemplate(key).labelKey)} · ${direction}`;
 }
 
 function FieldMappingEditor({
@@ -213,6 +219,7 @@ function FieldMappingEditor({
   value?: FieldMapping;
   onChange: (value: FieldMapping) => void;
 }) {
+  const { t } = useI18n();
   const selections = value.fields.length ? value.fields : [-1];
   return (
     <div className={styles.fieldMapping}>
@@ -220,7 +227,13 @@ function FieldMappingEditor({
       {selections.map((ordinal, index) => (
         <div className={styles.fieldSelection} key={index}>
           <select
-            aria-label={`${model.name}: ${label}${index ? `, field ${index + 1}` : ""}`}
+            aria-label={t("importDeck.fieldLabel", {
+              model: model.name,
+              label,
+              suffix: index
+                ? t("importDeck.fieldSuffix", { number: index + 1 })
+                : "",
+            })}
             value={ordinal}
             onChange={(event) => {
               const next = [...selections];
@@ -231,7 +244,7 @@ function FieldMappingEditor({
               });
             }}
           >
-            <option value={-1}>Leave empty</option>
+            <option value={-1}>{t("importDeck.leaveEmpty")}</option>
             {model.fields.map((field) => (
               <option
                 key={field.ord}
@@ -248,7 +261,10 @@ function FieldMappingEditor({
             <button
               type="button"
               className={styles.smallButton}
-              aria-label={`Remove field ${index + 1} from ${label}`}
+              aria-label={t("importDeck.removeFieldValueFromValue", {
+                value0: index + 1,
+                value1: label,
+              })}
               onClick={() =>
                 onChange({
                   ...value,
@@ -258,7 +274,7 @@ function FieldMappingEditor({
                 })
               }
             >
-              Remove
+              {t("importDeck.remove")}
             </button>
           )}
         </div>
@@ -275,22 +291,22 @@ function FieldMappingEditor({
               onChange({ ...value, fields: [...value.fields, next.ord] });
           }}
         >
-          Add another field
+          {t("importDeck.addAnotherField")}
         </button>
       )}
       {value.fields.length > 1 && (
         <label className={styles.joinLabel}>
-          Join fields with
+          {t("importDeck.joinFieldsWith")}
           <select
             value={value.separator}
             onChange={(event) =>
               onChange({ ...value, separator: event.target.value })
             }
           >
-            <option value=" ">a space</option>
-            <option value=" · ">a dot</option>
-            <option value="; ">a semicolon</option>
-            <option value={"\n"}>line breaks</option>
+            <option value=" ">{t("importDeck.aSpace")}</option>
+            <option value=" · ">{t("importDeck.aDot")}</option>
+            <option value="; ">{t("importDeck.aSemicolon")}</option>
+            <option value={"\n"}>{t("importDeck.lineBreaks")}</option>
           </select>
         </label>
       )}
@@ -299,6 +315,7 @@ function FieldMappingEditor({
 }
 
 export function ImportDeck() {
+  const { t } = useI18n();
   const { data: session, status } = useSession();
   const { currentSourceLanguage, currentTargetLanguage } = useLanguages();
   const queryClient = useQueryClient();
@@ -325,7 +342,7 @@ export function ImportDeck() {
   const [job, setJob] = useState<ImportJobStatus | null>(null);
   const [resumeAvailable, setResumeAvailable] = useState(false);
   const [resumeStored, setResumeStored] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UiMessage | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [batchCount, setBatchCount] = useState(0);
   const operationRef = useRef(0);
@@ -346,7 +363,8 @@ export function ImportDeck() {
     enabled: status === "authenticated" && Boolean(userId),
     queryFn: async (): Promise<ExistingSet[]> => {
       const response = await fetch("/api/word-sets");
-      if (!response.ok) throw new Error("Could not load your existing sets.");
+      if (!response.ok)
+        throw new MessageError("errors.couldNotLoadYourExistingSets");
       const body = await response.json();
       return body.wordSets;
     },
@@ -412,12 +430,12 @@ export function ImportDeck() {
   const uploadPercent = batchCount
     ? Math.floor((100 * receivedBatches) / batchCount)
     : 0;
-  const sourceLabel =
-    SourceLanguageSelectOptions.find((option) => option.value === sourceLang)
-      ?.label ?? sourceLang;
-  const targetLabel =
-    TargetLanguageSelectOptions.find((option) => option.value === targetLang)
-      ?.label ?? targetLang;
+  const sourceLabel = t(languageLabelKey(sourceLang));
+  const targetLabel = t(languageLabelKey(targetLang));
+
+  function importNotice(warning: UiMessage) {
+    return t(warning.key, warning.values);
+  }
 
   async function chooseFile(nextFile: File) {
     const operation = ++operationRef.current;
@@ -435,12 +453,12 @@ export function ImportDeck() {
     setReadProgress("archive");
     setPreviewIndex(0);
     if (!/\.apkg$/iu.test(nextFile.name)) {
-      setError("Choose an Anki deck file ending in .apkg.");
+      setError({ key: "errors.chooseAnAnkiDeckFileEndingInApkg" });
       setPhase("idle");
       return;
     }
     if (nextFile.size > 100 * 1024 * 1024) {
-      setError("Choose an Anki deck smaller than 100 MB.");
+      setError({ key: "errors.chooseAnAnkiDeckSmallerThan100Mb" });
       setPhase("idle");
       return;
     }
@@ -523,9 +541,7 @@ export function ImportDeck() {
         setPhase("idle");
       } else {
         setError(
-          readError instanceof Error
-            ? readError.message
-            : "Could not read this Anki deck.",
+          messageFromError(readError, "errors.couldNotReadThisAnkiDeck"),
         );
         setPhase("ready");
       }
@@ -550,7 +566,7 @@ export function ImportDeck() {
   }
 
   function beginPayload() {
-    if (!pkg || !file) throw new Error("Choose an Anki deck first.");
+    if (!pkg || !file) throw new MessageError("errors.chooseAnAnkiDeckFirst");
     const {
       notes: _notes,
       cards: _cards,
@@ -587,15 +603,16 @@ export function ImportDeck() {
     try {
       batches = createImportBatches(content);
       if (importJsonByteLength(beginPayload()) > MAX_IMPORT_REQUEST_BYTES) {
-        throw new Error(
-          "This deck has too much note type information to import. Export a smaller selection from Anki and try again.",
+        throw new MessageError(
+          "errors.thisDeckHasTooMuchNoteTypeInformationToImportExport",
         );
       }
     } catch (preflightError) {
       setError(
-        preflightError instanceof Error
-          ? preflightError.message
-          : "This deck could not be prepared for import.",
+        messageFromError(
+          preflightError,
+          "errors.thisDeckCouldNotBePreparedForImport",
+        ),
       );
       return;
     }
@@ -628,13 +645,13 @@ export function ImportDeck() {
       setResumeAvailable(true);
       setResumeStored(writeResume(userId, { ...saved, jobId: current.jobId }));
       if (current.status !== "receiving" && current.status !== "completed") {
-        throw new Error(
-          "This import was cancelled. Start over to import this deck.",
+        throw new MessageError(
+          "errors.thisImportWasCancelledStartOverToImportThisDeck",
         );
       }
       if (current.nextBatchIndex > batches.length) {
-        throw new Error(
-          "The saved import no longer matches this selection. Start over to import this deck.",
+        throw new MessageError(
+          "errors.theSavedImportNoLongerMatchesThisSelectionStartOverTo",
         );
       }
       if (current.status !== "completed") {
@@ -674,9 +691,7 @@ export function ImportDeck() {
       if (current) setJob(current);
       if (!controller.signal.aborted) {
         setError(
-          importError instanceof Error
-            ? importError.message
-            : "Your import paused. Try resuming it.",
+          messageFromError(importError, "errors.yourImportPausedTryResumingIt"),
         );
       }
     }
@@ -717,9 +732,7 @@ export function ImportDeck() {
       if (operationRef.current !== operation) return;
       setPhase("paused");
       setError(
-        cancelError instanceof Error
-          ? cancelError.message
-          : "Could not cancel the import. Try again.",
+        messageFromError(cancelError, "errors.couldNotCancelTheImportTryAgain"),
       );
     }
   }
@@ -738,43 +751,83 @@ export function ImportDeck() {
   function downloadIssues() {
     if (!pkg) return;
     const lines = [
-      `Anki import report: ${file?.name ?? name}`,
+      t("importDeck.reportTitle", { file: file?.name ?? name }),
       `${sourceLabel} → ${targetLabel}`,
-      `${entries.length} selected notes; ${included.length} included; ${skippedCount} skipped; ${needsAttentionCount} need attention.`,
-      `${pkg.diagnostics.omittedMediaCount} media files omitted. Anki review history and presets are retained as source data. Future reviews use Gooseberry's scheduler.`,
+      t("importDeck.reportSummary", {
+        selected: entries.length,
+        included: included.length,
+        skipped: skippedCount,
+        attention: needsAttentionCount,
+      }),
+      t("importDeck.reportMedia", { count: pkg.diagnostics.omittedMediaCount }),
       importProgress
-        ? `Learning progress requested in ${schedulingTimeZone}: ${progressPreview?.matchedCount ?? 0} of ${progressPreview?.studiedCount ?? 0} studied source cards matched. Existing Gooseberry progress is kept on reimport.`
-        : "Fresh study progress requested. Existing Gooseberry progress is kept on reimport.",
+        ? t("importDeck.reportProgress", {
+            timeZone: schedulingTimeZone,
+            matched: progressPreview?.matchedCount ?? 0,
+            total: progressPreview?.studiedCount ?? 0,
+          })
+        : t(
+            "importDeck.freshStudyProgressRequestedExistingGooseberryProgressIsKeptOnReimport",
+          ),
       ...(job?.status === "completed"
         ? [
-            `Learning progress applied to ${job.importedProgressCount ?? 0} studied exercises.`,
+            t("importDeck.reportApplied", {
+              count: job.importedProgressCount ?? 0,
+            }),
           ]
         : []),
       ...(importProgress
         ? [
-            ...(progressPreview?.unmatchedTemplates ?? []).map(
-              (template) =>
-                `Progress not matched: ${template.modelName} / ${template.templateName} (${template.count} studied cards).`,
+            ...(progressPreview?.unmatchedTemplates ?? []).map((template) =>
+              t("importDeck.reportUnmatched", {
+                model: template.modelName,
+                template: template.templateName,
+                count: template.count,
+              }),
             ),
             ...(progressPreview?.unsupportedCount
               ? [
-                  `Progress not supported: ${progressPreview.unsupportedCount} studied source cards have unsupported scheduling data.`,
+                  t("importDeck.reportUnsupported", {
+                    count: progressPreview.unsupportedCount,
+                  }),
                 ]
               : []),
           ]
         : []),
-      ...pkg.diagnostics.warnings.map((warning) => `Warning: ${warning}`),
+      ...pkg.diagnostics.warnings.map((warning) =>
+        t("importDeck.reportWarning", { warning: importNotice(warning) }),
+      ),
       "",
       ...entries.flatMap((entry) => {
         const identity = entry.mapped?.original || entry.note.guid;
+        const reason = entry.model
+          ? unsupportedNoteTypeReason(entry.model)
+          : null;
         if (!entry.mapped || entry.mapped.skipped) {
           return [
-            `Skipped ${identity} (${entry.model?.name ?? "Unknown note type"}): ${entry.model ? (unsupportedNoteTypeReason(entry.model) ?? "Excluded in field mapping.") : "Unknown note type."}`,
+            t("importDeck.reportSkipped", {
+              word: identity,
+              type: entry.model?.name ?? t("importDeck.unknownNoteType"),
+              reason: reason
+                ? t(reason.key, reason.values)
+                : entry.model
+                  ? t("importDeck.excludedInFieldMapping")
+                  : t("importDeck.unknownNoteType2"),
+            }),
           ];
         }
         return entry.mapped.needsAttention.length
           ? [
-              `Needs attention: ${identity}. Missing ${entry.mapped.needsAttention.map((field) => (field === "original" ? "source word" : "translation")).join(" and ")}.`,
+              t("importDeck.reportAttention", {
+                word: identity,
+                fields: entry.mapped.needsAttention
+                  .map((field) =>
+                    field === "original"
+                      ? t("common.sourceWord")
+                      : t("cardEditor.translation"),
+                  )
+                  .join(t("importDeck.andSeparator")),
+              }),
             ]
           : [];
       }),
@@ -789,28 +842,30 @@ export function ImportDeck() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  if (status === "loading") return <p className={styles.loading}>Loading…</p>;
+  if (status === "loading")
+    return <p className={styles.loading}>{t("importDeck.loading")}</p>;
   if (status !== "authenticated")
-    return <p>Please sign in to import a deck.</p>;
+    return <p>{t("importDeck.pleaseSignInToImportADeck")}</p>;
 
   return (
     <div className={styles.container}>
       <header className={styles.header}>
         <div>
           <Link className={styles.backLink} href="/anki">
-            ← Study sets
+            {t("importDeck.studySets")}
           </Link>
-          <h1>Import an Anki deck</h1>
+          <h1>{t("importDeck.importAnAnkiDeck")}</h1>
           <p>
-            Bring shared vocabulary into Gooseberry and study it in five
-            directions.
+            {t(
+              "importDeck.bringSharedVocabularyIntoGooseberryAndStudyItInFive",
+            )}
           </p>
         </div>
       </header>
 
       {error && (
         <p className={styles.error} role="alert">
-          {error}
+          {t(error.key, error.values)}
         </p>
       )}
 
@@ -819,27 +874,35 @@ export function ImportDeck() {
           <span className={styles.completeMark} aria-hidden="true">
             ✓
           </span>
-          <h2>Your vocabulary is ready</h2>
+          <h2>{t("importDeck.yourVocabularyIsReady")}</h2>
           <p>
-            {job.addedCount} words added
+            {t("importDeck.addedWords", { count: job.addedCount })}
             {job.skippedCount
-              ? ` · ${job.skippedCount} already present or skipped`
+              ? t("importDeck.valueAlreadyPresentOrSkipped", {
+                  value0: job.skippedCount,
+                })
               : ""}
             .
           </p>
           {job.needsAttentionCount > 0 && (
             <p>
-              {job.needsAttentionCount} words need missing content. Open the set
-              to request generation when you’re ready.
+              {t("importDeck.attentionWords", {
+                count: job.needsAttentionCount,
+              })}
             </p>
           )}
           <p className={styles.muted}>
             {importProgress
-              ? `Anki learning progress was kept for ${job.importedProgressCount ?? 0} studied exercises. Additional exercises start new.`
-              : "Imported exercises start with fresh study progress."}{" "}
-            Existing Gooseberry progress is kept when words are skipped on
-            reimport. Future reviews use Gooseberry’s scheduler; Anki presets
-            are retained as source data. Imported audio and images were omitted.
+              ? t(
+                  "importDeck.ankiLearningProgressWasKeptForValueStudiedExercisesAdditional",
+                  { value0: job.importedProgressCount ?? 0 },
+                )
+              : t(
+                  "importDeck.importedExercisesStartWithFreshStudyProgress",
+                )}{" "}
+            {t(
+              "importDeck.existingGooseberryProgressIsKeptWhenWordsAreSkippedOn",
+            )}
           </p>
           <div className={styles.actions}>
             {exerciseCount > 0 && (
@@ -847,21 +910,21 @@ export function ImportDeck() {
                 className={styles.primaryButton}
                 href={`/anki/${job.wordSetId}/review`}
               >
-                Study now
+                {t("importDeck.studyNow")}
               </Link>
             )}
             <Link
               className={styles.secondaryButton}
               href={`/anki/${job.wordSetId}`}
             >
-              Open set
+              {t("importDeck.openSet")}
             </Link>
             <button
               className={styles.textButton}
               type="button"
               onClick={downloadIssues}
             >
-              Download import report
+              {t("importDeck.downloadImportReport")}
             </button>
           </div>
           <button
@@ -876,25 +939,25 @@ export function ImportDeck() {
               if (fileInputRef.current) fileInputRef.current.value = "";
             }}
           >
-            Import another deck
+            {t("importDeck.importAnotherDeck")}
           </button>
           <button
             className={styles.dangerButton}
             type="button"
             onClick={() => void cancelImport()}
           >
-            Undo this import
+            {t("importDeck.undoThisImport")}
           </button>
           <p className={styles.muted}>
-            Undo removes only the words added by this import.
+            {t("importDeck.undoRemovesOnlyTheWordsAddedByThisImport")}
           </p>
         </section>
       ) : (
         <>
           <fieldset className={styles.panel}>
-            <legend>1. Choose your deck</legend>
+            <legend>{t("importDeck.step1ChooseYourDeck")}</legend>
             <label className={styles.fileLabel} htmlFor="anki-package-file">
-              Anki deck file (.apkg)
+              {t("importDeck.ankiDeckFileApkg")}
             </label>
             <input
               ref={fileInputRef}
@@ -911,13 +974,14 @@ export function ImportDeck() {
             />
             {file && (
               <p className={styles.muted}>
-                {file.name} · {(file.size / (1024 * 1024)).toFixed(1)} MB
+                {file.name} · {(file.size / (1024 * 1024)).toFixed(1)}{" "}
+                {t("importDeck.mb")}
               </p>
             )}
             {phase === "reading" && (
               <div>
                 <p role="status" aria-live="polite">
-                  {READ_LABELS[readProgress]}
+                  {t(READ_LABELS[readProgress])}
                 </p>
                 <button
                   type="button"
@@ -929,15 +993,12 @@ export function ImportDeck() {
                     setFile(null);
                   }}
                 >
-                  Cancel reading
+                  {t("importDeck.cancelReading")}
                 </button>
               </div>
             )}
             <p className={styles.muted}>
-              Audio and images are left out. You can generate Gooseberry
-              pronunciation later. Choose whether to keep Anki learning progress
-              below. Anki review history and presets are retained as source
-              data; future reviews use Gooseberry’s scheduler.
+              {t("importDeck.audioAndImagesAreLeftOutYouCanGenerateGooseberry")}
             </p>
           </fieldset>
 
@@ -945,15 +1006,16 @@ export function ImportDeck() {
             <>
               {resumeAvailable && phase === "ready" && (
                 <p className={styles.notice} role="status">
-                  An unfinished import for this file is available. Resume it
-                  below or cancel it to change the selection.
+                  {t(
+                    "importDeck.anUnfinishedImportForThisFileIsAvailableResumeIt",
+                  )}
                 </p>
               )}
 
               <fieldset className={styles.panel} disabled={locked || busy}>
-                <legend>2. Choose words and languages</legend>
+                <legend>{t("importDeck.step2ChooseWordsAndLanguages")}</legend>
                 <div className={styles.deckHeading}>
-                  <h3>Decks</h3>
+                  <h3>{t("importDeck.decks")}</h3>
                   <button
                     type="button"
                     className={styles.textButton}
@@ -962,7 +1024,7 @@ export function ImportDeck() {
                       setPreviewIndex(0);
                     }}
                   >
-                    Select all
+                    {t("importDeck.selectAll")}
                   </button>
                   <button
                     type="button"
@@ -972,7 +1034,7 @@ export function ImportDeck() {
                       setPreviewIndex(0);
                     }}
                   >
-                    Clear selection
+                    {t("importDeck.clearSelection")}
                   </button>
                 </div>
                 <div className={styles.deckList}>
@@ -996,12 +1058,13 @@ export function ImportDeck() {
                   ))}
                 </div>
                 <p className={styles.muted}>
-                  Selecting a deck includes its subdecks. Words shared between
-                  selected decks are imported once.
+                  {t(
+                    "importDeck.selectingADeckIncludesItsSubdecksWordsSharedBetweenSelected",
+                  )}
                 </p>
                 <div className={styles.twoColumns}>
                   <label>
-                    Word language
+                    {t("importDeck.wordLanguage")}
                     <select
                       value={sourceLang}
                       onChange={(event) => {
@@ -1012,13 +1075,13 @@ export function ImportDeck() {
                     >
                       {SourceLanguageSelectOptions.map((option) => (
                         <option key={option.value} value={option.value}>
-                          {option.label}
+                          {t(languageLabelKey(option.value))}
                         </option>
                       ))}
                     </select>
                   </label>
                   <label>
-                    Translation language
+                    {t("importDeck.translationLanguage")}
                     <select
                       value={targetLang}
                       onChange={(event) => {
@@ -1029,19 +1092,19 @@ export function ImportDeck() {
                     >
                       {TargetLanguageSelectOptions.map((option) => (
                         <option key={option.value} value={option.value}>
-                          {option.label}
+                          {t(languageLabelKey(option.value))}
                         </option>
                       ))}
                     </select>
                   </label>
                 </div>
                 <label className={styles.destination}>
-                  Save to
+                  {t("importDeck.saveTo")}
                   <select
                     value={targetSetId}
                     onChange={(event) => setTargetSetId(event.target.value)}
                   >
-                    <option value="">A new study set</option>
+                    <option value="">{t("importDeck.aNewStudySet")}</option>
                     {compatibleSets.map((set) => (
                       <option key={set.id} value={set.id}>
                         {set.name}
@@ -1051,7 +1114,7 @@ export function ImportDeck() {
                 </label>
                 {!targetSetId && (
                   <label className={styles.destination}>
-                    Set name
+                    {t("importDeck.setName")}
                     <input
                       type="text"
                       value={name}
@@ -1062,14 +1125,16 @@ export function ImportDeck() {
                 )}
                 {setsQuery.error && (
                   <p className={styles.muted}>
-                    Your existing sets could not be loaded. You can still create
-                    a new set.
+                    {t(
+                      "importDeck.yourExistingSetsCouldNotBeLoadedYouCanStill",
+                    )}
                   </p>
                 )}
                 {targetSetId && (
                   <p className={styles.muted}>
-                    Previously imported words with the same source identity are
-                    skipped. Your edits and study progress stay intact.
+                    {t(
+                      "importDeck.previouslyImportedWordsWithTheSameSourceIdentityAreSkipped",
+                    )}
                   </p>
                 )}
                 <div className={styles.progressSettings}>
@@ -1081,20 +1146,24 @@ export function ImportDeck() {
                         setImportProgress(event.target.checked)
                       }
                     />
-                    <span>Keep Anki learning progress</span>
+                    <span>{t("importDeck.keepAnkiLearningProgress")}</span>
                   </label>
                   <p className={styles.muted}>
                     {importProgress
-                      ? "Matching exercises keep their due dates and intervals. Additional exercise types start new. Check the matches below; some Anki card types may not have an equivalent."
-                      : "Imported exercises start new. Your Anki review history is retained as source data."}
+                      ? t(
+                          "importDeck.matchingExercisesKeepTheirDueDatesAndIntervalsAdditionalExercise",
+                        )
+                      : t(
+                          "importDeck.importedExercisesStartNewYourAnkiReviewHistoryIsRetained",
+                        )}
                   </p>
                   <label className={styles.destination}>
-                    Study time zone
+                    {t("importDeck.studyTimeZone")}
                     <input
                       type="text"
                       value={schedulingTimeZone}
                       maxLength={100}
-                      placeholder="Europe/Helsinki"
+                      placeholder={t("importDeck.europeHelsinki")}
                       aria-invalid={!validTimeZone}
                       aria-describedby="import-time-zone-help"
                       onChange={(event) =>
@@ -1103,24 +1172,24 @@ export function ImportDeck() {
                     />
                   </label>
                   <p className={styles.muted} id="import-time-zone-help">
-                    Use the time zone you studied in, such as Europe/Helsinki.
-                    Anki does not include it in the deck. It determines which
-                    day a review is due.
+                    {t("importDeck.useTheTimeZoneYouStudiedInSuchAsEurope")}
                   </p>
                   {!validTimeZone && (
                     <p className={styles.error} role="alert">
-                      Enter a valid time zone, such as Europe/Helsinki or UTC.
+                      {t(
+                        "importDeck.enterAValidTimeZoneSuchAsEuropeHelsinkiOr",
+                      )}
                     </p>
                   )}
                 </div>
               </fieldset>
 
               <fieldset className={styles.panel} disabled={locked || busy}>
-                <legend>3. Match the fields</legend>
+                <legend>{t("importDeck.step3MatchTheFields")}</legend>
                 <p className={styles.muted}>
-                  We suggested familiar field names. Check each note type
-                  against the preview. Leave missing content empty and generate
-                  it later when you request it.
+                  {t(
+                    "importDeck.weSuggestedFamiliarFieldNamesCheckEachNoteTypeAgainst",
+                  )}
                 </p>
                 {pkg.models
                   .filter((model) =>
@@ -1137,17 +1206,17 @@ export function ImportDeck() {
                         <summary>
                           {model.name}
                           <span>
-                            {
-                              content.notes.filter(
+                            {t("importDeck.noteCount", {
+                              count: content.notes.filter(
                                 (note) => note.modelId === model.id,
-                              ).length
-                            }{" "}
-                            notes
+                              ).length,
+                            })}
                           </span>
                         </summary>
                         {unsupported ? (
                           <p className={styles.notice}>
-                            {unsupported} These notes will be skipped.
+                            {t(unsupported.key, unsupported.values)}{" "}
+                            {t("importDeck.theseNotesWillBeSkipped")}
                           </p>
                         ) : (
                           <>
@@ -1161,13 +1230,15 @@ export function ImportDeck() {
                                   })
                                 }
                               />
-                              Include this note type
+                              {t("importDeck.includeThisNoteType")}
                             </label>
                             {!value.skip && (
                               <>
                                 <div className={styles.twoColumns}>
                                   <FieldMappingEditor
-                                    label={`Word (${sourceLabel})`}
+                                    label={t("importDeck.wordValue", {
+                                      value0: sourceLabel,
+                                    })}
                                     model={model}
                                     value={value.original}
                                     onChange={(original) =>
@@ -1175,7 +1246,9 @@ export function ImportDeck() {
                                     }
                                   />
                                   <FieldMappingEditor
-                                    label={`Translation (${targetLabel})`}
+                                    label={t("importDeck.translationValue", {
+                                      value0: targetLabel,
+                                    })}
                                     model={model}
                                     value={value.translation}
                                     onChange={(translation) =>
@@ -1183,7 +1256,7 @@ export function ImportDeck() {
                                     }
                                   />
                                   <FieldMappingEditor
-                                    label="Word forms"
+                                    label={t("importDeck.wordForms")}
                                     model={model}
                                     value={value.wordForms}
                                     onChange={(wordForms) =>
@@ -1191,7 +1264,7 @@ export function ImportDeck() {
                                     }
                                   />
                                   <FieldMappingEditor
-                                    label="Comments"
+                                    label={t("importDeck.comments")}
                                     model={model}
                                     value={value.comments}
                                     onChange={(comments) =>
@@ -1199,7 +1272,7 @@ export function ImportDeck() {
                                     }
                                   />
                                 </div>
-                                <h4>Example pairs</h4>
+                                <h4>{t("importDeck.examplePairs")}</h4>
                                 {(value.examples ?? []).map((pair, index) => (
                                   <div
                                     className={styles.examplePair}
@@ -1207,7 +1280,13 @@ export function ImportDeck() {
                                   >
                                     <div className={styles.twoColumns}>
                                       <FieldMappingEditor
-                                        label={`Example ${index + 1} (${sourceLabel})`}
+                                        label={t(
+                                          "importDeck.exampleValueValue",
+                                          {
+                                            value0: index + 1,
+                                            value1: sourceLabel,
+                                          },
+                                        )}
                                         model={model}
                                         value={pair.sample}
                                         onChange={(sample) =>
@@ -1222,7 +1301,13 @@ export function ImportDeck() {
                                         }
                                       />
                                       <FieldMappingEditor
-                                        label={`Example ${index + 1} translation (${targetLabel})`}
+                                        label={t(
+                                          "importDeck.exampleValueTranslationValue",
+                                          {
+                                            value0: index + 1,
+                                            value1: targetLabel,
+                                          },
+                                        )}
                                         model={model}
                                         value={pair.translation}
                                         onChange={(translation) =>
@@ -1249,7 +1334,7 @@ export function ImportDeck() {
                                         })
                                       }
                                     >
-                                      Remove example pair
+                                      {t("importDeck.removeExamplePair")}
                                     </button>
                                   </div>
                                 ))}
@@ -1276,20 +1361,23 @@ export function ImportDeck() {
                                       })
                                     }
                                   >
-                                    Add example pair
+                                    {t("importDeck.addExamplePair")}
                                   </button>
                                 )}
                                 <p className={styles.muted}>
-                                  All mapped examples are saved. Study uses the
-                                  first complete pair for now.
+                                  {t(
+                                    "importDeck.allMappedExamplesAreSavedStudyUsesTheFirstComplete",
+                                  )}
                                 </p>
                                 {importProgress && (
                                   <div className={styles.templateMappings}>
-                                    <h4>Match learning progress</h4>
+                                    <h4>
+                                      {t("importDeck.matchLearningProgress")}
+                                    </h4>
                                     <p className={styles.muted}>
-                                      Match each Anki card type to one
-                                      Gooseberry exercise. Choose “Do not
-                                      transfer” for types without an equivalent.
+                                      {t(
+                                        "importDeck.matchEachAnkiCardTypeToOneGooseberryExerciseChoose",
+                                      )}
                                     </p>
                                     <div className={styles.twoColumns}>
                                       {model.templates.map((template) => {
@@ -1352,8 +1440,21 @@ export function ImportDeck() {
                                             >
                                               <option value="auto">
                                                 {inferred
-                                                  ? `Suggested: ${exerciseMatchLabel(inferred, sourceLabel, targetLabel)}`
-                                                  : "No suggested match"}
+                                                  ? t(
+                                                      "importDeck.suggestedValue",
+                                                      {
+                                                        value0:
+                                                          exerciseMatchLabel(
+                                                            inferred,
+                                                            sourceLabel,
+                                                            targetLabel,
+                                                            t,
+                                                          ),
+                                                      },
+                                                    )
+                                                  : t(
+                                                      "importDeck.noSuggestedMatch",
+                                                    )}
                                               </option>
                                               {STUDY_CARD_TEMPLATES.map(
                                                 ({ key }) => (
@@ -1378,12 +1479,13 @@ export function ImportDeck() {
                                                       key,
                                                       sourceLabel,
                                                       targetLabel,
+                                                      t,
                                                     )}
                                                   </option>
                                                 ),
                                               )}
                                               <option value="none">
-                                                Do not transfer
+                                                {t("importDeck.doNotTransfer")}
                                               </option>
                                             </select>
                                           </label>
@@ -1400,15 +1502,20 @@ export function ImportDeck() {
                                           role="alert"
                                           key={issue.modelId}
                                         >
-                                          More than one Anki card type matches{" "}
+                                          {t(
+                                            "importDeck.moreThanOneAnkiCardTypeMatches",
+                                          )}{" "}
                                           {issue.templateKeys
-                                            .map(
-                                              (key) =>
-                                                getStudyCardTemplate(key).label,
+                                            .map((key) =>
+                                              t(
+                                                getStudyCardTemplate(key)
+                                                  .labelKey,
+                                              ),
                                             )
                                             .join(", ")}
-                                          . Match each exercise once, or choose
-                                          “Do not transfer” for the extra type.
+                                          {t(
+                                            "importDeck.matchEachExerciseOnceOrChooseDoNotTransferFor",
+                                          )}
                                         </p>
                                       ))}
                                   </div>
@@ -1423,48 +1530,53 @@ export function ImportDeck() {
               </fieldset>
 
               <fieldset className={styles.panel}>
-                <legend>4. Check the preview</legend>
+                <legend>{t("importDeck.step4CheckThePreview")}</legend>
                 <div className={styles.summary}>
                   <p>
-                    <strong>{included.length}</strong> words included
+                    {t("importDeck.includedWords", { count: included.length })}
                   </p>
                   <p>
-                    <strong>{exerciseCount}</strong> exercises available
+                    {t("importDeck.availableExercises", {
+                      count: exerciseCount,
+                    })}
                   </p>
                   <p>
-                    <strong>{needsAttentionCount}</strong> need attention
+                    <strong>{needsAttentionCount}</strong>{" "}
+                    {t("importDeck.needAttention")}
                   </p>
                   {skippedCount > 0 && (
                     <p>
-                      <strong>{skippedCount}</strong> skipped
+                      <strong>{skippedCount}</strong> {t("importDeck.skipped")}
                     </p>
                   )}
                 </div>
                 {importProgress && progressPreview && (
                   <div className={styles.progressPreview}>
                     <p>
-                      <strong>{progressPreview.matchedCount}</strong> of{" "}
-                      {progressPreview.studiedCount} studied Anki cards matched
-                      for learning progress.
+                      {t("importDeck.progressMatched", {
+                        matched: progressPreview.matchedCount,
+                        total: progressPreview.studiedCount,
+                      })}
                     </p>
                     <p className={styles.muted}>
-                      Progress is retained for matched exercises even when
-                      missing content keeps them unavailable. Existing
-                      Gooseberry progress is kept on reimport.
+                      {t(
+                        "importDeck.progressIsRetainedForMatchedExercisesEvenWhenMissingContent",
+                      )}
                     </p>
                     {progressPreview.unmatchedTemplates.length > 0 && (
                       <details className={styles.savedExamples}>
                         <summary>
-                          {progressPreview.unmatchedTemplates.reduce(
-                            (count, template) => count + template.count,
-                            0,
-                          )}{" "}
-                          studied cards have no exercise match
+                          {t("importDeck.unmatchedCards", {
+                            count: progressPreview.unmatchedTemplates.reduce(
+                              (count, template) => count + template.count,
+                              0,
+                            ),
+                          })}
                         </summary>
                         <p>
-                          Their learning progress will not transfer. Review the
-                          matches above; the original review history is kept as
-                          source data.
+                          {t(
+                            "importDeck.theirLearningProgressWillNotTransferReviewTheMatchesAbove",
+                          )}
                         </p>
                         <ul>
                           {progressPreview.unmatchedTemplates.map(
@@ -1480,25 +1592,25 @@ export function ImportDeck() {
                     )}
                     {progressPreview.unsupportedCount > 0 && (
                       <p className={styles.notice}>
-                        {progressPreview.unsupportedCount} studied cards have
-                        scheduling data that cannot be transferred. Their
-                        matching exercises start new; the original review
-                        history is kept as source data.
+                        {t("importDeck.unsupportedProgress", {
+                          count: progressPreview.unsupportedCount,
+                        })}
                       </p>
                     )}
                     {duplicateProgressMappings && (
                       <p className={styles.error} role="alert">
-                        Resolve the duplicate exercise matches above before
-                        importing, or turn off “Keep Anki learning progress”.
+                        {t(
+                          "importDeck.resolveTheDuplicateExerciseMatchesAboveBeforeImportingOrTurn",
+                        )}
                       </p>
                     )}
                   </div>
                 )}
                 {needsAttentionCount > 0 && (
                   <p className={styles.notice}>
-                    Incomplete words are saved for later. Exercises appear as
-                    soon as their required content is available. Generation only
-                    starts when you request it.
+                    {t(
+                      "importDeck.incompleteWordsAreSavedForLaterExercisesAppearAsSoon",
+                    )}
                   </p>
                 )}
                 {preview ? (
@@ -1510,12 +1622,13 @@ export function ImportDeck() {
                         disabled={previewIndex <= 0}
                         onClick={() => setPreviewIndex((index) => index - 1)}
                       >
-                        Previous
+                        {t("importDeck.previous")}
                       </button>
                       <span>
-                        Note {Math.min(previewIndex + 1, entries.length)} of{" "}
-                        {entries.length} ·{" "}
-                        {preview.model?.name ?? "Unknown type"}
+                        {t("importDeck.note")}{" "}
+                        {Math.min(previewIndex + 1, entries.length)}{" "}
+                        {t("importDeck.of")} {entries.length} ·{" "}
+                        {preview.model?.name ?? t("importDeck.unknownType")}
                       </span>
                       <button
                         type="button"
@@ -1523,32 +1636,37 @@ export function ImportDeck() {
                         disabled={previewIndex >= entries.length - 1}
                         onClick={() => setPreviewIndex((index) => index + 1)}
                       >
-                        Next
+                        {t("importDeck.next")}
                       </button>
                     </div>
                     {!preview.mapped || preview.mapped.skipped ? (
                       <p className={styles.notice}>
-                        This note will be skipped. Select a supported vocabulary
-                        note type above.
+                        {t(
+                          "importDeck.thisNoteWillBeSkippedSelectASupportedVocabularyNote",
+                        )}
                       </p>
                     ) : (
                       <>
                         <dl className={styles.previewFields}>
                           <div>
-                            <dt>Word</dt>
+                            <dt>{t("importDeck.word")}</dt>
                             <dd lang={sourceLang}>
-                              {preview.mapped.original || <em>Missing</em>}
+                              {preview.mapped.original || (
+                                <em>{t("importDeck.missing")}</em>
+                              )}
                             </dd>
                           </div>
                           <div>
-                            <dt>Translation</dt>
+                            <dt>{t("cardEditor.translation")}</dt>
                             <dd lang={targetLang}>
-                              {preview.mapped.translation || <em>Missing</em>}
+                              {preview.mapped.translation || (
+                                <em>{t("importDeck.missing")}</em>
+                              )}
                             </dd>
                           </div>
                           {preview.mapped.wordForms && (
                             <div>
-                              <dt>Forms</dt>
+                              <dt>{t("importDeck.forms")}</dt>
                               <dd lang={sourceLang}>
                                 {preview.mapped.wordForms}
                               </dd>
@@ -1556,22 +1674,25 @@ export function ImportDeck() {
                           )}
                           {preview.mapped.comments && (
                             <div>
-                              <dt>Comments</dt>
+                              <dt>{t("importDeck.comments")}</dt>
                               <dd>{preview.mapped.comments}</dd>
                             </div>
                           )}
                         </dl>
-                        <h3>Study exercises</h3>
+                        <h3>{t("importDeck.studyExercises")}</h3>
                         {preview.exercises.length ? (
                           <ul className={styles.exercisePreview}>
                             {preview.exercises.map((key) => {
                               const template = getStudyCardTemplate(key);
                               return (
                                 <li key={key}>
-                                  <strong>{template.label}</strong>
+                                  <strong>{t(template.labelKey)}</strong>
                                   <p>
                                     {preview.mapped![template.promptField]}
-                                    <span aria-label="answer"> → </span>
+                                    <span aria-label={t("importDeck.answer")}>
+                                      {" "}
+                                      →{" "}
+                                    </span>
                                     {preview.mapped![template.answerField]}
                                   </p>
                                 </li>
@@ -1580,24 +1701,27 @@ export function ImportDeck() {
                           </ul>
                         ) : (
                           <p className={styles.muted}>
-                            No exercises yet. Add the missing content after
-                            importing.
+                            {t(
+                              "importDeck.noExercisesYetAddTheMissingContentAfterImporting",
+                            )}
                           </p>
                         )}
                         {preview.mapped.examplePairs.length > 0 && (
                           <details className={styles.savedExamples}>
                             <summary>
-                              Saved example pairs (
-                              {preview.mapped.examplePairs.length})
+                              {t("importDeck.savedPairs", {
+                                count: preview.mapped.examplePairs.length,
+                              })}
                             </summary>
                             {preview.mapped.examplePairs.map((pair, index) => (
                               <div key={index}>
                                 <p lang={sourceLang}>
-                                  {pair.sample || "Missing source example"}
+                                  {pair.sample ||
+                                    t("importDeck.missingSourceExample")}
                                 </p>
                                 <p lang={targetLang}>
                                   {pair.translation ||
-                                    "Missing example translation"}
+                                    t("importDeck.missingExampleTranslation")}
                                 </p>
                               </div>
                             ))}
@@ -1608,17 +1732,19 @@ export function ImportDeck() {
                   </>
                 ) : (
                   <p className={styles.muted}>
-                    Select at least one deck to preview its words.
+                    {t("importDeck.selectAtLeastOneDeckToPreviewItsWords")}
                   </p>
                 )}
                 {pkg.diagnostics.warnings.length > 0 && (
                   <details className={styles.savedExamples}>
                     <summary>
-                      Deck notices ({pkg.diagnostics.warnings.length})
+                      {t("importDeck.deckNoticeCount", {
+                        count: pkg.diagnostics.warnings.length,
+                      })}
                     </summary>
                     <ul>
                       {pkg.diagnostics.warnings.map((warning, index) => (
-                        <li key={index}>{warning}</li>
+                        <li key={index}>{importNotice(warning)}</li>
                       ))}
                     </ul>
                   </details>
@@ -1628,7 +1754,7 @@ export function ImportDeck() {
                   type="button"
                   onClick={downloadIssues}
                 >
-                  Download issues report
+                  {t("importDeck.downloadIssuesReport")}
                 </button>
                 <label className={styles.directionConfirmation}>
                   <input
@@ -1640,9 +1766,10 @@ export function ImportDeck() {
                     }
                   />
                   <span>
-                    I confirm the words are in {sourceLabel} and the
-                    translations are in {targetLabel}, with the fields matched
-                    in the correct direction.
+                    {t("importDeck.confirmDirection", {
+                      source: sourceLabel,
+                      target: targetLabel,
+                    })}
                   </span>
                 </label>
               </fieldset>
@@ -1654,16 +1781,20 @@ export function ImportDeck() {
                   <>
                     <p role="status">
                       {phase === "committing"
-                        ? "Finishing your import…"
+                        ? t("importDeck.finishingYourImport")
                         : phase === "paused"
-                          ? `Import paused. ${uploadPercent}% received.`
-                          : `Uploading your vocabulary… ${uploadPercent}%`}
+                          ? t("importDeck.importPausedValueReceived", {
+                              value0: uploadPercent,
+                            })
+                          : t("importDeck.uploadingYourVocabularyValue", {
+                              value0: uploadPercent,
+                            })}
                     </p>
                     <progress
                       aria-label={
                         phase === "committing"
-                          ? "Saving your study set"
-                          : "Deck upload progress"
+                          ? t("importDeck.savingYourStudySet")
+                          : t("importDeck.deckUploadProgress")
                       }
                       max={Math.max(1, batchCount)}
                       value={
@@ -1672,26 +1803,30 @@ export function ImportDeck() {
                     />
                     <ul className={styles.receivedCounts}>
                       <li>
-                        {job?.stagedNoteCount ?? 0} of {content.notes.length}{" "}
-                        words received
+                        {job?.stagedNoteCount ?? 0} {t("importDeck.of")}{" "}
+                        {content.notes.length} {t("importDeck.wordsReceived")}
                       </li>
                       {content.cards.length > 0 && (
                         <li>
-                          {job?.stagedCardCount ?? 0} of {content.cards.length}{" "}
-                          Anki cards received
+                          {job?.stagedCardCount ?? 0} {t("importDeck.of")}{" "}
+                          {content.cards.length}{" "}
+                          {t("importDeck.ankiCardsReceived")}
                         </li>
                       )}
                       {content.revlogs.length > 0 && (
                         <li>
-                          {job?.stagedReviewCount ?? 0} of{" "}
-                          {content.revlogs.length} reviews received
+                          {t("importDeck.receivedReviews", {
+                            received: job?.stagedReviewCount ?? 0,
+                            total: content.revlogs.length,
+                          })}
                         </li>
                       )}
                     </ul>
                     {phase === "committing" && (
                       <p className={styles.muted}>
-                        All deck data received. Your words and learning progress
-                        are being saved together.
+                        {t(
+                          "importDeck.allDeckDataReceivedYourWordsAndLearningProgressAre",
+                        )}
                       </p>
                     )}
                   </>
@@ -1701,7 +1836,9 @@ export function ImportDeck() {
                 phase === "cancelling" ? (
                   <>
                     {phase === "cancelling" && (
-                      <p role="status">Cancelling your import…</p>
+                      <p role="status">
+                        {t("importDeck.cancellingYourImport")}
+                      </p>
                     )}
                     {phase === "uploading" && (
                       <button
@@ -1709,7 +1846,7 @@ export function ImportDeck() {
                         className={styles.secondaryButton}
                         onClick={() => controllerRef.current?.abort()}
                       >
-                        Pause import
+                        {t("importDeck.pauseImport")}
                       </button>
                     )}
                   </>
@@ -1717,10 +1854,14 @@ export function ImportDeck() {
                   <>
                     {phase === "paused" && (
                       <p className={styles.notice}>
-                        Your progress is saved.{" "}
+                        {t("importDeck.yourProgressIsSaved")}{" "}
                         {resumeStored
-                          ? "Resume here, or choose this same file later to continue."
-                          : "Keep this page open to resume; browser storage is unavailable."}
+                          ? t(
+                              "importDeck.resumeHereOrChooseThisSameFileLaterToContinue",
+                            )
+                          : t(
+                              "importDeck.keepThisPageOpenToResumeBrowserStorageIsUnavailable",
+                            )}
                       </p>
                     )}
                     <button
@@ -1737,8 +1878,10 @@ export function ImportDeck() {
                       onClick={() => void runImport()}
                     >
                       {job || resumeAvailable || phase === "paused"
-                        ? "Resume import"
-                        : `Import ${included.length} ${included.length === 1 ? "word" : "words"}`}
+                        ? t("importDeck.resumeImport")
+                        : t("importDeck.importWords", {
+                            count: included.length,
+                          })}
                     </button>
                     {(job || resumeAvailable || phase === "paused") && (
                       <button
@@ -1746,7 +1889,7 @@ export function ImportDeck() {
                         className={styles.secondaryButton}
                         onClick={() => void cancelImport()}
                       >
-                        Cancel import
+                        {t("importDeck.cancelImport")}
                       </button>
                     )}
                   </>

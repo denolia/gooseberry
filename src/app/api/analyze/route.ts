@@ -1,3 +1,4 @@
+import { MessageError } from "@/i18n/errors";
 import { startUsage, finishUsage } from "@/db/usageRepo";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
@@ -112,7 +113,10 @@ ${indexedText}`;
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   let usageId: string | undefined;
@@ -131,7 +135,7 @@ export async function POST(request: Request) {
 
     if (!selectedTokenIds.length) {
       return NextResponse.json(
-        { error: "Select one or more words from the text." },
+        { errorCode: "errors.selectOneOrMoreWordsFromTheText" },
         { status: 400 },
       );
     }
@@ -173,12 +177,12 @@ export async function POST(request: Request) {
     });
 
     if (completion.choices[0]?.finish_reason !== "stop")
-      throw new Error("Analysis did not complete.");
+      throw new MessageError("errors.analysisDidNotComplete");
     const content = completion.choices[0]?.message.content;
     const parsed = content
       ? ModelResponseSchema.parse(JSON.parse(content))
       : null;
-    if (!parsed) throw new Error("The model returned no analysis.");
+    if (!parsed) throw new MessageError("errors.theModelReturnedNoAnalysis");
 
     const selectionText = tokens
       .filter((token) => selectedIds.has(token.id))
@@ -233,13 +237,13 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Check the text, selection, and language settings." },
+        { errorCode: "errors.checkTheTextSelectionAndLanguageSettings" },
         { status: 400 },
       );
     }
     console.error("Selection analysis failed", error);
     return NextResponse.json(
-      { error: "Could not analyze this selection. Please try again." },
+      { errorCode: "errors.couldNotAnalyzeThisSelectionPleaseTryAgain" },
       { status: 500 },
     );
   } finally {

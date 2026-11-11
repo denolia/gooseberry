@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/i18n/client";
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -7,6 +8,7 @@ import styles from "./MainTabs.module.css";
 import { tabs } from "@/components/ui/tabs";
 
 export function MainTabs() {
+  const { t } = useI18n();
   const { status } = useSession();
   const pathname = usePathname();
 
@@ -15,7 +17,7 @@ export function MainTabs() {
   }
 
   return (
-    <nav className={styles.tabList} aria-label="Main sections">
+    <nav className={styles.tabList} aria-label={t("mainTabs.mainSections")}>
       {tabs.map((tab) => {
         const href =
           tab.id === "translation"
@@ -33,7 +35,7 @@ export function MainTabs() {
             className={`${styles.tab} ${isActive ? styles.tabActive : ""}`}
             scroll={false}
           >
-            {tab.label}
+            {t(tab.labelKey)}
           </Link>
         );
       })}

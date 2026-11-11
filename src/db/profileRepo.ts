@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db/drizzle";
 import { appUser, premiumRequest, userPreference } from "@/db/schema";
 import { isAdminEmail } from "@/lib/admin/access";
@@ -8,13 +8,11 @@ import {
   type ReviewModeValue,
 } from "@/lib/review/model";
 import { DEFAULT_NEW_WORDS_PER_DAY } from "@/lib/review/settings";
+import { isUiLocale, type UiLocale } from "@/i18n/locale";
 
 export type AccountTier = "free" | "premium";
 export type PremiumRequestStatus =
-  | "pending"
-  | "approved"
-  | "declined"
-  | "cancelled";
+  "pending" | "approved" | "declined" | "cancelled";
 
 function accountTier(value: string): AccountTier {
   return value === "premium" ? "premium" : "free";
@@ -71,6 +69,7 @@ export async function getUserProfile(userId: string) {
     tier,
     isAdmin: isAdminEmail(user.email),
     preferences: {
+      uiLocale: isUiLocale(preferences?.uiLocale) ? preferences.uiLocale : null,
       reviewMode: isReviewMode(preferences?.reviewMode)
         ? preferences.reviewMode
         : ReviewMode.Simple,
@@ -97,7 +96,8 @@ export async function getUserReviewMode(
 
 export async function updateUserPreferences(input: {
   userId: string;
-  reviewMode: ReviewModeValue;
+  reviewMode?: ReviewModeValue;
+  uiLocale?: UiLocale;
   newWordsPerDay?: number;
   studyTimeZone?: string;
 }) {
@@ -106,6 +106,7 @@ export async function updateUserPreferences(input: {
     .values({
       userId: input.userId,
       reviewMode: input.reviewMode,
+      uiLocale: input.uiLocale,
       newWordsPerDay: input.newWordsPerDay,
       studyTimeZone: input.studyTimeZone,
       updatedAt: new Date(),
@@ -114,6 +115,7 @@ export async function updateUserPreferences(input: {
       target: userPreference.userId,
       set: {
         reviewMode: input.reviewMode,
+        uiLocale: input.uiLocale,
         newWordsPerDay: input.newWordsPerDay,
         studyTimeZone: input.studyTimeZone,
         updatedAt: new Date(),
@@ -121,6 +123,35 @@ export async function updateUserPreferences(input: {
     })
     .returning();
   return preferences;
+}
+
+/** A concurrent first visit must never overwrite a saved language choice. */
+export async function getOrInitializeUserLocale(
+  userId: string,
+  detected: UiLocale,
+): Promise<UiLocale> {
+  const db = getDb();
+  const read = async () => {
+    const [row] = await db
+      .select({ uiLocale: userPreference.uiLocale })
+      .from(userPreference)
+      .where(eq(userPreference.userId, userId))
+      .limit(1);
+    return row?.uiLocale;
+  };
+  const existing = await read();
+  if (isUiLocale(existing)) return existing;
+  const [initialized] = await db
+    .insert(userPreference)
+    .values({ userId, uiLocale: detected })
+    .onConflictDoUpdate({
+      target: userPreference.userId,
+      set: { uiLocale: detected, updatedAt: new Date() },
+      setWhere: isNull(userPreference.uiLocale),
+    })
+    .returning({ uiLocale: userPreference.uiLocale });
+  const saved = initialized?.uiLocale ?? (await read());
+  return isUiLocale(saved) ? saved : detected;
 }
 
 export async function createPremiumRequest(input: {

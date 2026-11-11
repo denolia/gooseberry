@@ -251,6 +251,7 @@ test("saving review-button preferences alone preserves daily settings", async ()
   await profiles.updateUserPreferences({ userId, reviewMode: "full" });
   const profile = await profiles.getUserProfile(userId);
   assert.deepEqual(profile.preferences, {
+    uiLocale: null,
     reviewMode: "full",
     newWordsPerDay: 7,
     studyTimeZone: "Europe/Berlin",

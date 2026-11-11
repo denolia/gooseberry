@@ -24,7 +24,7 @@ export async function GET(
       )
     ) {
       return NextResponse.json(
-        { error: "This export link is invalid or has expired" },
+        { errorCode: "errors.thisExportLinkIsInvalidOrHasExpired" },
         { status: 403 },
       );
     }
@@ -32,14 +32,17 @@ export async function GET(
     const wordSet = await getWordSetById(id);
     if (!wordSet) {
       return NextResponse.json(
-        { error: "Word set not found" },
+        { errorCode: "wordSetManager.wordSetNotFound" },
         { status: 404 },
       );
     }
 
     const items = await getWordSetItems(id);
     if (items.length === 0) {
-      return NextResponse.json({ error: "Word set is empty" }, { status: 400 });
+      return NextResponse.json(
+        { errorCode: "errors.wordSetIsEmpty" },
+        { status: 400 },
+      );
     }
 
     const ankiNotes = items.map((item) => mapWordSetItemToAnkiNote(item, true));
@@ -71,7 +74,7 @@ export async function GET(
   } catch (error) {
     console.error("Error downloading signed Anki export:", error);
     return NextResponse.json(
-      { error: "Failed to export word set" },
+      { errorCode: "errors.failedToExportWordSet" },
       { status: 500 },
     );
   }

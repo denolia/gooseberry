@@ -1,3 +1,6 @@
+"use client";
+
+import { useI18n } from "@/i18n/client";
 import type { PlantReadinessStage } from "@/lib/review/stats";
 import styles from "./StudyPlant.module.css";
 
@@ -8,10 +11,14 @@ export function StudyPlant({
   stage: PlantReadinessStage;
   dueCount: number;
 }) {
+  const { t } = useI18n();
   const label =
     dueCount === 0
-      ? "No exercises ready; a resting seed"
-      : `${dueCount} ${dueCount === 1 ? "exercise" : "exercises"} ready; ${stage} plant`;
+      ? t("studyPlant.resting")
+      : t("studyPlant.ready", {
+          count: dueCount,
+          plant: t(`studyPlant.${stage}`),
+        });
 
   return (
     <svg

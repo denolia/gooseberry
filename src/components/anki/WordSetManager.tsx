@@ -1,4 +1,14 @@
 "use client";
+import {
+  formatError,
+  messageFromError,
+  MessageError,
+  errorFromResponse,
+} from "@/i18n/errors";
+import type { UiMessage, MessageKey } from "@/i18n/messages";
+
+import { useI18n } from "@/i18n/client";
+
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -13,7 +23,6 @@ import { TranslationSelector } from "./TranslationSelector";
 import { EnrichmentDialog } from "./EnrichmentDialog";
 import { MoveWordDialog } from "./MoveWordDialog";
 import { missingEnrichmentFields } from "@/lib/anki/enrichment";
-import { reviewCountLabel, reviewStateLabel } from "@/lib/review/stats";
 import type { FsrsCardStateValue } from "@/lib/review/model";
 import styles from "./WordSetManager.module.css";
 
@@ -54,28 +63,44 @@ interface WordSetManagerProps {
   wordSetId: string;
 }
 
+const REVIEW_STATE_MESSAGES: Record<FsrsCardStateValue, MessageKey> = {
+  0: "wordSetManager.new",
+  1: "reviewSession.learning",
+  2: "wordSetManager.review",
+  3: "wordSetManager.relearning",
+};
+
 type DeckExportStage = "idle" | "working" | "ready" | "error";
 type ExportFormat = "apkg" | "csv";
 
-function nextReviewLabel(item: WordSetItem): string {
-  if (item.review.cardCount === 0) return "Add content to study";
+function nextReviewLabel(
+  item: WordSetItem,
+  t: import("@/i18n/messages").Translate,
+): string {
+  if (item.review.cardCount === 0) return t("wordSetManager.addContentToStudy");
   if (item.review.dueCount > 0) {
-    return `${item.review.dueCount} of ${item.review.cardCount} exercises ready`;
+    return t("wordSetManager.readyOfTotal", {
+      ready: item.review.dueCount,
+      total: item.review.cardCount,
+    });
   }
-  if (!item.review.dueAt) return "Not scheduled";
-  return `Next ${new Date(item.review.dueAt).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  })}`;
+  if (!item.review.dueAt) return t("wordSetManager.notScheduled");
+  return t("wordSetManager.nextReview", {
+    date: new Date(item.review.dueAt).toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }),
+  });
 }
 
 export function WordSetManager({ wordSetId }: WordSetManagerProps) {
+  const { t } = useI18n();
   const { data: session, status } = useSession();
   const router = useRouter();
   const [wordSet, setWordSet] = useState<WordSet | null>(null);
   const [items, setItems] = useState<WordSetItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UiMessage | null>(null);
   const [showSelector, setShowSelector] = useState(false);
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [enrichingItem, setEnrichingItem] = useState<WordSetItem | null>(null);
@@ -86,13 +111,15 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState("");
   const [exporting, setExporting] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<UiMessage | null>(null);
   const [showDeckExportDialog, setShowDeckExportDialog] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("apkg");
   const [includeExportAudio, setIncludeExportAudio] = useState(false);
   const [deckExportStage, setDeckExportStage] =
     useState<DeckExportStage>("idle");
-  const [deckExportError, setDeckExportError] = useState<string | null>(null);
+  const [deckExportError, setDeckExportError] = useState<UiMessage | null>(
+    null,
+  );
   const exportAbortController = useRef<AbortController | null>(null);
 
   const loadWordSet = useCallback(async () => {
@@ -103,12 +130,12 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
           router.push("/anki");
           return;
         }
-        throw new Error("Failed to load word set");
+        throw new MessageError("errors.failedToLoadWordSet");
       }
       const data = await response.json();
       setWordSet(data.wordSet);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load word set");
+      setError(messageFromError(err, "errors.failedToLoadWordSet"));
     } finally {
       setLoading(false);
     }
@@ -117,13 +144,11 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   const loadItems = useCallback(async () => {
     try {
       const response = await fetch(`/api/word-sets/${wordSetId}/items`);
-      if (!response.ok) throw new Error("Failed to load items");
+      if (!response.ok) throw new MessageError("errors.failedToLoadItems");
       const data = await response.json();
       setItems(data.items);
     } catch (err) {
-      setStatusMessage(
-        err instanceof Error ? err.message : "Failed to load items",
-      );
+      setStatusMessage(messageFromError(err, "errors.failedToLoadItems"));
     }
   }, [wordSetId]);
 
@@ -135,9 +160,9 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
         void loadWordSet();
         void loadItems();
       } else if (status === "authenticated") {
-        setError(
-          "Your session could not be initialized. Please sign out and sign in again.",
-        );
+        setError({
+          key: "wordSetList.yourSessionCouldNotBeInitializedPleaseSignOutAnd",
+        });
         setLoading(false);
       }
     });
@@ -177,15 +202,17 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
     }
 
     if (count > 0 && skippedCount > 0) {
-      setStatusMessage(
-        `Added ${count} item${count === 1 ? "" : "s"}. ${skippedCount} ${skippedCount === 1 ? "was" : "were"} already in this set.`,
-      );
+      setStatusMessage({
+        key: "wordSetManager.addedAndSkipped",
+        values: { count, skippedCount },
+      });
     } else if (count > 0) {
-      setStatusMessage(`Added ${count} item${count === 1 ? "" : "s"}.`);
+      setStatusMessage({ key: "wordSetManager.addedItems", values: { count } });
     } else if (skippedCount > 0) {
-      setStatusMessage(
-        `Nothing added. ${skippedCount} ${skippedCount === 1 ? "item was" : "items were"} already in this set.`,
-      );
+      setStatusMessage({
+        key: "wordSetManager.alreadyInSet",
+        values: { count: skippedCount },
+      });
     } else {
       setStatusMessage(null);
     }
@@ -218,7 +245,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to export word set");
+        throw errorFromResponse(data, "errors.failedToExportWordSet");
       }
 
       const blob = await response.blob();
@@ -239,7 +266,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
         setDeckExportStage("idle");
       } else {
         setDeckExportError(
-          err instanceof Error ? err.message : "Failed to export word set",
+          messageFromError(err, "errors.failedToExportWordSet"),
         );
         setDeckExportStage("error");
       }
@@ -285,23 +312,21 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        throw new Error(body.error || "Failed to update item");
+        throw errorFromResponse(body, "errors.failedToUpdateItem");
       }
 
       setEditingItem(null);
       setEditValues(null);
       loadItems();
     } catch (err) {
-      setStatusMessage(
-        err instanceof Error ? err.message : "Failed to update item",
-      );
+      setStatusMessage(messageFromError(err, "errors.failedToUpdateItem"));
     } finally {
       setSaving(false);
     }
   };
 
   const deleteItem = async (itemId: string) => {
-    if (!confirm("Remove this item from the set?")) return;
+    if (!confirm(t("wordSetManager.removeConfirmation"))) return;
 
     try {
       const response = await fetch(`/api/word-sets/${wordSetId}/items`, {
@@ -310,19 +335,19 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
         body: JSON.stringify({ itemId }),
       });
 
-      if (!response.ok) throw new Error("Failed to delete item");
+      if (!response.ok) throw new MessageError("errors.failedToDeleteItem");
 
       loadItems();
       if (wordSet && wordSet.itemCount) {
         setWordSet({ ...wordSet, itemCount: wordSet.itemCount - 1 });
       }
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete item");
+      alert(formatError(t, err, "errors.failedToDeleteItem"));
     }
   };
 
   if (status === "loading" || (status === "authenticated" && loading)) {
-    return <div className={styles.loading}>Loading...</div>;
+    return <div className={styles.loading}>{t("wordSetList.loading")}</div>;
   }
 
   if (status === "unauthenticated") {
@@ -331,7 +356,13 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
   }
 
   if (error || !wordSet) {
-    return <div className={styles.error}>{error || "Word set not found"}</div>;
+    return (
+      <div className={styles.error}>
+        {error
+          ? t(error.key, error.values)
+          : t("wordSetManager.wordSetNotFound")}
+      </div>
+    );
   }
 
   const filteredItems = items.filter((item) =>
@@ -350,13 +381,11 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim() }),
       });
-      if (!res.ok) throw new Error("Could not rename set.");
+      if (!res.ok) throw new MessageError("errors.couldNotRenameSet");
       await loadWordSet();
       setRenaming(false);
     } catch (err) {
-      setStatusMessage(
-        err instanceof Error ? err.message : "Could not rename set.",
-      );
+      setStatusMessage(messageFromError(err, "errors.couldNotRenameSet"));
     } finally {
       setSaving(false);
     }
@@ -369,7 +398,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
             onClick={() => router.push("/anki")}
             className={styles.backButton}
           >
-            ← Back to Sets
+            {t("wordSetManager.backToSets")}
           </button>
           {renaming ? (
             <form
@@ -380,7 +409,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
               }}
             >
               <input
-                aria-label="Set name"
+                aria-label={t("importDeck.setName")}
                 className={styles.input}
                 autoFocus
                 maxLength={200}
@@ -391,14 +420,14 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                 className={styles.saveButton}
                 disabled={saving || !name.trim()}
               >
-                Save name
+                {t("wordSetManager.saveName")}
               </button>
               <button
                 type="button"
                 className={styles.cancelButton}
                 onClick={() => setRenaming(false)}
               >
-                Cancel
+                {t("moveWordDialog.cancel")}
               </button>
             </form>
           ) : (
@@ -411,14 +440,14 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                   setRenaming(true);
                 }}
               >
-                Rename
+                {t("wordSetManager.rename")}
               </button>
             </div>
           )}
           <p className={styles.meta}>
             {wordSet.sourceLang.toUpperCase()} →{" "}
-            {wordSet.targetLang.toUpperCase()} • {items.length}{" "}
-            {items.length === 1 ? "word" : "words"}
+            {wordSet.targetLang.toUpperCase()} •{" "}
+            {t("common.wordCount", { count: items.length })}
           </p>
         </div>
         <div className={styles.actions}>
@@ -427,20 +456,22 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
             disabled={itemCount === 0}
             className={styles.studyButton}
           >
-            Study now
+            {t("importDeck.studyNow")}
           </button>
           <button
             onClick={() => setShowSelector(true)}
             className={styles.addButton}
           >
-            Add from history
+            {t("wordSetManager.addFromHistory")}
           </button>
           <button
             onClick={openDeckExportDialog}
             disabled={itemCount === 0 || exporting}
             className={styles.exportButton}
           >
-            {exporting ? "Exporting…" : "Export"}
+            {exporting
+              ? t("wordSetManager.exporting")
+              : t("wordSetManager.export")}
           </button>
         </div>
       </div>
@@ -463,14 +494,18 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
               <>
                 <div className={styles.dialogHeader}>
                   <div>
-                    <p className={styles.dialogEyebrow}>Export settings</p>
-                    <h2 id="deck-export-title">Export word set</h2>
+                    <p className={styles.dialogEyebrow}>
+                      {t("wordSetManager.exportSettings")}
+                    </p>
+                    <h2 id="deck-export-title">
+                      {t("wordSetManager.exportWordSet")}
+                    </h2>
                   </div>
                   <button
                     type="button"
                     className={styles.dialogClose}
                     onClick={closeDeckExportDialog}
-                    aria-label="Close export settings"
+                    aria-label={t("wordSetManager.closeExportSettings")}
                     autoFocus
                   >
                     ×
@@ -480,12 +515,11 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                   id="deck-export-description"
                   className={styles.dialogDescription}
                 >
-                  {itemCount} {itemCount === 1 ? "word" : "words"} will be
-                  exported, with up to five exercises per word.
+                  {t("wordSetManager.exportSummary", { count: itemCount })}
                 </p>
 
                 <fieldset className={styles.formatOptions}>
-                  <legend>File format</legend>
+                  <legend>{t("wordSetManager.fileFormat")}</legend>
                   <label>
                     <input
                       type="radio"
@@ -495,8 +529,10 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                       onChange={() => setExportFormat("apkg")}
                     />
                     <span>
-                      <strong>Anki deck</strong>
-                      <small>.apkg · ready to import into Anki</small>
+                      <strong>{t("wordSetManager.ankiDeck")}</strong>
+                      <small>
+                        {t("wordSetManager.apkgReadyToImportIntoAnki")}
+                      </small>
                     </span>
                   </label>
                   <label>
@@ -511,8 +547,10 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                       }}
                     />
                     <span>
-                      <strong>Spreadsheet</strong>
-                      <small>.csv · text fields for other apps</small>
+                      <strong>{t("wordSetManager.spreadsheet")}</strong>
+                      <small>
+                        {t("wordSetManager.csvTextFieldsForOtherApps")}
+                      </small>
                     </span>
                   </label>
                 </fieldset>
@@ -529,29 +567,39 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                     }
                   />
                   <span>
-                    <strong>Include AI pronunciation</strong>
+                    <strong>
+                      {t("wordSetManager.includeAiPronunciation")}
+                    </strong>
                     <small>
-                      Generate a source-language MP3 for every included card.
-                      Audio is placed inside the deck and is not stored by
-                      Gooseberry.
+                      {t(
+                        "wordSetManager.generateASourceLanguageMp3ForEveryIncludedCardAudio",
+                      )}
                     </small>
                   </span>
-                  <span className={styles.optionBadge}>Premium</span>
+                  <span className={styles.optionBadge}>
+                    {t("premiumTierControl.premium")}
+                  </span>
                 </label>
                 <p className={styles.optionHint}>
                   {!hasPremium ? (
                     <>
-                      Audio-enabled decks are available with Premium.{" "}
+                      {t(
+                        "wordSetManager.audioEnabledDecksAreAvailableWithPremium",
+                      )}{" "}
                       <Link href="/profile">
-                        Request access from your profile.
+                        {t("wordSetManager.requestAccessFromYourProfile")}
                       </Link>
                     </>
                   ) : exportFormat === "csv" ? (
-                    "Audio can only be embedded in an Anki deck. Choose Anki deck to enable this option."
+                    t("wordSetManager.audioCanOnlyBeEmbeddedInAnAnkiDeckChoose")
                   ) : includeExportAudio ? (
-                    "This takes longer because each pronunciation is generated before the download starts."
+                    t(
+                      "wordSetManager.thisTakesLongerBecauseEachPronunciationIsGeneratedBeforeThe",
+                    )
                   ) : (
-                    "Text-only export is quick and creates the smallest file."
+                    t(
+                      "wordSetManager.textOnlyExportIsQuickAndCreatesTheSmallestFile",
+                    )
                   )}
                 </p>
                 <div className={styles.dialogActions}>
@@ -560,7 +608,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                     className={styles.secondaryButton}
                     onClick={closeDeckExportDialog}
                   >
-                    Cancel
+                    {t("moveWordDialog.cancel")}
                   </button>
                   <button
                     type="button"
@@ -569,10 +617,10 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                     disabled={itemCount === 0}
                   >
                     {exportFormat === "csv"
-                      ? "Download CSV"
+                      ? t("wordSetManager.downloadCsv")
                       : includeExportAudio
-                        ? "Generate & download"
-                        : "Download deck"}
+                        ? t("wordSetManager.generateDownload")
+                        : t("wordSetManager.downloadDeck")}
                   </button>
                 </div>
               </>
@@ -585,20 +633,26 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                 </div>
                 <h2 id="deck-export-title">
                   {exportFormat === "apkg" && includeExportAudio
-                    ? "Creating pronunciations…"
+                    ? t("wordSetManager.creatingPronunciations")
                     : exportFormat === "csv"
-                      ? "Preparing your spreadsheet…"
-                      : "Building your deck…"}
+                      ? t("wordSetManager.preparingYourSpreadsheet")
+                      : t("wordSetManager.buildingYourDeck")}
                 </h2>
                 <p id="deck-export-description">
                   {exportFormat === "apkg" && includeExportAudio
-                    ? `Generating AI audio for ${itemCount} cards, then packaging it into Anki. Keep this window open.`
-                    : `Preparing your ${exportFormat.toUpperCase()} file. Your download will begin automatically.`}
+                    ? t(
+                        "wordSetManager.generatingAiAudioForValueCardsThenPackagingItInto",
+                        { value0: itemCount },
+                      )
+                    : t(
+                        "wordSetManager.preparingYourValueFileYourDownloadWillBeginAutomatically",
+                        { value0: exportFormat.toUpperCase() },
+                      )}
                 </p>
                 <div
                   className={styles.progressTrack}
                   role="progressbar"
-                  aria-label="Preparing export"
+                  aria-label={t("wordSetManager.preparingExport")}
                 >
                   <span />
                 </div>
@@ -607,7 +661,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                   className={styles.dismissButton}
                   onClick={cancelDeckExport}
                 >
-                  Cancel
+                  {t("moveWordDialog.cancel")}
                 </button>
               </div>
             )}
@@ -620,19 +674,21 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                 >
                   ✓
                 </div>
-                <h2 id="deck-export-title">Your export is ready</h2>
+                <h2 id="deck-export-title">
+                  {t("wordSetManager.yourExportIsReady")}
+                </h2>
                 <p id="deck-export-description">
-                  The download has started.
+                  {t("wordSetManager.theDownloadHasStarted")}
                   {exportFormat === "apkg"
-                    ? " Open the file to import it into Anki."
-                    : " You can open the file in a spreadsheet app."}
+                    ? t("wordSetManager.openTheFileToImportItIntoAnki")
+                    : t("wordSetManager.youCanOpenTheFileInASpreadsheetApp")}
                 </p>
                 <button
                   type="button"
                   className={styles.addButton}
                   onClick={closeDeckExportDialog}
                 >
-                  Done
+                  {t("wordSetManager.done")}
                 </button>
               </div>
             )}
@@ -645,9 +701,13 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                 >
                   !
                 </div>
-                <h2 id="deck-export-title">Couldn’t create the export</h2>
+                <h2 id="deck-export-title">
+                  {t("wordSetManager.couldnTCreateTheExport")}
+                </h2>
                 <p id="deck-export-description">
-                  {deckExportError || "Please try again."}
+                  {deckExportError
+                    ? t(deckExportError.key, deckExportError.values)
+                    : t("wordSetManager.pleaseTryAgain")}
                 </p>
                 <div className={styles.dialogActions}>
                   <button
@@ -655,14 +715,14 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                     className={styles.secondaryButton}
                     onClick={closeDeckExportDialog}
                   >
-                    Close
+                    {t("cardEditor.close")}
                   </button>
                   <button
                     type="button"
                     className={styles.addButton}
                     onClick={runDeckExport}
                   >
-                    Try again
+                    {t("moveWordDialog.tryAgain")}
                   </button>
                 </div>
               </div>
@@ -673,19 +733,19 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
 
       {statusMessage && (
         <div role="status" className={styles.statusMessage}>
-          {statusMessage}
+          {t(statusMessage.key, statusMessage.values)}
         </div>
       )}
 
       <div className={styles.toolbar}>
         <input
           className={styles.input}
-          aria-label="Search cards"
-          placeholder="Search words, translations or tags…"
+          aria-label={t("wordSetManager.searchCards")}
+          placeholder={t("wordSetManager.searchWordsTranslationsOrTags")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Link href="/">Translate & add words ↗</Link>
+        <Link href="/">{t("wordSetManager.translateAddWords")}</Link>
       </div>
 
       {showSelector && (
@@ -703,9 +763,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
           onClose={() => setEnrichingItem(null)}
           onSaved={() => {
             void loadItems();
-            setStatusMessage(
-              "Saved the reviewed content. Newly available exercises are ready to study.",
-            );
+            setStatusMessage({ key: "wordSetManager.contentSaved" });
           }}
         />
       )}
@@ -720,9 +778,16 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
               current.filter((item) => item.id !== movingItem.id),
             );
             setMovingItem(null);
-            setStatusMessage(
-              `Moved “${movingItem.original || movingItem.translation || "Imported word"}” to “${destination.name}”.`,
-            );
+            setStatusMessage({
+              key: "wordSetManager.movedWord",
+              values: {
+                word:
+                  movingItem.original ||
+                  movingItem.translation ||
+                  t("enrichmentDialog.importedWord"),
+                set: destination.name,
+              },
+            });
             void loadWordSet();
           }}
         />
@@ -730,13 +795,14 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
 
       {items.length === 0 ? (
         <div className={styles.empty}>
-          No cards yet. Save a word from a translation, or add words from your
-          history.
+          {t("wordSetManager.noCardsYetSaveAWordFromATranslationOr")}
         </div>
       ) : (
         <div className={styles.items}>
           {filteredItems.length === 0 && (
-            <p className={styles.empty}>No cards match “{search}”.</p>
+            <p className={styles.empty}>
+              {t("wordSetManager.noMatches", { search })}
+            </p>
           )}
           {filteredItems.map((item) => (
             <div
@@ -767,7 +833,9 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                       }
                       className={styles.saveButton}
                     >
-                      {saving ? "Saving…" : "Save changes"}
+                      {saving
+                        ? t("premiumTierControl.saving")
+                        : t("translationCard.saveChanges")}
                     </button>
                     <button
                       type="button"
@@ -775,7 +843,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                       onClick={cancelEditing}
                       className={styles.cancelButton}
                     >
-                      Cancel
+                      {t("moveWordDialog.cancel")}
                     </button>
                   </div>
                 </form>
@@ -784,34 +852,37 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                   <div className={styles.itemContent}>
                     <div className={styles.itemMain}>
                       <strong className={styles.original}>
-                        {item.original || "Missing source word"}
+                        {item.original || t("wordSetManager.missingSourceWord")}
                       </strong>
                       <span className={styles.arrow}>→</span>
                       <span className={styles.translation}>
-                        {item.translation || "Missing translation"}
+                        {item.translation ||
+                          t("wordSetManager.missingTranslation")}
                       </span>
                     </div>
                     {(!item.original.trim() || !item.translation.trim()) && (
                       <p className={styles.itemDetail}>
-                        Complete this word to unlock its exercises. Edit it or
-                        request generation below.
+                        {t(
+                          "wordSetManager.completeThisWordToUnlockItsExercisesEditItOr",
+                        )}
                       </p>
                     )}
                     {Object.values(item.fieldOrigins ?? {}).some(
                       (value) => value.origin === "ai",
                     ) && (
                       <p className={styles.itemDetail}>
-                        Includes AI-generated content
+                        {t("wordSetManager.includesAiGeneratedContent")}
                       </p>
                     )}
                     {item.wordForms && (
                       <div className={styles.itemDetail}>
-                        <em>Forms:</em> {item.wordForms}
+                        <em>{t("wordSetManager.forms")}</em> {item.wordForms}
                       </div>
                     )}
                     {item.sample && (
                       <div className={styles.itemDetail}>
-                        <em>Examples:</em> {item.sample.substring(0, 100)}
+                        <em>{t("wordSetManager.examples")}</em>{" "}
+                        {item.sample.substring(0, 100)}
                         {item.sample.length > 100 && "..."}
                       </div>
                     )}
@@ -831,21 +902,27 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                         className={styles.reviewState}
                         data-state={item.review.state}
                       >
-                        {reviewStateLabel(item.review.state)}
+                        {t(REVIEW_STATE_MESSAGES[item.review.state])}
                       </span>
                       <span
                         className={`${styles.reviewTiming} ${
                           item.review.dueCount > 0 ? styles.readyNow : ""
                         }`}
                       >
-                        {nextReviewLabel(item)}
+                        {nextReviewLabel(item, t)}
                       </span>
                       <span className={styles.reviewCount}>
-                        {reviewCountLabel(item.review.reps)}
+                        {t("wordSetManager.reviewCount", {
+                          count: item.review.reps,
+                        })}
                       </span>
                     </div>
                     <details className={styles.moreMenu}>
-                      <summary aria-label={`More actions for ${item.original}`}>
+                      <summary
+                        aria-label={t("wordSetList.moreActionsForValue", {
+                          value0: item.original,
+                        })}
+                      >
                         ⋯
                       </summary>
                       <div className={styles.moreMenuContent}>
@@ -853,7 +930,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                           type="button"
                           onClick={() => startEditing(item)}
                         >
-                          Edit card
+                          {t("wordSetManager.editCard")}
                         </button>
                         <button
                           type="button"
@@ -865,14 +942,14 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                             setMovingItem(item);
                           }}
                         >
-                          Move to another set
+                          {t("moveWordDialog.moveToAnotherSet")}
                         </button>
                         {missingEnrichmentFields(item).length > 0 && (
                           <button
                             type="button"
                             onClick={() => setEnrichingItem(item)}
                           >
-                            Generate missing content
+                            {t("enrichmentDialog.generateMissingContent")}
                           </button>
                         )}
                         <button
@@ -880,7 +957,7 @@ export function WordSetManager({ wordSetId }: WordSetManagerProps) {
                           className={styles.menuDanger}
                           onClick={() => void deleteItem(item.id)}
                         >
-                          Remove from set
+                          {t("wordSetManager.removeFromSet")}
                         </button>
                       </div>
                     </details>

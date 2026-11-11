@@ -1,3 +1,4 @@
+import { errorEnvelope } from "@/i18n/errors";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -25,7 +26,10 @@ export async function POST(
 ) {
   const session = await auth();
   if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   try {
     const { id } = await params;
     const input = ActivateSchema.parse(await request.json());
@@ -89,11 +93,14 @@ export async function POST(
   } catch (error) {
     if (error instanceof z.ZodError)
       return NextResponse.json(
-        { error: "Invalid exercise request" },
+        { errorCode: "errors.invalidExerciseRequest" },
         { status: 400 },
       );
     if (error instanceof ReviewCardNotFoundError)
-      return NextResponse.json({ error: error.message }, { status: 404 });
+      return NextResponse.json(
+        { ...errorEnvelope(error, "errors.couldNotOpenThisExercise") },
+        { status: 404 },
+      );
     if (
       error instanceof ReviewCardNotDueError ||
       error instanceof ReviewWriteConflictError
@@ -105,7 +112,7 @@ export async function POST(
     }
     console.error("Error opening study exercise:", error);
     return NextResponse.json(
-      { error: "Could not open this exercise" },
+      { errorCode: "errors.couldNotOpenThisExercise" },
       { status: 500 },
     );
   }

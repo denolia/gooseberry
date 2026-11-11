@@ -1,16 +1,19 @@
 "use client";
+import {
+  languageLabelKey,
+  SourceLanguage,
+  SourceLanguageOptions,
+  TargetLanguage,
+  TargetLanguageOptions,
+} from "@/components/ui/Languages";
+import { useI18n } from "@/i18n/client";
+
 import styles from "./Header.module.css";
 import { signIn, signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 import { ArrowRightLeft } from "lucide-react";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  SourceLanguage,
-  SourceLanguageOptions,
-  TargetLanguage,
-  TargetLanguageOptions,
-} from "@/components/ui/Languages";
 import { useLanguages } from "@/lib/languages/useLanguages";
 import { LanguageStore } from "@/lib/languages/languageStore";
 
@@ -31,6 +34,7 @@ function LanguageControl({
   label,
   showLabel = true,
 }: LanguageControlProps) {
+  const { t } = useI18n();
   return (
     <div className={styles.languageControl}>
       {showLabel && label && (
@@ -47,7 +51,7 @@ function LanguageControl({
         >
           {options.map((lang) => (
             <option key={lang} value={lang}>
-              {lang}
+              {t(languageLabelKey(lang))}
             </option>
           ))}
         </select>
@@ -85,13 +89,14 @@ function DesktopLanguageControls() {
 }
 
 function SwapLanguagesButton() {
+  const { t } = useI18n();
   return (
     <button
       type="button"
       className={styles.swapButton}
       onClick={LanguageStore.swapLanguages}
-      aria-label="Swap source and target languages"
-      title="Swap source and target languages"
+      aria-label={t("header.swapSourceAndTargetLanguages")}
+      title={t("header.swapSourceAndTargetLanguages")}
     >
       <ArrowRightLeft size={18} aria-hidden="true" />
     </button>
@@ -99,13 +104,14 @@ function SwapLanguagesButton() {
 }
 
 function MobileLanguageControls() {
+  const { t } = useI18n();
   const { currentSourceLanguage, currentTargetLanguage } = useLanguages();
 
   return (
     <>
       <LanguageControl
         id="header-source-language-select-mobile"
-        label="Source"
+        label={t("header.source")}
         value={currentSourceLanguage}
         options={SourceLanguageOptions}
         onChange={(value) =>
@@ -115,7 +121,7 @@ function MobileLanguageControls() {
       <SwapLanguagesButton />
       <LanguageControl
         id="header-target-language-select-mobile"
-        label="Target"
+        label={t("header.target")}
         value={currentTargetLanguage}
         options={TargetLanguageOptions}
         onChange={(value) =>
@@ -127,6 +133,7 @@ function MobileLanguageControls() {
 }
 
 export function Header() {
+  const { t } = useI18n();
   const { data: session } = useSession();
 
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -204,7 +211,8 @@ export function Header() {
                   </span>
                 )}
                 <span className={styles.accountName}>
-                  {session.user.name?.split(" ")[0] || "Account"}
+                  {session.user.name?.split(" ")[0] ||
+                    t("profileClient.account")}
                 </span>
               </button>
               <div
@@ -212,15 +220,15 @@ export function Header() {
                 className={`${styles.accountPanel} ${showAccountMenu ? styles.accountPanelOpen : ""}`}
               >
                 <Link href="/profile" onClick={() => setShowAccountMenu(false)}>
-                  Profile
+                  {t("header.profile")}
                 </Link>
                 {session.user.isAdmin && (
                   <Link href="/admin" onClick={() => setShowAccountMenu(false)}>
-                    Admin
+                    {t("header.admin")}
                   </Link>
                 )}
                 <button type="button" onClick={() => signOut()}>
-                  Sign out
+                  {t("header.signOut")}
                 </button>
               </div>
             </div>
@@ -229,7 +237,7 @@ export function Header() {
               className={styles.primaryAction}
               onClick={() => signIn("google")}
             >
-              Sign in
+              {t("header.signIn")}
             </button>
           )}
         </div>
@@ -241,7 +249,7 @@ export function Header() {
             onClick={() => setShowMobileMenu((open) => !open)}
             aria-expanded={showMobileMenu}
             aria-controls="header-mobile-menu"
-            aria-label="Toggle header menu"
+            aria-label={t("header.toggleHeaderMenu")}
           >
             <span className={styles.menuGraphic} aria-hidden="true" />
           </button>
@@ -268,7 +276,9 @@ export function Header() {
                     </span>
                   )}
                   <strong className={styles.mobileIdentityName}>
-                    {session.user.name || session.user.email || "Account"}
+                    {session.user.name ||
+                      session.user.email ||
+                      t("profileClient.account")}
                   </strong>
                 </div>
                 <MobileLanguageControls />
@@ -277,11 +287,11 @@ export function Header() {
             {session ? (
               <>
                 <Link href="/profile" onClick={() => setShowMobileMenu(false)}>
-                  Profile
+                  {t("header.profile")}
                 </Link>
                 {session.user.isAdmin && (
                   <Link href="/admin" onClick={() => setShowMobileMenu(false)}>
-                    Admin
+                    {t("header.admin")}
                   </Link>
                 )}
                 <button
@@ -291,7 +301,7 @@ export function Header() {
                     signOut();
                   }}
                 >
-                  Sign out
+                  {t("header.signOut")}
                 </button>
               </>
             ) : (
@@ -302,7 +312,7 @@ export function Header() {
                   signIn("google");
                 }}
               >
-                Sign in
+                {t("header.signIn")}
               </button>
             )}
           </div>

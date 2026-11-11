@@ -1,3 +1,4 @@
+import { messageErrors } from "./helpers/i18n.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -33,6 +34,7 @@ function loadRoute({
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
     const mocks = {
       "next/server": { NextResponse: Response },
       "@/auth": { auth: async () => ({ user: { id: "user-1" } }) },
@@ -182,9 +184,9 @@ test("Anki export rejects any unusable imported note before pronunciation or pac
       { params: Promise.resolve({ id: "set-1" }) },
     );
     assert.equal(response.status, 400);
-    assert.match(
-      (await response.json()).error,
-      /Complete their missing content/,
+    assert.equal(
+      (await response.json()).errorCode,
+      "errors.someWordsHaveNoUsableExerciseCompleteTheirMissingContentBefore",
     );
     assert.equal(calls.packageCalls.length, 0);
     assert.equal(calls.speechCalls.length, 0);
