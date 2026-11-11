@@ -5,9 +5,15 @@
 
 .toolbar {
   display: grid;
-  grid-template-columns: 19rem minmax(0, 1fr);
+  grid-template-columns: minmax(50%, 1fr) minmax(0, 20rem);
   align-items: end;
-  gap: 0.65rem;
+  gap: clamp(1rem, 3vw, 3rem);
+  min-width: 0;
+}
+
+.playback {
+  display: grid;
+  gap: 0.25rem;
   min-width: 0;
 }
 
@@ -15,28 +21,16 @@
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr) 44px;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 48rem;
   min-width: 0;
+  margin-inline: auto;
+  padding-inline: clamp(0.25rem, 2vw, 1.5rem);
 }
 
 .navigationButton {
   width: 44px;
-}
-
-.floatingDock {
-  position: fixed;
-  left: 50%;
-  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%);
-  z-index: 50;
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr) 44px;
-  gap: 0.25rem;
-  width: 19rem;
-  max-width: calc(
-    100vw - 1.5rem - env(safe-area-inset-left, 0px) -
-      env(safe-area-inset-right, 0px)
-  );
 }
 
 .controlButton,
@@ -118,7 +112,9 @@
 }
 
 .progress {
+  margin: 0;
   min-height: 1.2rem;
+  text-align: center;
 }
 
 .error {
@@ -132,17 +128,54 @@
 }
 
 .settingsGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  min-width: 0;
 }
 
-.settingsGrid label {
+.settingsGrid label,
+.speedSettings {
   display: grid;
   gap: 0.25rem;
   min-width: 0;
   color: var(--text-secondary);
   font-size: 0.73rem;
+}
+
+.voiceControl {
+  flex: 0 1 12rem;
+  width: 12rem;
+  max-width: 12rem;
+}
+
+.speedSettings {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.speedButton {
+  width: 6rem;
+  color: var(--foreground);
+  background: var(--button-secondary-bg);
+  font-variant-numeric: tabular-nums;
+}
+
+.speedPopover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.75rem);
+  z-index: 1;
+  width: min(20rem, calc(100vw - 3rem));
+  border: 1px solid var(--border-color);
+  padding: 1rem;
+  color: var(--foreground);
+  background: var(--input-background);
+}
+
+.speedPopover label {
+  gap: 0.75rem;
 }
 
 .settingsGrid select {
@@ -240,14 +273,21 @@
 
 @media (max-width: 700px) {
   .toolbar {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
   }
 
   .controls {
-    width: 100%;
+    gap: 0.5rem;
+    padding-inline: 0;
   }
 
   .settingsGrid {
-    grid-template-columns: 1fr;
+    justify-content: center;
+  }
+
+  .speedPopover {
+    right: auto;
+    left: 0;
   }
 }

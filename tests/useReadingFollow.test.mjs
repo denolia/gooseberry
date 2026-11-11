@@ -85,7 +85,11 @@ function setup(t) {
     scrollY: 0,
     visualViewport: viewport,
     getSelection: () => selection,
-    getComputedStyle: () => ({ lineHeight: "24px", fontSize: "16px" }),
+    getComputedStyle: () => ({
+      lineHeight: "24px",
+      fontSize: "16px",
+      getPropertyValue: () => "",
+    }),
     matchMedia: () => ({ matches: reducedMotion }),
     addEventListener: add(windowListeners),
     removeEventListener: remove(windowListeners),

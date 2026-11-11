@@ -33,6 +33,7 @@ import {
   TargetLanguage,
 } from "@/components/ui/Languages";
 import { useLanguages } from "@/lib/languages/useLanguages";
+import { BottomPanelLayout } from "@/components/ui/BottomPanelLayout";
 import type { ReaderTextRange } from "@/lib/audio/readerText";
 import {
   ReaderAudioPlayer,
@@ -527,12 +528,14 @@ export function TextAnalyzer() {
     ? [analysis.selection, ...analysis.constructions]
     : [];
 
-  return (
+  const content = (
     <div className={styles.container}>
       <header className={styles.intro}>
         <div>
           <h1>Reader</h1>
-          <p>Open a text, then click a word or select a phrase.</p>
+          {!readerText && (
+            <p>Open a text, then click a word or select a phrase.</p>
+          )}
         </div>
       </header>
 
@@ -571,16 +574,6 @@ export function TextAnalyzer() {
 
       {readerText && (
         <>
-          <ReaderAudioPlayer
-            ref={audioPlayerRef}
-            text={readerText}
-            sourceLanguage={sourceCode}
-            hasPremium={hasPremium}
-            accountId={session?.user?.id ?? null}
-            onAvailabilityChange={setAudioAvailable}
-            onReadingRangeChange={handleReadingRangeChange}
-            onPlaybackActiveChange={setPlaybackActive}
-          />
           <section className={styles.reader} aria-label="Text reader">
             <div
               className={styles.tokens}
@@ -778,5 +771,27 @@ export function TextAnalyzer() {
         </>
       )}
     </div>
+  );
+
+  return readerText ? (
+    <BottomPanelLayout
+      label="Reader controls"
+      panel={
+        <ReaderAudioPlayer
+          ref={audioPlayerRef}
+          text={readerText}
+          sourceLanguage={sourceCode}
+          hasPremium={hasPremium}
+          accountId={session?.user?.id ?? null}
+          onAvailabilityChange={setAudioAvailable}
+          onReadingRangeChange={handleReadingRangeChange}
+          onPlaybackActiveChange={setPlaybackActive}
+        />
+      }
+    >
+      {content}
+    </BottomPanelLayout>
+  ) : (
+    content
   );
 }

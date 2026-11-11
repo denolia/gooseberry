@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -10,7 +11,14 @@ import {
   type Ref,
 } from "react";
 import Link from "next/link";
-import { Pause, Play, RotateCcw, SkipBack, SkipForward } from "lucide-react";
+import {
+  Gauge,
+  Pause,
+  Play,
+  RotateCcw,
+  SkipBack,
+  SkipForward,
+} from "lucide-react";
 import { SourceLanguageSelectOptions } from "@/components/ui/Languages";
 import {
   ReaderAudioCache,
@@ -110,7 +118,11 @@ export function ReaderAudioPlayer({
   >("loading");
   const [configError, setConfigError] = useState("");
   const [configRetry, setConfigRetry] = useState(0);
-  const [controlsAboveViewport, setControlsAboveViewport] = useState(false);
+  const [speedPopoverOpen, setSpeedPopoverOpen] = useState(false);
+  const speedPopoverId = useId();
+  const speedSettingsRef = useRef<HTMLDivElement>(null);
+  const speedButtonRef = useRef<HTMLButtonElement>(null);
+  const speedRangeRef = useRef<HTMLInputElement>(null);
   const [sentenceNavigation, setSentenceNavigation] = useState(() =>
     getReaderSentenceNavigation([], 0),
   );
@@ -120,7 +132,6 @@ export function ReaderAudioPlayer({
   const contentCacheRef = useRef<ReaderAudioCache | null>(null);
   if (!contentCacheRef.current)
     contentCacheRef.current = new ReaderAudioCache();
-  const controlsRef = useRef<HTMLDivElement | null>(null);
   const mountedRef = useRef(true);
   const readingCallbackRef = useRef(onReadingRangeChange);
   const readingRangeRef = useRef<ReaderTextRange | null>(null);
@@ -177,48 +188,25 @@ export function ReaderAudioPlayer({
   }, [onAvailabilityChange]);
 
   useEffect(() => {
-    const controls = controlsRef.current;
-    if (!hasPremium || !controls || typeof window === "undefined") return;
-    let frame: number | null = null;
-    let disposed = false;
-    const viewport = window.visualViewport;
-    const measure = () => {
-      frame = null;
-      if (disposed) return;
-      setControlsAboveViewport(
-        controls.getBoundingClientRect().bottom <=
-          (viewport?.offsetTop ?? 0) + 8,
-      );
+    if (!speedPopoverOpen || !hasPremium) return;
+    speedRangeRef.current?.focus();
+    const onPointerDown = (event: PointerEvent) => {
+      if (!speedSettingsRef.current?.contains(event.target as Node))
+        setSpeedPopoverOpen(false);
     };
-    const scheduleMeasure = () => {
-      if (frame === null) frame = window.requestAnimationFrame(measure);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setSpeedPopoverOpen(false);
+      speedButtonRef.current?.focus();
     };
-    const observer =
-      typeof IntersectionObserver === "undefined"
-        ? null
-        : new IntersectionObserver(scheduleMeasure, {
-            threshold: [0, 1],
-            rootMargin: "-8px 0px 0px 0px",
-          });
-    observer?.observe(controls);
-    window.addEventListener("scroll", scheduleMeasure, {
-      passive: true,
-      capture: true,
-    });
-    window.addEventListener("resize", scheduleMeasure);
-    viewport?.addEventListener("scroll", scheduleMeasure, { passive: true });
-    viewport?.addEventListener("resize", scheduleMeasure);
-    scheduleMeasure();
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
     return () => {
-      disposed = true;
-      if (frame !== null) window.cancelAnimationFrame(frame);
-      observer?.disconnect();
-      window.removeEventListener("scroll", scheduleMeasure, true);
-      window.removeEventListener("resize", scheduleMeasure);
-      viewport?.removeEventListener("scroll", scheduleMeasure);
-      viewport?.removeEventListener("resize", scheduleMeasure);
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
     };
-  }, [hasPremium]);
+  }, [speedPopoverOpen, hasPremium]);
 
   const updateReadingRange = useCallback((range: ReaderTextRange | null) => {
     const previous = readingRangeRef.current;
@@ -801,7 +789,6 @@ export function ReaderAudioPlayer({
     sentenceNavigation.firstChunkIndex >= 0
       ? sentenceNavigation
       : initialNavigation;
-  const showFloatingControls = canListen && controlsAboveViewport;
   const mainAction = active ? "Pause reading" : "Listen to full text";
   const mainLabel = active ? "Pause" : "Listen";
   const speedIndex = READER_SPEEDS.findIndex(
@@ -884,50 +871,90 @@ export function ReaderAudioPlayer({
       aria-label={`Listen to full text${languageName ? ` in ${languageName}` : ""}`}
     >
       <div className={styles.toolbar}>
-        <div className={styles.controls} ref={controlsRef}>
-          {playbackControls}
+        <div className={styles.playback}>
+          {hasPremium && (
+            <p className={styles.progress} role="status" aria-live="polite">
+              {progress ||
+                (configStatus === "loading" ? "Loading available voices…" : "")}
+            </p>
+          )}
+          <div className={styles.controls}>{playbackControls}</div>
         </div>
         {hasPremium && (
           <div className={styles.settingsGrid}>
-            <label>
+            <div
+              ref={speedSettingsRef}
+              className={styles.speedSettings}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget))
+                  setSpeedPopoverOpen(false);
+              }}
+            >
               <span>Reading speed</span>
-              <span className={styles.speedControl}>
-                <input
-                  type="range"
-                  className={styles.speedRange}
-                  min={0}
-                  max={READER_SPEEDS.length - 1}
-                  step={1}
-                  value={speedIndex}
+              <button
+                ref={speedButtonRef}
+                type="button"
+                className={`${styles.controlButton} ${styles.speedButton}`}
+                aria-label={`Reading speed: ${selectedSpeed.speed}× (${selectedSpeed.label})`}
+                aria-haspopup="dialog"
+                aria-expanded={speedPopoverOpen}
+                aria-controls={speedPopoverOpen ? speedPopoverId : undefined}
+                onClick={() => setSpeedPopoverOpen((open) => !open)}
+              >
+                <Gauge size={16} aria-hidden="true" focusable="false" />
+                {selectedSpeed.speed}×
+              </button>
+              {speedPopoverOpen && (
+                <div
+                  id={speedPopoverId}
+                  role="dialog"
                   aria-label="Reading speed"
-                  aria-valuetext={`${selectedSpeed.speed}× — ${selectedSpeed.label}`}
-                  title={selectedSpeed.label}
-                  onChange={(event) => {
-                    const index = Number(event.target.value);
-                    const speed = Number.isInteger(index)
-                      ? READER_SPEEDS[index]
-                      : undefined;
-                    if (speed) changeSettings({ ...settings, speed: speed.id });
-                  }}
-                />
-                <span className={styles.speedMarks} aria-hidden="true">
-                  {READER_SPEEDS.map((speed) => (
-                    <span
-                      key={speed.id}
-                      className={styles.speedMark}
-                      title={speed.label}
-                      data-label={speed.label}
-                    >
-                      {speed.speed}×
+                  className={styles.speedPopover}
+                >
+                  <label>
+                    <span>Reading speed · {selectedSpeed.label}</span>
+                    <span className={styles.speedControl}>
+                      <input
+                        ref={speedRangeRef}
+                        type="range"
+                        className={styles.speedRange}
+                        min={0}
+                        max={READER_SPEEDS.length - 1}
+                        step={1}
+                        value={speedIndex}
+                        aria-label="Reading speed"
+                        aria-valuetext={`${selectedSpeed.speed}× — ${selectedSpeed.label}`}
+                        title={selectedSpeed.label}
+                        onChange={(event) => {
+                          const index = Number(event.target.value);
+                          const speed = Number.isInteger(index)
+                            ? READER_SPEEDS[index]
+                            : undefined;
+                          if (speed)
+                            changeSettings({ ...settings, speed: speed.id });
+                        }}
+                      />
+                      <span className={styles.speedMarks} aria-hidden="true">
+                        {READER_SPEEDS.map((speed) => (
+                          <span
+                            key={speed.id}
+                            className={styles.speedMark}
+                            title={speed.label}
+                            data-label={speed.label}
+                          >
+                            {speed.speed}×
+                          </span>
+                        ))}
+                      </span>
+                      <span className={styles.speedTooltip} aria-hidden="true">
+                        {selectedSpeed.label}
+                      </span>
                     </span>
-                  ))}
-                </span>
-                <span className={styles.speedTooltip} aria-hidden="true">
-                  {selectedSpeed.label}
-                </span>
-              </span>
-            </label>
-            <label>
+                  </label>
+                </div>
+              )}
+            </div>
+            <label className={styles.voiceControl}>
               Voice name
               <select
                 value={settings.voice}
@@ -961,10 +988,6 @@ export function ReaderAudioPlayer({
         </p>
       ) : (
         <>
-          <p className={styles.progress} role="status" aria-live="polite">
-            {progress ||
-              (configStatus === "loading" ? "Loading available voices…" : "")}
-          </p>
           {configError && (
             <p className={styles.error} role="alert">
               {configError}{" "}
@@ -983,15 +1006,6 @@ export function ReaderAudioPlayer({
             </p>
           )}
         </>
-      )}
-      {showFloatingControls && (
-        <div
-          className={styles.floatingDock}
-          role="group"
-          aria-label="Floating playback controls"
-        >
-          {playbackControls}
-        </div>
       )}
     </section>
   );

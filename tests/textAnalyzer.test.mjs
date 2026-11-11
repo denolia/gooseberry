@@ -199,7 +199,19 @@ function setup(
     requests.push(request);
     return response(request, requests.length);
   });
-  const jsx = (type, props) => ({ type, props });
+  function BottomPanelLayout({ children, panel, label }) {
+    return {
+      type: "BottomPanelLayout",
+      props: {
+        children: [
+          children,
+          { type: "section", props: { "aria-label": label, children: panel } },
+        ],
+      },
+    };
+  }
+  const jsx = (type, props) =>
+    type === BottomPanelLayout ? type(props) : { type, props };
   const code = ts.transpileModule(
     readFileSync(
       new URL("../src/components/analyzer/TextAnalyzer.tsx", import.meta.url),
@@ -252,6 +264,7 @@ function setup(
         TranslationResponseSchema: { parse: (value) => value },
       },
       "@/components/ui/Languages": languages,
+      "@/components/ui/BottomPanelLayout": { BottomPanelLayout },
       "@/lib/languages/useLanguages": { useLanguages: () => pair },
       "./ReaderAudioPlayer": { ReaderAudioPlayer: "ReaderAudioPlayer" },
       "./AnalyzerPopover": { AnalyzerPopover: "AnalyzerPopover" },
@@ -449,9 +462,17 @@ function setup(
   };
 }
 
-test("opened text has one reader, standalone audio above it, and Edit text in the footer", async (t) => {
+test("opened text has one reader, audio in the bottom panel, and Edit text in the footer", async (t) => {
   const ui = setup(t);
   await ui.ready();
+  assert.match(
+    text(ui.render()),
+    /Open a text, then click a word or select a phrase\./,
+  );
+  assert.equal(
+    nodes(ui.render(), (node) => node.type === "BottomPanelLayout").length,
+    0,
+  );
   const tree = await ui.open();
   const all = nodes(tree, () => true);
   const player = all.find((node) => node.type === "ReaderAudioPlayer");
@@ -460,7 +481,18 @@ test("opened text has one reader, standalone audio above it, and Edit text in th
   );
   assert(player && reader);
   assert.equal(player.props.accountId, "user-1");
-  assert(all.indexOf(player) < all.indexOf(reader));
+  const panel = all.find(
+    (node) => node.props?.["aria-label"] === "Reader controls",
+  );
+  assert.equal(
+    nodes(panel, (node) => node.type === "ReaderAudioPlayer")[0],
+    player,
+  );
+  assert(all.indexOf(player) > all.indexOf(reader));
+  assert.doesNotMatch(
+    text(tree),
+    /Open a text, then click a word or select a phrase\./,
+  );
   assert.equal(
     nodes(reader, (node) => node.type === "ReaderAudioPlayer").length,
     0,

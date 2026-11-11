@@ -30,6 +30,18 @@ test("following a sentence above the reading margin scrolls upward minimally", (
   );
 });
 
+test("following keeps the sentence above a tall bottom panel on a narrow screen", () => {
+  assert.equal(
+    getReadingFollowTarget({
+      ...defaults,
+      viewport: { top: 0, height: 600 },
+      bottomInset: 240,
+      rects: [{ top: 380, bottom: 440 }],
+    }),
+    640,
+  );
+});
+
 test("visual viewport offsets and the computed reader line height define the reading area", () => {
   assert.equal(
     getReadingFollowTarget({

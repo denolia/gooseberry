@@ -169,6 +169,9 @@ export function useReadingFollow(options: ReadingFollowOptions) {
           height: viewport?.height ?? window.innerHeight,
         },
         lineHeight,
+        bottomInset:
+          Number.parseFloat(style.getPropertyValue("--bottom-panel-height")) ||
+          undefined,
         scrollY: window.scrollY,
         maxScroll:
           Math.max(

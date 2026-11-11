@@ -7,6 +7,7 @@ export function getReadingFollowTarget({
   scrollY,
   maxScroll,
   newSentence = false,
+  bottomInset = 80,
 }: {
   rects: readonly ReadingLineRect[];
   viewport: { top: number; height: number };
@@ -14,11 +15,17 @@ export function getReadingFollowTarget({
   scrollY: number;
   maxScroll: number;
   newSentence?: boolean;
+  bottomInset?: number;
 }): number | null {
   if (
-    ![viewport.top, viewport.height, lineHeight, scrollY, maxScroll].every(
-      Number.isFinite,
-    ) ||
+    ![
+      viewport.top,
+      viewport.height,
+      lineHeight,
+      scrollY,
+      maxScroll,
+      bottomInset,
+    ].every(Number.isFinite) ||
     viewport.height <= 0 ||
     lineHeight <= 0
   )
@@ -30,7 +37,10 @@ export function getReadingFollowTarget({
       rect.bottom > rect.top,
   );
   if (!lines.length) return null;
-  const dockSpace = Math.min(80, viewport.height / 2);
+  const dockSpace = Math.min(
+    Math.max(0, bottomInset),
+    Math.max(0, viewport.height - lineHeight),
+  );
   const margin = Math.min(
     lineHeight * 2,
     Math.max(0, (viewport.height - dockSpace - lineHeight) / 3),

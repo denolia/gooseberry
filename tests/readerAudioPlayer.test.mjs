@@ -67,7 +67,6 @@ function setup(
     props = {},
     response,
     play = async (audio) => audio.onplaying?.(),
-    geometry = false,
     storedSettings,
     cacheBytes,
     cacheEntries,
@@ -162,62 +161,27 @@ function setup(
   const revoked = [];
   const created = [];
   const audioCaches = [];
+  const documentEvents = new EventTarget();
+  const originalDocument = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "document",
+  );
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: documentEvents,
+  });
+  let speedButtonFocuses = 0;
+  const speedButtonElement = { focus: () => speedButtonFocuses++ };
+  const speedInputElement = { focus() {} };
+  const speedSettingsElement = {
+    contains: (target) =>
+      target === speedButtonElement || target === speedInputElement,
+  };
   const timers = new Map();
   let timerId = 0;
   const storage = new Map();
   if (storedSettings)
     storage.set("readerAudioSettings:v1", JSON.stringify(storedSettings));
-  let controlsBottom = 100;
-  const frames = new Map();
-  let frameId = 0;
-  const observers = [];
-  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
-  const originalObserver = Object.getOwnPropertyDescriptor(
-    globalThis,
-    "IntersectionObserver",
-  );
-  const viewport = Object.assign(new EventTarget(), { offsetTop: 0 });
-  const browser = Object.assign(new EventTarget(), {
-    visualViewport: viewport,
-    requestAnimationFrame(callback) {
-      const id = ++frameId;
-      frames.set(id, callback);
-      return id;
-    },
-    cancelAnimationFrame(id) {
-      frames.delete(id);
-    },
-  });
-  const controlsElement = {
-    getBoundingClientRect: () => ({
-      top: controlsBottom - 44,
-      bottom: controlsBottom,
-    }),
-  };
-  if (geometry) {
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      value: browser,
-    });
-    Object.defineProperty(globalThis, "IntersectionObserver", {
-      configurable: true,
-      value:
-        geometry === "fallback"
-          ? undefined
-          : class {
-              constructor(callback) {
-                this.callback = callback;
-                observers.push(this);
-              }
-              observe(element) {
-                this.element = element;
-              }
-              disconnect() {
-                this.disconnected = true;
-              }
-            },
-    });
-  }
   const originalStorage = Object.getOwnPropertyDescriptor(
     globalThis,
     "localStorage",
@@ -327,12 +291,10 @@ function setup(
       dirty = false;
       cursor = 0;
       tree = component.ReaderAudioPlayer(currentProps);
-      if (geometry) {
-        for (const node of nodes(
-          tree,
-          (node) => node.type === "div" && node.props?.ref,
-        ))
-          node.props.ref.current = controlsElement;
+      for (const node of nodes(tree, (node) => node.props?.ref)) {
+        if (node.type === "div") node.props.ref.current = speedSettingsElement;
+        if (node.type === "button") node.props.ref.current = speedButtonElement;
+        if (node.type === "input") node.props.ref.current = speedInputElement;
       }
       const pending = effects;
       effects = [];
@@ -347,23 +309,14 @@ function setup(
   }
   t.after(() => {
     unmount();
+    if (originalDocument)
+      Object.defineProperty(globalThis, "document", originalDocument);
+    else delete globalThis.document;
     if (originalStorage)
       Object.defineProperty(globalThis, "localStorage", originalStorage);
     else delete globalThis.localStorage;
     if (originalAudio === undefined) delete globalThis.Audio;
     else globalThis.Audio = originalAudio;
-    if (geometry) {
-      if (originalWindow)
-        Object.defineProperty(globalThis, "window", originalWindow);
-      else delete globalThis.window;
-      if (originalObserver)
-        Object.defineProperty(
-          globalThis,
-          "IntersectionObserver",
-          originalObserver,
-        );
-      else delete globalThis.IntersectionObserver;
-    }
   });
   return {
     audios,
@@ -377,6 +330,10 @@ function setup(
     activeChanges,
     availabilityChanges,
     handle,
+    documentEvents,
+    get speedButtonFocuses() {
+      return speedButtonFocuses;
+    },
     get playbackActive() {
       return activeChanges.at(-1) ?? false;
     },
@@ -385,56 +342,8 @@ function setup(
     },
     render,
     unmount,
-    dock() {
-      return nodes(
-        render(),
-        (node) => node.props?.["aria-label"] === "Floating playback controls",
-      )[0];
-    },
-    async clickDock(label) {
-      const button = nodes(
-        this.dock(),
-        (node) => node.type === "button" && text(node) === label,
-      )[0];
-      assert(
-        button && !button.props.disabled,
-        `Missing enabled dock button ${label}`,
-      );
-      const pending = button.props.onClick();
-      await nextTick();
-      render();
-      return pending;
-    },
-    flushFrames() {
-      const callbacks = [...frames.values()];
-      frames.clear();
-      callbacks.forEach((callback) => callback());
-      return render();
-    },
-    scrollControlsTo(bottom) {
-      controlsBottom = bottom;
-      browser.dispatchEvent(new Event("scroll"));
-      return this.flushFrames();
-    },
-    intersectControlsAt(bottom) {
-      controlsBottom = bottom;
-      observers.at(-1).callback([]);
-      return this.flushFrames();
-    },
-    shiftVisualViewport(offsetTop) {
-      viewport.offsetTop = offsetTop;
-      viewport.dispatchEvent(new Event("resize"));
-      return this.flushFrames();
-    },
-    get pendingFrames() {
-      return frames.size;
-    },
-    get observedControlsDisconnected() {
-      return observers.every((observer) => observer.disconnected);
-    },
     async ready() {
       render();
-      if (geometry) this.flushFrames();
       await nextTick();
       render();
     },
@@ -487,9 +396,21 @@ function setup(
       pending.forEach(({ callback }) => callback());
     },
     speed() {
+      const button = this.speedButton();
+      if (!button.props["aria-expanded"]) {
+        button.props.onClick();
+        render();
+      }
       return nodes(
         render(),
         (node) => node.type === "input" && node.props.type === "range",
+      )[0];
+    },
+    speedButton() {
+      return nodes(
+        render(),
+        (node) =>
+          node.type === "button" && node.props["aria-haspopup"] === "dialog",
       )[0];
     },
     setSpeed(index) {
@@ -759,33 +680,27 @@ test("practice navigation aborts an earlier foreground fetch and ignores its lat
   assert(player.button("Pause"));
 });
 
-test("floating unified controls share sentence actions and continuous Listen at the live rate", async (t) => {
-  const player = setup(t, { geometry: true, props: { text: "Eins. Zwei." } });
+test("playback controls share sentence actions and continuous Listen at the live rate", async (t) => {
+  const player = setup(t, { props: { text: "Eins. Zwei." } });
   await player.ready();
   await player.click("Repeat");
-  player.scrollControlsTo(-10);
-  assert(player.dock());
   player.audios[0].currentTime = 3;
-  await player.clickDock("Pause");
+  await player.click("Pause");
   player.setSpeed(4);
   assert.equal(player.audios[0].currentTime, 3);
   assert.equal(player.playbackActive, false);
-  await player.clickDock("Listen");
+  await player.click("Listen");
   assert.equal(player.audios[0].playbackRate, 1.5);
   player.audios[0].onended();
   await player.settle();
   assert.deepEqual(player.readingRange, { start: 6, end: 11 });
   assert.equal(player.playbackActive, true);
-  await player.clickDock("Repeat");
+  await player.click("Repeat");
   assert.equal(player.audios[0].currentTime, 0);
   player.audios[0].onended();
   await player.settle();
   assert.equal(player.playbackActive, false);
-  assert(player.dock());
-  const previous = nodes(
-    player.dock(),
-    (node) => node.props?.["aria-label"] === "Previous sentence",
-  )[0];
+  const previous = player.buttonByLabel("Previous sentence");
   await previous.props.onClick();
   await player.settle();
   assert.deepEqual(player.readingRange, { start: 0, end: 5 });
@@ -1053,6 +968,39 @@ test("changing the actual voice resets audio while changing speed only sets the 
   assert.equal(player.requests.at(-1).body.voice, "cedar");
   assert.equal("speed" in player.requests.at(-1).body, false);
   assert.equal(player.audios[0].playbackRate, 0.3);
+});
+
+test("speed popover closes with Escape or an outside click without interrupting audio", async (t) => {
+  const player = setup(t);
+  await player.ready();
+  assert.equal(
+    nodes(player.render(), (node) => node.type === "input").length,
+    0,
+  );
+  await player.click("Listen");
+  player.audios[0].currentTime = 3;
+  player.setSpeed(2);
+  const dialog = nodes(
+    player.render(),
+    (node) => node.props?.role === "dialog",
+  )[0];
+  assert.equal(player.speedButton().props["aria-controls"], dialog.props.id);
+  const escape = new Event("keydown", { cancelable: true });
+  Object.defineProperty(escape, "key", { value: "Escape" });
+  player.documentEvents.dispatchEvent(escape);
+  assert.equal(player.speedButton().props["aria-expanded"], false);
+  assert.equal(player.speedButtonFocuses, 1);
+  assert.equal(player.audios[0].playbackRate, 0.7);
+  assert.equal(player.audios[0].currentTime, 3);
+  assert.equal(player.playbackActive, true);
+  assert.equal(player.requests.length, 1);
+  player.speed();
+  player.documentEvents.dispatchEvent(new Event("pointerdown"));
+  assert.equal(player.speedButton().props["aria-expanded"], false);
+  assert.equal(
+    nodes(player.render(), (node) => node.type === "input").length,
+    0,
+  );
 });
 
 test("the native five-position speed slider changes real audio rates without restarting or regenerating", async (t) => {
@@ -1613,15 +1561,14 @@ test("lookahead waits for actual playback and native onset plus play-promise res
   assert.deepEqual(player.activeChanges, [true]);
 });
 
-test("all floating controls remain available above the visual viewport before and after playback", async (t) => {
-  const player = setup(t, { geometry: true });
+test("one set of playback controls remains available before and after playback", async (t) => {
+  const player = setup(t);
   await player.ready();
-  player.scrollControlsTo(-10);
-  assert(player.dock());
   assert.deepEqual(
-    nodes(player.dock(), (node) => node.type === "button").map(
-      (node) => node.props["aria-label"],
-    ),
+    nodes(
+      player.render(),
+      (node) => node.type === "button" && !node.props["aria-haspopup"],
+    ).map((node) => node.props["aria-label"]),
     [
       "Previous sentence",
       "Listen to full text",
@@ -1630,82 +1577,70 @@ test("all floating controls remain available above the visual viewport before an
     ],
   );
   await player.click("Listen");
-  assert(player.dock());
-  player.scrollControlsTo(100);
-  assert.equal(player.dock(), undefined);
-  player.scrollControlsTo(900);
-  assert.equal(player.dock(), undefined);
-  player.intersectControlsAt(8);
-  assert(player.dock());
-  player.intersectControlsAt(8.1);
-  assert.equal(player.dock(), undefined);
-  player.shiftVisualViewport(40);
-  assert(player.dock());
-  player.shiftVisualViewport(0);
-  assert.equal(player.dock(), undefined);
-  player.scrollControlsTo(-10);
+  assert.equal(
+    nodes(
+      player.render(),
+      (node) => node.type === "button" && !node.props["aria-haspopup"],
+    ).length,
+    4,
+  );
   player.audios[0].onended();
   await player.settle();
-  assert(player.dock());
+  assert(player.button("Listen"));
 });
 
-test("floating Pause and Resume reuse the main player's audio and requests with a scroll fallback", async (t) => {
-  const player = setup(t, { geometry: "fallback" });
+test("Pause and Resume reuse the player's audio and requests", async (t) => {
+  const player = setup(t);
   await player.ready();
   await player.click("Listen");
-  player.scrollControlsTo(-5);
-  assert(player.dock());
   const originalRange = player.readingRange;
-  await player.clickDock("Pause");
+  await player.click("Pause");
   assert.equal(player.playbackActive, false);
   assert.deepEqual(player.readingRange, originalRange);
-  await player.clickDock("Listen");
+  await player.click("Listen");
   assert.equal(player.playbackActive, true);
   assert.equal(player.audios[0].plays, 2);
   assert.equal(player.audios.length, 1);
   assert.equal(player.requests.length, 1);
   player.render({ text: "Neuer Text." });
-  assert(player.dock());
   assert.equal(player.readingRange, null);
   assert.equal(player.playbackActive, false);
   assert(player.button("Listen"));
 });
 
-test("floating controls support a loading pause and a foreground error retry", async (t) => {
+test("playback controls support a loading pause and a foreground error retry", async (t) => {
   const firstResponse = deferred();
   const player = setup(t, {
-    geometry: true,
     response: (_request, index) =>
       index === 1 ? firstResponse.promise : new Response("mp3"),
   });
   await player.ready();
-  player.scrollControlsTo(-10);
   const starting = player.button("Listen").props.onClick();
   await player.settle();
-  await player.clickDock("Pause");
+  await player.click("Pause");
   firstResponse.resolve(
     Response.json({ error: "Try the audio again" }, { status: 502 }),
   );
   await starting;
   await player.settle();
   assert.equal(player.playbackActive, false);
-  await player.clickDock("Listen");
+  await player.click("Listen");
   assert.equal(player.playbackActive, true);
   assert.equal(player.audios.length, 1);
   assert.equal(player.requests.length, 2);
 });
 
-test("floating-control geometry observers clean up and revoked Premium removes the dock", async (t) => {
-  const player = setup(t, { geometry: true });
+test("revoked Premium stops playback and disables playback controls", async (t) => {
+  const player = setup(t);
   await player.ready();
   await player.click("Listen");
-  player.scrollControlsTo(-10);
-  assert(player.dock());
   player.render({ hasPremium: false });
-  assert.equal(player.dock(), undefined);
   assert.equal(player.playbackActive, false);
-  assert.equal(player.observedControlsDisconnected, true);
-  assert.equal(player.pendingFrames, 0);
+  assert(
+    nodes(player.render(), (node) => node.type === "button").every(
+      (node) => node.props.disabled,
+    ),
+  );
 });
 
 test("playback-active callback uses the latest handler and turns false on pause and unmount", async (t) => {
