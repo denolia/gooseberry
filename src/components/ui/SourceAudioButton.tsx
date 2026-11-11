@@ -7,11 +7,13 @@ export function SourceAudioButton({
   text,
   sourceLanguage,
   shortcut,
+  className,
   ref,
 }: {
   text: string;
   sourceLanguage?: string;
   shortcut?: string;
+  className?: string;
   ref?: Ref<HTMLButtonElement>;
 }) {
   const [status, setStatus] = useState<"idle" | "loading" | "playing">("idle");
@@ -110,7 +112,7 @@ export function SourceAudioButton({
   }
 
   return (
-    <div className={styles.audioControl}>
+    <div className={`${styles.audioControl} ${className ?? ""}`}>
       <button
         ref={ref}
         type="button"
@@ -122,8 +124,8 @@ export function SourceAudioButton({
           status === "loading"
             ? "Generating AI pronunciation"
             : status === "playing"
-              ? "Replay AI pronunciation"
-              : "Play AI pronunciation"
+              ? "Listen to AI pronunciation again"
+              : "Listen to AI pronunciation"
         }
       >
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -133,7 +135,7 @@ export function SourceAudioButton({
             fill="none"
           />
         </svg>
-        <span>{status === "loading" ? "Generating…" : "AI voice"}</span>
+        <span>{status === "loading" ? "Generating…" : "Listen"}</span>
         {shortcut && <kbd className={styles.shortcut}>{shortcut}</kbd>}
       </button>
       {error && (

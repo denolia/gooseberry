@@ -270,6 +270,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
     {
       react,
       "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
+      "lucide-react": { BookOpen: "svg", Repeat2: "svg", X: "svg" },
       "next/link": { default: "a" },
       "next/navigation": { useRouter: () => router },
       "next-auth/react": { useSession: () => ({ status: "authenticated" }) },

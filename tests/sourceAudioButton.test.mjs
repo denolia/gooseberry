@@ -157,7 +157,10 @@ test("blocked playback retains generated audio for a direct retry", async (t) =>
   assert.equal(player.requests, 1);
   assert.equal(attempts, 2);
   assert.deepEqual(player.revoked, []);
-  assert.equal(player.render().props["aria-label"], "Replay AI pronunciation");
+  assert.equal(
+    player.render().props["aria-label"],
+    "Listen to AI pronunciation again",
+  );
 });
 
 test("an interrupted old playback cannot discard a successful replay", async (t) => {
@@ -179,7 +182,7 @@ test("an interrupted old playback cannot discard a successful replay", async (t)
   assert.equal(replayAudio.pauses, 0);
   assert.deepEqual(player.revoked, []);
   assert.equal(button.props.disabled, false);
-  assert.equal(button.props["aria-label"], "Replay AI pronunciation");
+  assert.equal(button.props["aria-label"], "Listen to AI pronunciation again");
 });
 
 test("cleanup discards the revoked audio before the next playback", async (t) => {

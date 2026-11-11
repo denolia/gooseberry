@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BookOpen, Repeat2, X } from "lucide-react";
 import { SourceAudioButton } from "@/components/ui/SourceAudioButton";
 import { BottomPanelLayout } from "@/components/ui/BottomPanelLayout";
 import { isNewState, reviewControls } from "@/lib/review/controls";
@@ -626,6 +627,7 @@ export function ReviewSession({
   }
 
   const newCard = isNewState(card.state.state);
+  const PhaseIcon = newCard ? BookOpen : Repeat2;
   const controls = reviewControls(card.state.state, reviewMode);
   const template = getStudyCardTemplate(card.templateKey);
   const promptLanguage = exerciseFieldLanguage(
@@ -710,30 +712,54 @@ export function ReviewSession({
               {promptLanguage.toUpperCase()} → {answerLanguage.toUpperCase()}
             </p>
           </div>
-          <Link className={styles.exitLink} href="/anki">
-            End session
+          <Link
+            className={styles.exitButton}
+            href="/anki"
+            aria-label="End session"
+            title="End session"
+          >
+            <X size={20} aria-hidden="true" />
           </Link>
         </header>
 
         <article key={card.id} className={styles.card} aria-live="polite">
-          <p className={styles.exerciseLabel}>{template.label}</p>
+          <div className={styles.exerciseMeta}>
+            <p
+              className={`${styles.phaseLabel} ${
+                newCard ? styles.learningPhase : styles.repeatingPhase
+              }`}
+            >
+              <PhaseIcon size={16} aria-hidden="true" />
+              {newCard ? "Learning" : "Repeating"}
+            </p>
+            <p className={styles.exerciseLabel}>{template.label}</p>
+          </div>
           <div className={styles.promptSide}>
-            <h2 lang={promptLanguage}>{card[template.promptField]}</h2>
+            <div
+              className={`${styles.wordRow} ${
+                sourceVisibleOnPrompt && hasSourceAudio
+                  ? styles.wordRowWithAudio
+                  : ""
+              }`}
+            >
+              <h2 lang={promptLanguage}>{card[template.promptField]}</h2>
+              {sourceVisibleOnPrompt && hasSourceAudio && (
+                <SourceAudioButton
+                  key={card.id}
+                  className={styles.listenControl}
+                  ref={audioButtonRef}
+                  text={card.original}
+                  sourceLanguage={card.sourceLang}
+                  shortcut="P"
+                />
+              )}
+            </div>
             {(card.templateKey === "word_forms" || isExample) &&
               card.translation && (
                 <p className={styles.supporting} lang={card.targetLang}>
                   {card.translation}
                 </p>
               )}
-            {sourceVisibleOnPrompt && hasSourceAudio && (
-              <SourceAudioButton
-                key={card.id}
-                ref={audioButtonRef}
-                text={card.original}
-                sourceLanguage={card.sourceLang}
-                shortcut="P"
-              />
-            )}
             {template.requiresTyping && !revealed && (
               <div className={styles.typedAnswer}>
                 <label htmlFor="study-typed-answer">
@@ -812,28 +838,37 @@ export function ReviewSession({
                     {card.original}
                   </p>
                 )}
-                <h2 lang={answerLanguage}>
-                  {typedComparison
-                    ? typedComparison.expected.map((part, index) =>
-                        part.changed ? (
-                          <ins className={styles.correctText} key={index}>
-                            {part.value}
-                          </ins>
-                        ) : (
-                          <span key={index}>{part.value}</span>
-                        ),
-                      )
-                    : card[template.answerField]}
-                </h2>
-                {!sourceVisibleOnPrompt && hasSourceAudio && (
-                  <SourceAudioButton
-                    key={card.id}
-                    ref={audioButtonRef}
-                    text={card.original}
-                    sourceLanguage={card.sourceLang}
-                    shortcut="P"
-                  />
-                )}
+                <div
+                  className={`${styles.wordRow} ${
+                    !sourceVisibleOnPrompt && hasSourceAudio
+                      ? styles.wordRowWithAudio
+                      : ""
+                  }`}
+                >
+                  <h2 lang={answerLanguage}>
+                    {typedComparison
+                      ? typedComparison.expected.map((part, index) =>
+                          part.changed ? (
+                            <ins className={styles.correctText} key={index}>
+                              {part.value}
+                            </ins>
+                          ) : (
+                            <span key={index}>{part.value}</span>
+                          ),
+                        )
+                      : card[template.answerField]}
+                  </h2>
+                  {!sourceVisibleOnPrompt && hasSourceAudio && (
+                    <SourceAudioButton
+                      key={card.id}
+                      className={styles.listenControl}
+                      ref={audioButtonRef}
+                      text={card.original}
+                      sourceLanguage={card.sourceLang}
+                      shortcut="P"
+                    />
+                  )}
+                </div>
                 {card.wordForms && template.answerField !== "wordForms" && (
                   <p className={styles.supporting} lang={card.sourceLang}>
                     {card.wordForms}
