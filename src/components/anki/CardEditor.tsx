@@ -1,4 +1,6 @@
 "use client";
+import { useI18n } from "@/i18n/client";
+
 import { useId, useState } from "react";
 import { CardDraft } from "@/app/utils/cardDraft";
 import styles from "./CardEditor.module.css";
@@ -14,6 +16,7 @@ export function CardEditor({
   disabled?: boolean;
   allowIncomplete?: boolean;
 }) {
+  const { t } = useI18n();
   const [editingExamples, setEditingExamples] = useState(false);
   const examplesId = useId();
 
@@ -37,30 +40,32 @@ export function CardEditor({
   }
   return (
     <fieldset className={styles.editor} disabled={disabled}>
-      <legend className={styles.legend}>Card content</legend>
+      <legend className={styles.legend}>{t("cardEditor.cardContent")}</legend>
       <div className={styles.columns}>
-        {field("original", "Word · front")}
-        {field("translation", "Translation · back")}
+        {field("original", t("cardEditor.wordFront"))}
+        {field("translation", t("cardEditor.translationBack"))}
       </div>
       <div className={styles.exampleHeading}>
         <span>
-          Examples <small>{value.examples.length}</small>
+          {t("cardEditor.examples")} <small>{value.examples.length}</small>
         </span>
         <button
           type="button"
           aria-expanded={editingExamples}
           aria-controls={examplesId}
           aria-label={
-            editingExamples ? "Close example controls" : "Edit examples"
+            editingExamples
+              ? t("cardEditor.closeExampleControls")
+              : t("cardEditor.editExamples")
           }
           onClick={() => setEditingExamples(!editingExamples)}
         >
-          {editingExamples ? "Close" : "Edit"}
+          {editingExamples ? t("cardEditor.close") : t("cardEditor.edit")}
         </button>
       </div>
       <div className={styles.examples} id={examplesId}>
         {value.examples.length === 0 && (
-          <p className={styles.hint}>No examples on this card.</p>
+          <p className={styles.hint}>{t("cardEditor.noExamplesOnThisCard")}</p>
         )}
         {value.examples.map((example, index) => (
           <div className={styles.columns} key={index}>
@@ -70,7 +75,9 @@ export function CardEditor({
                   <button
                     className={styles.removeButton}
                     type="button"
-                    aria-label={`Remove example ${index + 1}`}
+                    aria-label={t("cardEditor.removeExampleValue", {
+                      value0: index + 1,
+                    })}
                     onClick={() =>
                       onChange({
                         ...value,
@@ -94,7 +101,7 @@ export function CardEditor({
                   </button>
                 )}
                 <label htmlFor={`${examplesId}-${index}`}>
-                  Example {index + 1}
+                  {t("cardEditor.example")} {index + 1}
                 </label>
               </div>
               <textarea
@@ -112,7 +119,9 @@ export function CardEditor({
               />
             </div>
             <label className={styles.field}>
-              <span className={styles.exampleLabel}>Translation</span>
+              <span className={styles.exampleLabel}>
+                {t("cardEditor.translation")}
+              </span>
               <textarea
                 rows={2}
                 value={example.translation}
@@ -141,16 +150,16 @@ export function CardEditor({
               })
             }
           >
-            + Add example
+            {t("cardEditor.addExample")}
           </button>
         )}
       </div>
       <details className={styles.more}>
-        <summary>Word forms, notes & tags</summary>
+        <summary>{t("cardEditor.wordFormsNotesTags")}</summary>
         <div className={styles.extras}>
-          {field("wordForms", "Word forms")}
-          {field("comments", "Notes")}
-          {field("tags", "Tags · separated by spaces")}
+          {field("wordForms", t("importDeck.wordForms"))}
+          {field("comments", t("common.notes"))}
+          {field("tags", t("cardEditor.tagsSeparatedBySpaces"))}
         </div>
       </details>
     </fieldset>

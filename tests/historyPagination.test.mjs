@@ -1,3 +1,4 @@
+import { messageErrors } from "./helpers/i18n.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -25,6 +26,7 @@ function loadRoute({
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
     const mocks = {
       "next/server": { NextResponse: Response },
       "@/auth": { auth: async () => session },
@@ -58,6 +60,7 @@ function loadTranslationRepo(rows) {
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
     const expression =
       (op) =>
       (...args) => ({ op, args });
@@ -133,18 +136,23 @@ test("history endpoint requests 50 rows and returns an opaque next cursor", asyn
   assert.equal(response.status, 200);
   assert.deepEqual(calls, [["user-1", { limit: 50, cursor: undefined }]]);
   assert.equal(body.history[0].id, row.id);
-  assert.deepEqual(route.decodeHistoryCursor(body.nextCursor), {
-    createdAt: cursorTimestamp,
-    id: cursorId,
-  });
+  assert.deepEqual(
+    JSON.parse(Buffer.from(body.nextCursor, "base64url").toString("utf8")),
+    {
+      createdAt: cursorTimestamp,
+      id: cursorId,
+    },
+  );
 });
 
 test("history endpoint decodes the cursor for the next page", async () => {
   const instance = loadRoute();
-  const cursor = instance.route.encodeHistoryCursor({
-    createdAt: cursorTimestamp,
-    id: cursorId,
-  });
+  const cursor = Buffer.from(
+    JSON.stringify({
+      createdAt: cursorTimestamp,
+      id: cursorId,
+    }),
+  ).toString("base64url");
 
   const response = await instance.route.GET(
     new Request(

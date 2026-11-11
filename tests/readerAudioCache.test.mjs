@@ -1,3 +1,4 @@
+import { messageErrors } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -18,6 +19,7 @@ const code = ts.transpileModule(
 ).outputText;
 const exports = {};
 new Function("require", "exports", code)((name) => {
+  if (name === "@/i18n/errors") return messageErrors;
   assert.equal(name, "@/components/ui/Languages");
   return languages;
 }, exports);

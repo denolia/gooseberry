@@ -1,3 +1,4 @@
+import { loadSource, messageErrors, i18n } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -6,7 +7,9 @@ import * as tsFsrs from "ts-fsrs";
 import * as templates from "../src/lib/review/templates.ts";
 import * as mapping from "../src/lib/anki/import/mapping.ts";
 import * as clientHelpers from "../src/lib/anki/import/clientHelpers.ts";
-import * as clientTransport from "../src/lib/anki/import/clientTransport.ts";
+const clientTransport = loadSource(
+  new URL("../src/lib/anki/import/clientTransport.ts", import.meta.url),
+);
 
 function load(path, dependencies = {}) {
   const code = ts.transpileModule(
@@ -21,6 +24,8 @@ function load(path, dependencies = {}) {
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
+    if (name === "@/i18n/client") return i18n;
     assert(name in dependencies, `Unexpected import ${name}`);
     return dependencies[name];
   }, exports);

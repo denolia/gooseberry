@@ -1,3 +1,5 @@
+import { messageErrors } from "./helpers/i18n.mjs";
+import * as locales from "../src/i18n/locale.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -29,6 +31,8 @@ function route(session = { user: { id: "user-1" } }) {
     "@/lib/review/settings": settings,
   };
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
+    if (name === "@/i18n/locale") return locales;
     if (!(name in dependencies))
       throw new Error(`Unexpected dependency ${name}`);
     return dependencies[name];
@@ -85,4 +89,21 @@ test("legacy button-preference updates remain valid and authentication is requir
     401,
   );
   assert.equal(anonymous.calls.length, 0);
+});
+
+test("interface language can be saved alone and unsupported values cannot mutate settings", async () => {
+  const api = route();
+  for (const uiLocale of [null, "", "de", "ru-RU", "RU", 1])
+    assert.equal((await api.patch({ uiLocale })).status, 400);
+  assert.equal((await api.patch({})).status, 400);
+  assert.equal(api.calls.length, 0);
+  assert.equal((await api.patch({ uiLocale: "ru" })).status, 200);
+  assert.deepEqual(api.calls[0], {
+    userId: "user-1",
+    uiLocale: "ru",
+    reviewMode: undefined,
+    newWordsPerDay: undefined,
+    studyTimeZone: undefined,
+  });
+  assert.equal((await route(null).patch({ uiLocale: "en" })).status, 401);
 });

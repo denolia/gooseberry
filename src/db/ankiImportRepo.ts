@@ -1,3 +1,5 @@
+import { MessageError, messageFromError } from "@/i18n/errors";
+import type { ErrorMessageKey, MessageValues } from "@/i18n/messages";
 import { createHash } from "node:crypto";
 import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import { getDb } from "@/db/drizzle";
@@ -28,12 +30,13 @@ import { STUDY_CARD_TEMPLATE_KEYS } from "@/lib/review/templates";
 import { ankiProgressWriteStatements } from "@/db/ankiProgressRepo";
 
 type ImportJob = typeof ankiImportJob.$inferSelect;
-export class AnkiImportError extends Error {
+export class AnkiImportError extends MessageError {
   constructor(
-    message: string,
+    key: ErrorMessageKey,
     public status = 400,
+    values?: MessageValues,
   ) {
-    super(message);
+    super(key, values);
   }
 }
 export function importJobView(job: ImportJob) {
@@ -96,7 +99,7 @@ async function assertVisibleImportBound(job: ImportJob) {
   );
   if (Number(result.rows[0]?.estimated_bytes) > IMPORT_VISIBLE_BYTE_LIMIT) {
     throw new AnkiImportError(
-      "This set would be too large to open in the current library. Select fewer fields or import a smaller deck; existing vocabulary has not been changed.",
+      "errors.thisSetWouldBeTooLargeToOpenInTheCurrent",
       413,
     );
   }
@@ -107,7 +110,7 @@ async function ownedJob(jobId: string, userId: string): Promise<ImportJob> {
     .from(ankiImportJob)
     .where(and(eq(ankiImportJob.id, jobId), eq(ankiImportJob.userId, userId)))
     .limit(1);
-  if (!job) throw new AnkiImportError("Import not found", 404);
+  if (!job) throw new AnkiImportError("errors.importNotFound", 404);
   return job;
 }
 export async function getAnkiImport(jobId: string, userId: string) {
@@ -140,20 +143,12 @@ export async function beginAnkiImport(userId: string, input: BeginImportInput) {
   try {
     validateImportMapping(input);
   } catch (error) {
-    throw new AnkiImportError(
-      error instanceof Error ? error.message : "Invalid mapping",
-    );
+    const message = messageFromError(error, "errors.invalidMapping");
+    throw new AnkiImportError(message.key, 400, message.values);
   }
   // Preserve hashes for jobs created before progress options existed when
   // the new options have their compatible defaults.
-  const { importProgress, schedulingTimeZone, ...legacyInput } = input;
-  const hash = digest({
-    ...legacyInput,
-    ...(importProgress === false ? { importProgress } : {}),
-    ...(schedulingTimeZone && schedulingTimeZone !== "UTC"
-      ? { schedulingTimeZone }
-      : {}),
-  });
+  const hash = importRequestHash(input);
   const [existing] = await getDb()
     .select()
     .from(ankiImportJob)
@@ -165,9 +160,9 @@ export async function beginAnkiImport(userId: string, input: BeginImportInput) {
     )
     .limit(1);
   if (existing) {
-    if (existing.requestHash !== hash)
+    if (!matchesImportRequest(existing, input, hash))
       throw new AnkiImportError(
-        "This import request ID was already used with different settings",
+        "errors.thisImportRequestIdWasAlreadyUsedWithDifferentSettings",
         409,
       );
     return importJobView(existing);
@@ -178,13 +173,13 @@ export async function beginAnkiImport(userId: string, input: BeginImportInput) {
       .from(wordSet)
       .where(and(eq(wordSet.id, input.targetSetId), eq(wordSet.userId, userId)))
       .limit(1);
-    if (!target) throw new AnkiImportError("Target word set not found", 404);
+    if (!target) throw new AnkiImportError("errors.targetWordSetNotFound", 404);
     if (
       target.sourceLang !== input.sourceLang ||
       target.targetLang !== input.targetLang
     ) {
       throw new AnkiImportError(
-        "Target word set languages must match the import",
+        "errors.targetWordSetLanguagesMustMatchTheImport",
       );
     }
   }
@@ -224,9 +219,46 @@ export async function beginAnkiImport(userId: string, input: BeginImportInput) {
         )
         .limit(1)
     )[0];
-  if (!job || job.requestHash !== hash)
-    throw new AnkiImportError("Import request conflict", 409);
+  if (!job || !matchesImportRequest(job, input, hash))
+    throw new AnkiImportError("errors.importRequestConflict", 409);
   return importJobView(job);
+}
+
+function importRequestHash(
+  input: BeginImportInput,
+  warnings: unknown = input.packageMetadata.diagnostics.warnings,
+) {
+  const { importProgress, schedulingTimeZone, ...legacyInput } = input;
+  return digest({
+    ...legacyInput,
+    packageMetadata: {
+      ...input.packageMetadata,
+      diagnostics: { ...input.packageMetadata.diagnostics, warnings },
+    },
+    ...(importProgress === false ? { importProgress } : {}),
+    ...(schedulingTimeZone && schedulingTimeZone !== "UTC"
+      ? { schedulingTimeZone }
+      : {}),
+  });
+}
+
+function matchesImportRequest(
+  job: ImportJob,
+  input: BeginImportInput,
+  hash: string,
+) {
+  if (job.requestHash === hash) return true;
+  // Older jobs stored diagnostic strings. Reuse that representation only for
+  // hashing a retry; file identity, mappings and all settings must still match.
+  const metadata = job.packageMetadata as {
+    diagnostics?: { warnings?: unknown };
+  };
+  const warnings = metadata.diagnostics?.warnings;
+  return (
+    Array.isArray(warnings) &&
+    warnings.every((warning) => typeof warning === "string") &&
+    job.requestHash === importRequestHash(input, warnings)
+  );
 }
 
 export async function stageAnkiImport(
@@ -250,15 +282,17 @@ export async function stageAnkiImport(
   if (existing) {
     if (existing.payloadHash !== hash)
       throw new AnkiImportError(
-        "Batch number was already used for different content",
+        "errors.batchNumberWasAlreadyUsedForDifferentContent",
         409,
       );
     return importJobView(await ownedJob(jobId, userId));
   }
   if (job.status !== "receiving")
-    throw new AnkiImportError("This import no longer accepts content", 409);
+    throw new AnkiImportError("errors.thisImportNoLongerAcceptsContent", 409);
   if (batch.batchIndex !== job.nextBatchIndex)
-    throw new AnkiImportError(`Expected batch ${job.nextBatchIndex}`, 409);
+    throw new AnkiImportError("errors.expectedBatchValue", 409, {
+      value0: job.nextBatchIndex,
+    });
   if (
     job.stagedNoteCount + batch.notes.length > IMPORT_NOTE_LIMIT ||
     job.stagedCardCount + batch.cards.length > IMPORT_CARD_LIMIT ||
@@ -266,7 +300,7 @@ export async function stageAnkiImport(
     job.stagedByteCount + byteCount > IMPORT_TEXT_BYTE_LIMIT
   ) {
     throw new AnkiImportError(
-      "This deck exceeds the supported text import limits",
+      "errors.thisDeckExceedsTheSupportedTextImportLimits",
       413,
     );
   }
@@ -282,13 +316,11 @@ export async function stageAnkiImport(
   const notes = batch.notes.map((note, index) => {
     const model = models.get(note.modelId);
     if (!model)
-      throw new AnkiImportError("A note references an unknown note type");
+      throw new AnkiImportError("errors.aNoteReferencesAnUnknownNoteType");
     const fieldCount =
       Math.max(-1, ...model.fields.map((field) => field.ord)) + 1;
     if (note.fields.length !== fieldCount)
-      throw new AnkiImportError(
-        "Source note fields do not match its note type",
-      );
+      throw new AnkiImportError("errors.sourceNoteFieldsDoNotMatchItsNoteType");
     const mapped = mapAnkiNote(note, mappings.get(note.modelId), model);
     if (
       mapped.original.length > 10000 ||
@@ -300,7 +332,7 @@ export async function stageAnkiImport(
       mapped.tags.length > 2000
     ) {
       throw new AnkiImportError(
-        "Mapped text exceeds the supported field length",
+        "errors.mappedTextExceedsTheSupportedFieldLength",
         413,
       );
     }
@@ -376,7 +408,7 @@ export async function stageAnkiImport(
       if (retry?.payloadHash === hash)
         return importJobView(await ownedJob(jobId, userId));
       throw new AnkiImportError(
-        "Duplicate note, card, review, or conflicting batch in this deck",
+        "errors.duplicateNoteCardReviewOrConflictingBatchInThisDeck",
         409,
       );
     }
@@ -394,7 +426,7 @@ export async function stageAnkiImport(
     )
     .limit(1);
   if (retry?.payloadHash !== hash)
-    throw new AnkiImportError("Import changed while staging this batch", 409);
+    throw new AnkiImportError("errors.importChangedWhileStagingThisBatch", 409);
   return importJobView(updated);
 }
 
@@ -417,13 +449,13 @@ export async function commitAnkiImport(
     return importJobView(await ownedJob(jobId, userId));
   }
   if (job.status !== "receiving")
-    throw new AnkiImportError("This import cannot be committed", 409);
+    throw new AnkiImportError("errors.thisImportCannotBeCommitted", 409);
   if (
     job.nextBatchIndex !== expected.expectedBatchCount ||
     job.stagedNoteCount !== expected.expectedNoteCount
   ) {
     throw new AnkiImportError(
-      "Import is incomplete; finish uploading all text batches",
+      "errors.importIsIncompleteFinishUploadingAllTextBatches",
       409,
     );
   }
@@ -502,7 +534,7 @@ export async function commitAnkiImport(
   if (updated.status !== "completed") {
     await assertVisibleImportBound(updated);
     throw new AnkiImportError(
-      "Import validation failed: unsupported notes, incomplete references, or changed target set",
+      "errors.importValidationFailedUnsupportedNotesIncompleteReferencesOrChangedTargetSet",
       409,
     );
   }
@@ -605,6 +637,6 @@ export async function getAnkiImportSource(
   // One note may approach the upload limit; keep the private response bounded.
   const json = JSON.stringify(notes);
   if (Buffer.byteLength(json) > 3 * 1024 * 1024)
-    throw new AnkiImportError("Source note too large to display", 413);
+    throw new AnkiImportError("errors.sourceNoteTooLargeToDisplay", 413);
   return { notes, nextOffset: notes.length ? offset + 1 : null };
 }

@@ -1,3 +1,4 @@
+import { errorEnvelope } from "@/i18n/errors";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -47,7 +48,10 @@ const REVIEW_QUEUE_SIZE = 20;
 export async function getStudyQueue(request: Request, wordSetId?: string) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -105,16 +109,22 @@ export async function getStudyQueue(request: Request, wordSetId?: string) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid review queue request", details: error.message },
+        {
+          errorCode: "errors.invalidReviewQueueRequest",
+          details: error.message,
+        },
         { status: 400 },
       );
     }
     if (error instanceof StudyScopeNotFoundError) {
-      return NextResponse.json({ error: error.message }, { status: 404 });
+      return NextResponse.json(
+        { ...errorEnvelope(error, "errors.couldNotOpenThisExercise") },
+        { status: 404 },
+      );
     }
     console.error("Error loading review card:", error);
     return NextResponse.json(
-      { error: "Failed to load review card" },
+      { errorCode: "errors.failedToLoadReviewCard" },
       { status: 500 },
     );
   }
@@ -123,7 +133,10 @@ export async function getStudyQueue(request: Request, wordSetId?: string) {
 export async function submitStudyReview(request: Request, wordSetId?: string) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -158,7 +171,7 @@ export async function submitStudyReview(request: Request, wordSetId?: string) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid review", details: error.message },
+        { errorCode: "errors.invalidReview", details: error.message },
         { status: 400 },
       );
     }
@@ -166,21 +179,27 @@ export async function submitStudyReview(request: Request, wordSetId?: string) {
       error instanceof ReviewCardNotFoundError ||
       error instanceof StudyScopeNotFoundError
     ) {
-      return NextResponse.json({ error: error.message }, { status: 404 });
+      return NextResponse.json(
+        { ...errorEnvelope(error, "errors.couldNotOpenThisExercise") },
+        { status: 404 },
+      );
     }
     if (error instanceof ReviewCardNotDueError) {
-      return NextResponse.json({ error: error.message }, { status: 409 });
+      return NextResponse.json(
+        { ...errorEnvelope(error, "errors.couldNotOpenThisExercise") },
+        { status: 409 },
+      );
     }
     if (error instanceof ReviewWriteConflictError) {
       return NextResponse.json(
-        { error: "The card changed. Please try again." },
+        { errorCode: "errors.theCardChangedPleaseTryAgain" },
         { status: 409 },
       );
     }
 
     console.error("Error recording review:", error);
     return NextResponse.json(
-      { error: "Failed to record review" },
+      { errorCode: "errors.failedToRecordReview" },
       { status: 500 },
     );
   }
@@ -195,7 +214,10 @@ const ActivateSchema = z.object({
 export async function activateStudyCard(request: Request, wordSetId?: string) {
   const session = await auth();
   if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   try {
     const input = ActivateSchema.parse(await request.json().catch(() => null));
     const id = wordSetId
@@ -249,7 +271,7 @@ export async function activateStudyCard(request: Request, wordSetId?: string) {
       if (error instanceof ReviewWordSeenTodayError) {
         return NextResponse.json(
           {
-            error: error.message,
+            ...errorEnvelope(error, "errors.couldNotOpenThisExercise"),
             code: "word_seen_today",
             studyDay: serializeStudyDay(studyDay, now),
           },
@@ -261,26 +283,32 @@ export async function activateStudyCard(request: Request, wordSetId?: string) {
   } catch (error) {
     if (error instanceof z.ZodError)
       return NextResponse.json(
-        { error: "Invalid exercise request" },
+        { errorCode: "errors.invalidExerciseRequest" },
         { status: 400 },
       );
     if (
       error instanceof ReviewCardNotFoundError ||
       error instanceof StudyScopeNotFoundError
     )
-      return NextResponse.json({ error: error.message }, { status: 404 });
+      return NextResponse.json(
+        { ...errorEnvelope(error, "errors.couldNotOpenThisExercise") },
+        { status: 404 },
+      );
     if (
       error instanceof ReviewCardNotDueError ||
       error instanceof ReviewWriteConflictError
     ) {
       return NextResponse.json(
-        { error: error.message, code: "unavailable" },
+        {
+          ...errorEnvelope(error, "errors.couldNotOpenThisExercise"),
+          code: "unavailable",
+        },
         { status: 409 },
       );
     }
     console.error("Error opening study exercise:", error);
     return NextResponse.json(
-      { error: "Could not open this exercise" },
+      { errorCode: "errors.couldNotOpenThisExercise" },
       { status: 500 },
     );
   }

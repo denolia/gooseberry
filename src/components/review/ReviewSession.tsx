@@ -1,4 +1,8 @@
 "use client";
+import type { UiMessage } from "@/i18n/messages";
+import { messageFromError, errorFromResponse } from "@/i18n/errors";
+
+import { useI18n } from "@/i18n/client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -80,6 +84,7 @@ export function ReviewSession({
   reviewMode: ReviewModeValue;
 }) {
   const scopeSearch = studySearchParams(scope, filter).toString();
+  const { t } = useI18n();
   const { status } = useSession();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -91,7 +96,7 @@ export function ReviewSession({
   const [exposureDeferredCount, setExposureDeferredCount] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [typedAnswer, setTypedAnswer] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UiMessage | null>(null);
   const [failedReviews, setFailedReviews] = useState<ReviewSubmission[]>([]);
   const cardsRef = useRef<ReviewCard[]>([]);
   const pendingReviewsRef = useRef(new Map<string, ReviewSubmission>());
@@ -249,7 +254,7 @@ export function ReviewSession({
         });
         if (!response.ok) {
           const body = await response.json().catch(() => ({}));
-          throw new Error(body.error || "Could not load the next review.");
+          throw errorFromResponse(body, "errors.couldNotLoadTheNextReview");
         }
 
         const body = (await response.json()) as {
@@ -305,9 +310,7 @@ export function ReviewSession({
       } catch (loadError) {
         if (replace || currentCards.length === 0) {
           setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Could not load the next review.",
+            messageFromError(loadError, "errors.couldNotLoadTheNextReview"),
           );
         }
       } finally {
@@ -349,7 +352,7 @@ export function ReviewSession({
           });
           if (!response.ok) {
             const body = await response.json().catch(() => ({}));
-            throw new Error(body.error || "Could not save this review.");
+            throw errorFromResponse(body, "errors.couldNotSaveThisReview");
           }
           const body = await response.json();
           const dueAt = (body.nextAvailableAt ?? body.state?.dueAt) as
@@ -559,10 +562,12 @@ export function ReviewSession({
 
   const failureToast = failedReviews[0] ? (
     <aside className={styles.syncToast} role="alert" aria-live="assertive">
-      <p>We had an issue trying to update your progress.</p>
+      <p>{t("reviewSession.weHadAnIssueTryingToUpdateYourProgress")}</p>
       <div>
-        <button onClick={retryFailedReview}>Retry</button>
-        <button onClick={ignoreFailedReview}>Ignore</button>
+        <button onClick={retryFailedReview}>{t("reviewSession.retry")}</button>
+        <button onClick={ignoreFailedReview}>
+          {t("reviewSession.ignore")}
+        </button>
       </div>
     </aside>
   ) : null;
@@ -570,7 +575,7 @@ export function ReviewSession({
   if (status === "loading" || loading || (!card && loadingMore)) {
     return (
       <div className={styles.centered} aria-busy="true">
-        Loading review…
+        {t("reviewSession.loadingReview")}
       </div>
     );
   }
@@ -582,16 +587,16 @@ export function ReviewSession({
       <>
         <div className={styles.centered}>
           <p className={styles.error} role="alert">
-            {error}
+            {t(error.key, error.values)}
           </p>
           <button
             className={styles.primaryButton}
             onClick={() => void loadCards({ replace: true })}
           >
-            Try again
+            {t("moveWordDialog.tryAgain")}
           </button>
           <Link className={styles.textLink} href="/anki">
-            Back to sets
+            {t("reviewSession.backToSets")}
           </Link>
         </div>
         {failureToast}
@@ -606,27 +611,31 @@ export function ReviewSession({
           <span className={styles.completeMark} aria-hidden="true">
             ✓
           </span>
-          <p className={styles.eyebrow}>Session complete</p>
-          <h1>You’re caught up</h1>
+          <p className={styles.eyebrow}>{t("reviewSession.sessionComplete")}</p>
+          <h1>{t("reviewSession.youReCaughtUp")}</h1>
           <p>
-            {filter === "due_only"
-              ? "No more repetitions are due in this selection. New exercises are excluded."
-              : "No more exercises are available in this selection right now within your daily new-word allowance."}
+            {t(
+              filter === "due_only"
+                ? "studyScope.noDue"
+                : "studyScope.noAvailable",
+            )}
           </p>
           {nextDueAt && (
-            <p>Next review: {new Date(nextDueAt).toLocaleString()}.</p>
+            <p>
+              {t("reviewSession.nextReview")}{" "}
+              {new Date(nextDueAt).toLocaleString()}.
+            </p>
           )}
           {exposureDeferredCount > 0 && (
             <p>
-              Repetitions of words you’ve seen today resume after 2 am in your
-              study time zone.
+              {t("reviewSession.repetitionsOfWordsYouVeSeenTodayResumeAfter2")}
             </p>
           )}
           <Link className={styles.textLink} href="/profile">
-            Study settings
+            {t("studyScope.settings")}
           </Link>
           <Link className={styles.primaryButton} href="/anki">
-            Back to sets
+            {t("reviewSession.backToSets")}
           </Link>
         </div>
         {failureToast}
@@ -662,9 +671,13 @@ export function ReviewSession({
       onClick={revealAnswer}
       autoFocus={!template.requiresTyping}
     >
-      {template.requiresTyping ? "Check answer" : "Show answer"}
+      {template.requiresTyping
+        ? t("reviewSession.checkAnswer")
+        : t("reviewSession.showAnswer")}
       <span className={styles.shortcutHint}>
-        {template.requiresTyping ? "Enter" : "Space"}
+        {template.requiresTyping
+          ? t("reviewSession.enter")
+          : t("reviewSession.space")}
       </span>
     </button>
   ) : (
@@ -693,11 +706,13 @@ export function ReviewSession({
           >
             {control.shortcut && (
               <span className={styles.ratingKey}>
-                {control.shortcut === " " ? "Space" : control.shortcut}
+                {control.shortcut === " "
+                  ? t("reviewSession.space")
+                  : control.shortcut}
               </span>
             )}
             <span className={styles.ratingCopy}>
-              <strong>{control.label}</strong>
+              <strong>{t(control.labelKey)}</strong>
               <small>{formatReviewInterval(preview.intervalMs)}</small>
             </span>
           </button>
@@ -709,7 +724,7 @@ export function ReviewSession({
   return (
     <BottomPanelLayout
       className={styles.reviewLayout}
-      label="Study controls"
+      label={t("reviewSession.studyControls")}
       panel={actions}
     >
       <div className={styles.session}>
@@ -720,16 +735,16 @@ export function ReviewSession({
               {promptLanguage.toUpperCase()} → {answerLanguage.toUpperCase()}
               {" · "}
               {scope.kind === "all"
-                ? "All sets"
-                : `${scope.setIds.length} ${scope.setIds.length === 1 ? "set" : "sets"}`}
-              {filter === "due_only" ? " · Due only" : ""}
+                ? t("studyScope.allSets")
+                : t("studyScope.setCount", { count: scope.setIds.length })}
+              {filter === "due_only" ? ` · ${t("studyScope.dueOnly")}` : ""}
             </p>
           </div>
           <Link
             className={styles.exitButton}
             href="/anki"
-            aria-label="End session"
-            title="End session"
+            aria-label={t("reviewSession.endSession")}
+            title={t("reviewSession.endSession")}
           >
             <X size={20} aria-hidden="true" />
           </Link>
@@ -743,9 +758,11 @@ export function ReviewSession({
               }`}
             >
               <PhaseIcon size={16} aria-hidden="true" />
-              {newCard ? "Learning" : "Repeating"}
+              {newCard
+                ? t("reviewSession.learning")
+                : t("reviewSession.repeating")}
             </p>
-            <p className={styles.exerciseLabel}>{template.label}</p>
+            <p className={styles.exerciseLabel}>{t(template.labelKey)}</p>
           </div>
           <div className={styles.promptSide}>
             <div
@@ -776,7 +793,8 @@ export function ReviewSession({
             {template.requiresTyping && !revealed && (
               <div className={styles.typedAnswer}>
                 <label htmlFor="study-typed-answer">
-                  Your answer in {card.sourceLang.toUpperCase()}
+                  {t("reviewSession.yourAnswerIn")}{" "}
+                  {card.sourceLang.toUpperCase()}
                 </label>
                 <input
                   id="study-typed-answer"
@@ -806,7 +824,7 @@ export function ReviewSession({
                   autoFocus
                 />
                 <p id="study-typed-answer-help">
-                  Press Enter to check, then rate your recall.
+                  {t("reviewSession.pressEnterToCheckThenRateYourRecall")}
                 </p>
               </div>
             )}
@@ -821,11 +839,13 @@ export function ReviewSession({
                     role="status"
                     aria-label={
                       typedComparison.matches
-                        ? "Your answer matches"
-                        : "Your answer differs"
+                        ? t("reviewSession.yourAnswerMatches")
+                        : t("reviewSession.yourAnswerDiffers")
                     }
                   >
-                    <p className={styles.sideLabel}>Your answer</p>
+                    <p className={styles.sideLabel}>
+                      {t("reviewSession.yourAnswer")}
+                    </p>
                     <p
                       className={`${styles.enteredAnswer} ${
                         typedComparison.matches ? styles.matchedAnswer : ""
@@ -842,7 +862,7 @@ export function ReviewSession({
                               <span key={index}>{part.value}</span>
                             ),
                           )
-                        : "No answer entered"}
+                        : t("reviewSession.noAnswerEntered")}
                     </p>
                   </div>
                 )}
@@ -902,7 +922,7 @@ export function ReviewSession({
 
               {error && (
                 <p className={styles.inlineError} role="alert">
-                  {error}
+                  {t(error.key, error.values)}
                 </p>
               )}
             </div>

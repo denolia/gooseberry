@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/i18n/client";
 
 import type { Ref } from "react";
 import type { WordSetOption } from "./useWordSets";
@@ -12,7 +13,7 @@ export function WordSetPicker({
   onSearchChange,
   id,
   searchRef,
-  label = "Sets",
+  label,
   disabled = false,
   unavailableReason,
   showLanguages = false,
@@ -29,6 +30,7 @@ export function WordSetPicker({
   unavailableReason?: (set: WordSetOption) => string | undefined;
   showLanguages?: boolean;
 }) {
+  const { t } = useI18n();
   const normalized = search.trim().toLocaleLowerCase();
   const options = [...sets]
     .sort((a, b) => {
@@ -41,19 +43,23 @@ export function WordSetPicker({
   return (
     <div className={styles.picker}>
       <label className={styles.srOnly} htmlFor={id}>
-        Find a set
+        {t("wordSetPicker.findASet")}
       </label>
       <input
         ref={searchRef}
         id={id}
         className={styles.search}
         type="search"
-        placeholder="Find a set…"
+        placeholder={t("wordSetList.findASet")}
         value={search}
         disabled={disabled}
         onChange={(event) => onSearchChange(event.target.value)}
       />
-      <div className={styles.list} role="group" aria-label={label}>
+      <div
+        className={styles.list}
+        role="group"
+        aria-label={label ?? t("wordSetPicker.sets")}
+      >
         {options.map((set) => {
           const reason = unavailableReason?.(set);
           return (
@@ -72,8 +78,9 @@ export function WordSetPicker({
               <span className={styles.name}>{set.name}</span>
               {(showLanguages || reason) && (
                 <small className={styles.meta}>
-                  {reason ??
-                    `${set.sourceLang.toUpperCase()} → ${set.targetLang.toUpperCase()}`}
+                  {reason
+                    ? reason
+                    : `${set.sourceLang.toUpperCase()} → ${set.targetLang.toUpperCase()}`}
                 </small>
               )}
             </button>
@@ -82,8 +89,8 @@ export function WordSetPicker({
         {options.length === 0 && (
           <p className={styles.empty}>
             {search.trim()
-              ? `No sets match “${search}”.`
-              : "No sets available."}
+              ? t("wordSetPicker.noSetsMatchValue", { value0: search })
+              : t("wordSetPicker.noSetsAvailable")}
           </p>
         )}
       </div>

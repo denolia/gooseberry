@@ -1,3 +1,5 @@
+import { errorEnvelope, MessageError } from "@/i18n/errors";
+
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { NextResponse } from "next/server";
@@ -43,19 +45,24 @@ type RouteContext = { params: Promise<{ id: string; itemId: string }> };
 function failure(error: unknown) {
   if (error instanceof z.ZodError)
     return NextResponse.json(
-      { error: "Choose valid missing fields and refresh this word." },
+      { errorCode: "errors.chooseValidMissingFieldsAndRefreshThisWord" },
       { status: 400 },
     );
   if (error instanceof EnrichmentError || error instanceof BodyReadError)
     return NextResponse.json(
-      { error: error.message },
+      {
+        ...errorEnvelope(
+          error,
+          "errors.couldNotGenerateMissingContentPleaseTryAgain",
+        ),
+      },
       { status: error.status },
     );
   console.error("Enrichment request failed", {
     error: error instanceof Error ? error.message : "Unknown error",
   });
   return NextResponse.json(
-    { error: "Could not generate missing content. Please try again." },
+    { errorCode: "errors.couldNotGenerateMissingContentPleaseTryAgain" },
     { status: 502 },
   );
 }
@@ -63,7 +70,10 @@ function failure(error: unknown) {
 export async function GET(request: Request, context: RouteContext) {
   const session = await auth();
   if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   try {
     const { id, itemId } = ContextSchema.parse(await context.params);
     await getEnrichmentItem(session.user.id, id, itemId);
@@ -76,7 +86,7 @@ export async function GET(request: Request, context: RouteContext) {
       requestKey,
     );
     if (!result)
-      throw new EnrichmentError("Generation request not found.", 404);
+      throw new EnrichmentError("errors.generationRequestNotFound", 404);
     return NextResponse.json(enrichmentResponse(result), {
       headers: { "Cache-Control": "private, no-store" },
     });
@@ -88,7 +98,10 @@ export async function GET(request: Request, context: RouteContext) {
 export async function POST(request: Request, context: RouteContext) {
   const session = await auth();
   if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   let usageId: string | undefined;
   let completion: OpenAI.Chat.Completions.ChatCompletion | undefined;
   let finalized = false;
@@ -112,7 +125,7 @@ export async function POST(request: Request, context: RouteContext) {
           JSON.stringify([...input.fields].sort())
       )
         throw new EnrichmentError(
-          "This request was already used for different content.",
+          "errors.thisRequestWasAlreadyUsedForDifferentContent",
           409,
         );
       return NextResponse.json(enrichmentResponse(repeated), {
@@ -122,12 +135,12 @@ export async function POST(request: Request, context: RouteContext) {
     }
     if (row.item.contentRevision !== input.contentRevision)
       throw new EnrichmentError(
-        "This word changed. Refresh before generating.",
+        "errors.thisWordChangedRefreshBeforeGenerating",
         409,
       );
     const missing = missingEnrichmentFields(row.item);
     if (input.fields.some((field) => !missing.includes(field)))
-      throw new EnrichmentError("Only missing fields can be generated.", 400);
+      throw new EnrichmentError("errors.onlyMissingFieldsCanBeGenerated", 400);
     if (
       ![
         ...ENRICHMENT_FIELDS.map((field) => row.item[field]),
@@ -135,7 +148,7 @@ export async function POST(request: Request, context: RouteContext) {
       ].some((value) => value.trim())
     )
       throw new EnrichmentError(
-        "Add a word, meaning or example first so we know what to generate.",
+        "errors.addAWordMeaningOrExampleFirstSoWeKnowWhat",
         400,
       );
     const prompt = buildEnrichmentPrompt({
@@ -150,7 +163,7 @@ export async function POST(request: Request, context: RouteContext) {
     ).byteLength;
     if (promptBytes > 30000)
       throw new EnrichmentError(
-        "This word has too much source context for one generation request. Shorten its notes first.",
+        "errors.thisWordHasTooMuchSourceContextForOneGenerationRequest",
         413,
       );
     const reservation = await reserveEnrichment({
@@ -188,7 +201,7 @@ export async function POST(request: Request, context: RouteContext) {
     );
     const message = completion.choices[0]?.message;
     if (message?.refusal || completion.choices[0]?.finish_reason !== "stop")
-      throw new Error("No complete generation result.");
+      throw new MessageError("errors.noCompleteGenerationResult");
     const proposal = EnrichmentProposalSchema.parse(
       JSON.parse(message?.content ?? ""),
     );
@@ -232,7 +245,10 @@ const ApplySchema = z.object({
 export async function PATCH(request: Request, context: RouteContext) {
   const session = await auth();
   if (!session?.user?.id)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   try {
     const { id, itemId } = ContextSchema.parse(await context.params);
     const input = ApplySchema.parse(await readBoundedJson(request, 256 * 1024));

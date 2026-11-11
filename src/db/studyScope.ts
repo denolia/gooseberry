@@ -1,3 +1,4 @@
+import { MessageError } from "@/i18n/errors";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db/drizzle";
 import { fsrsCardState, studyCard, wordSet, wordSetItem } from "@/db/schema";
@@ -34,7 +35,7 @@ export function studyFilterCondition(filter?: StudyFilter) {
     : sql`true`;
 }
 
-export class StudyScopeNotFoundError extends Error {}
+export class StudyScopeNotFoundError extends MessageError {}
 
 export async function assertOwnedStudyScope(userId: string, scope: StudyScope) {
   if (scope.kind === "all") return;
@@ -43,7 +44,7 @@ export async function assertOwnedStudyScope(userId: string, scope: StudyScope) {
     .from(wordSet)
     .where(and(eq(wordSet.userId, userId), studySetCondition(scope.setIds)));
   if (sets.length !== scope.setIds.length) {
-    throw new StudyScopeNotFoundError("One or more study sets are unavailable");
+    throw new StudyScopeNotFoundError("errors.studySetsUnavailable");
   }
 }
 
@@ -60,6 +61,6 @@ export async function getOwnedStudyCardSet(
     .innerJoin(wordSet, eq(wordSet.id, wordSetItem.wordSetId))
     .where(and(eq(wordSet.userId, userId), eq(studyCard.id, studyCardId)))
     .limit(1);
-  if (!row) throw new StudyScopeNotFoundError("Review card not found");
+  if (!row) throw new StudyScopeNotFoundError("errors.reviewCardNotFound");
   return row.id;
 }

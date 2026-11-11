@@ -1,3 +1,4 @@
+import { messageErrors, i18n } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -17,6 +18,8 @@ function load(path, dependencies) {
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
+    if (name === "@/i18n/client") return i18n;
     if (!(name in dependencies))
       throw new Error(`Unexpected dependency ${name}`);
     return dependencies[name];
@@ -109,6 +112,43 @@ test("blocked local storage does not prevent swapping the live language pair", (
   store.swapLanguages();
   assert.equal(store.getSnapshot().currentSourceLanguage, "Russian");
   assert.equal(store.getSnapshot().currentTargetLanguage, "Finnish");
+  assert.equal(notifications, 1);
+  unsubscribe();
+});
+
+test("opening a reader document publishes both restored languages in one notification", (t) => {
+  const { store, writes } = setup(t, "German", "English");
+  const seen = [];
+  const unsubscribe = store.subscribe(() => {
+    const state = store.getSnapshot();
+    seen.push([state.currentSourceLanguage, state.currentTargetLanguage]);
+  });
+  store.setLanguages("Finnish", "Russian");
+  assert.deepEqual(seen, [["Finnish", "Russian"]]);
+  assert.deepEqual(writes, [
+    ["currentSourceLanguage", "Finnish"],
+    ["currentTargetLanguage", "Russian"],
+  ]);
+  store.setLanguages("Finnish", "Russian");
+  assert.equal(
+    seen.length,
+    1,
+    "Opening another text with the same pair does not invalidate its selection",
+  );
+  unsubscribe();
+});
+
+test("reader language restoration still notifies subscribers when local storage is blocked", (t) => {
+  const { store, storage } = setup(t, "German", "English");
+  t.mock.method(storage, "setItem", () => {
+    throw new Error("Blocked");
+  });
+  t.mock.method(console, "error", () => {});
+  let notifications = 0;
+  const unsubscribe = store.subscribe(() => notifications++);
+  store.setLanguages("Finnish", "Russian");
+  assert.equal(store.getSnapshot().currentSourceLanguage, "Finnish");
+  assert.equal(store.getSnapshot().currentTargetLanguage, "Russian");
   assert.equal(notifications, 1);
   unsubscribe();
 });

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getI18n } from "@/i18n/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { ReviewSession } from "@/components/review/ReviewSession";
@@ -13,6 +14,7 @@ export default async function StudyPage({
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/");
+  const { t } = await getI18n();
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(await searchParams)) {
     for (const part of Array.isArray(value)
@@ -29,9 +31,9 @@ export default async function StudyPage({
   } catch {
     return (
       <main className={styles.page}>
-        <h1>Choose study sets</h1>
-        <p>This study selection is invalid or empty.</p>
-        <Link href="/anki">Back to sets</Link>
+        <h1>{t("studyScope.chooseSets")}</h1>
+        <p>{t("studyScope.invalidSelection")}</p>
+        <Link href="/anki">{t("reviewSession.backToSets")}</Link>
       </main>
     );
   }

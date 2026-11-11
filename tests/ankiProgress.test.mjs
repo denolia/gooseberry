@@ -1,3 +1,4 @@
+import { hasError } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -208,7 +209,7 @@ test("multiple source templates cannot silently share one native schedule", () =
         importProgress: true,
         packageMetadata: { models: [duplicate] },
       }),
-    /at most one/,
+    hasError("errors.matchEachGooseberryExerciseToAtMostOneAnkiCardType"),
   );
   assert.doesNotThrow(() =>
     validateImportMapping({
@@ -228,7 +229,9 @@ test("multiple source templates cannot silently share one native schedule", () =
         ],
         packageMetadata: { models: [model] },
       }),
-    /unknown/,
+    hasError(
+      "errors.exerciseMappingReferencesAnUnknownOrDuplicateAnkiTemplate",
+    ),
   );
   assert.equal(
     BeginImportSchema.shape.schedulingTimeZone.safeParse("Not/AZone").success,

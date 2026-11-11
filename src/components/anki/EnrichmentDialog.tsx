@@ -1,8 +1,12 @@
 "use client";
+import type { UiMessage } from "@/i18n/messages";
+import { messageFromError, errorFromResponse } from "@/i18n/errors";
+
+import { useI18n } from "@/i18n/client";
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ENRICHMENT_LABELS,
+  ENRICHMENT_LABEL_KEYS,
   EnrichmentInputSchema,
   missingEnrichmentFields,
   selectEnrichmentValues,
@@ -30,6 +34,7 @@ export function EnrichmentDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useI18n();
   const missing = missingEnrichmentFields(item);
   const storageKey = `gooseberry-enrichment-${item.id}`;
   const [requestState, setRequestState] = useState<{
@@ -66,7 +71,7 @@ export function EnrichmentDialog({
     Partial<Record<EnrichmentField, string>>
   >({});
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UiMessage | null>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null);
   const endpoint = `/api/word-sets/${wordSetId}/items/${item.id}/enrichment`;
@@ -129,19 +134,20 @@ export function EnrichmentDialog({
       });
       const body = await response.json();
       if (!response.ok)
-        throw new Error(body.error || "Could not generate content.");
+        throw errorFromResponse(body, "errors.couldNotGenerateContent");
       setResult(body);
       if (body.proposal)
         setValues(selectEnrichmentValues(attempt.fields, body.proposal.values));
       if (body.status === "failed")
-        setError(
-          "This generation did not finish. You can start a new request.",
-        );
+        setError({
+          key: "errors.thisGenerationDidNotFinishYouCanStartANewRequest",
+        });
     } catch (cause) {
       setError(
-        cause instanceof Error
-          ? cause.message
-          : "Could not generate content. Retry to recover the same request.",
+        messageFromError(
+          cause,
+          "errors.couldNotGenerateContentRetryToRecoverTheSameRequest",
+        ),
       );
     } finally {
       setBusy(false);
@@ -162,26 +168,24 @@ export function EnrichmentDialog({
         // A local attempt does not prove that the server reserved it. Retrying
         // the same key remains safe if an earlier POST is still arriving.
         setResult(null);
-        setError(
-          "This request was not found. Retry to send the same request safely.",
-        );
+        setError({
+          key: "errors.thisRequestWasNotFoundRetryToSendTheSameRequest",
+        });
         return;
       }
       if (!response.ok)
-        throw new Error(body.error || "Could not check generation.");
+        throw errorFromResponse(body, "errors.couldNotCheckGeneration");
       setResult(body);
       if (body.proposal)
         setValues(
           selectEnrichmentValues(requestState.fields, body.proposal.values),
         );
       if (body.status === "failed")
-        setError(
-          "This generation did not finish. You can start a new request.",
-        );
+        setError({
+          key: "errors.thisGenerationDidNotFinishYouCanStartANewRequest",
+        });
     } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Could not check generation.",
-      );
+      setError(messageFromError(cause, "errors.couldNotCheckGeneration"));
     } finally {
       setBusy(false);
     }
@@ -207,7 +211,7 @@ export function EnrichmentDialog({
       });
       const body = await response.json();
       if (!response.ok)
-        throw new Error(body.error || "Could not save the proposal.");
+        throw errorFromResponse(body, "errors.couldNotSaveTheProposal");
       try {
         sessionStorage.removeItem(storageKey);
       } catch {
@@ -216,9 +220,7 @@ export function EnrichmentDialog({
       onSaved();
       onClose();
     } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Could not save the proposal.",
-      );
+      setError(messageFromError(cause, "errors.couldNotSaveTheProposal"));
     } finally {
       setBusy(false);
     }
@@ -251,27 +253,31 @@ export function EnrichmentDialog({
         aria-labelledby="enrichment-title"
       >
         <header>
-          <h2 id="enrichment-title">Generate missing content</h2>
+          <h2 id="enrichment-title">
+            {t("enrichmentDialog.generateMissingContent")}
+          </h2>
           <button
             ref={closeButton}
             type="button"
             onClick={onClose}
-            aria-label="Close generation"
+            aria-label={t("enrichmentDialog.closeGeneration")}
           >
             ×
           </button>
         </header>
         <p className={styles.context}>
-          {item.original || item.translation || item.sample || "Imported word"}
+          {item.original ||
+            item.translation ||
+            item.sample ||
+            t("enrichmentDialog.importedWord")}
         </p>
         {!result?.proposal && (
           <>
             <p>
-              Choose what to add with AI. Existing content is kept. You can edit
-              the result before saving.
+              {t("enrichmentDialog.chooseWhatToAddWithAiExistingContentIsKept")}
             </p>
             <fieldset disabled={busy || !!requestState}>
-              <legend>Missing fields</legend>
+              <legend>{t("enrichmentDialog.missingFields")}</legend>
               {missing.map((field) => (
                 <label key={field} className={styles.option}>
                   <input
@@ -285,27 +291,33 @@ export function EnrichmentDialog({
                       )
                     }
                   />
-                  {ENRICHMENT_LABELS[field]}
+                  {t(ENRICHMENT_LABEL_KEYS[field])}
                 </label>
               ))}
             </fieldset>
           </>
         )}
         {result?.status === "pending" && (
-          <p role="status">Generation is still running. Check again shortly.</p>
+          <p role="status">
+            {t("enrichmentDialog.generationIsStillRunningCheckAgainShortly")}
+          </p>
         )}
         {result?.status === "unknown" && (
           <p role="status">
-            You have an earlier request. Check its status to continue.
+            {t(
+              "enrichmentDialog.youHaveAnEarlierRequestCheckItsStatusToContinue",
+            )}
           </p>
         )}
         {result?.proposal && (
           <>
-            <p className={styles.origin}>AI proposal · review for accuracy</p>
+            <p className={styles.origin}>
+              {t("enrichmentDialog.aiProposalReviewForAccuracy")}
+            </p>
             {result.proposal.message && <p>{result.proposal.message}</p>}
             {(requestState?.fields ?? []).map((field) => (
               <label key={field} className={styles.field}>
-                {ENRICHMENT_LABELS[field]}
+                {t(ENRICHMENT_LABEL_KEYS[field])}
                 <textarea
                   rows={
                     field === "sample" || field === "sampleTranslation" ? 3 : 2
@@ -321,7 +333,9 @@ export function EnrichmentDialog({
                 />
                 {!result.proposal?.values[field] && (
                   <small>
-                    No confident suggestion. Leave empty or add your own.
+                    {t(
+                      "enrichmentDialog.noConfidentSuggestionLeaveEmptyOrAddYourOwn",
+                    )}
                   </small>
                 )}
               </label>
@@ -330,21 +344,21 @@ export function EnrichmentDialog({
         )}
         {error && (
           <p className={styles.error} role="alert">
-            {error}
+            {t(error.key, error.values)}
           </p>
         )}
         <footer>
           <button type="button" onClick={onClose}>
-            Close
+            {t("cardEditor.close")}
           </button>
           {result?.proposal && (
             <button type="button" disabled={busy} onClick={resetRequest}>
-              Discard proposal
+              {t("enrichmentDialog.discardProposal")}
             </button>
           )}
           {result?.status === "failed" ? (
             <button type="button" disabled={busy} onClick={resetRequest}>
-              New request
+              {t("enrichmentDialog.newRequest")}
             </button>
           ) : result?.status === "pending" || result?.status === "unknown" ? (
             <button
@@ -352,7 +366,9 @@ export function EnrichmentDialog({
               disabled={busy}
               onClick={() => void checkPending()}
             >
-              {busy ? "Checking…" : "Check again"}
+              {busy
+                ? t("enrichmentDialog.checking")
+                : t("enrichmentDialog.checkAgain")}
             </button>
           ) : result?.proposal ? (
             <button
@@ -360,7 +376,9 @@ export function EnrichmentDialog({
               disabled={busy || !hasValues}
               onClick={() => void save()}
             >
-              {busy ? "Saving…" : "Save selected content"}
+              {busy
+                ? t("premiumTierControl.saving")
+                : t("enrichmentDialog.saveSelectedContent")}
             </button>
           ) : (
             <button
@@ -369,10 +387,10 @@ export function EnrichmentDialog({
               onClick={() => void generate()}
             >
               {busy
-                ? "Generating…"
+                ? t("enrichmentDialog.generating")
                 : requestState
-                  ? "Retry request"
-                  : "Generate selected fields"}
+                  ? t("enrichmentDialog.retryRequest")
+                  : t("enrichmentDialog.generateSelectedFields")}
             </button>
           )}
         </footer>

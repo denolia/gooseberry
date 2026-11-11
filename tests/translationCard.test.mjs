@@ -1,3 +1,4 @@
+import { messageErrors, i18n } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -210,12 +211,16 @@ function setup(t, props = {}, queryOverrides = {}, geometry = {}) {
     },
   ).outputText;
   new Function("require", "exports", pickerCode)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
+    if (name === "@/i18n/client") return i18n;
     if (name === "react/jsx-runtime")
       return { jsx, jsxs: jsx, Fragment: "fragment" };
     if (name === "./WordSetPicker.module.css") return { default: {} };
     throw new Error(`Unexpected picker import ${name}`);
   }, picker);
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
+    if (name === "@/i18n/client") return i18n;
     const dependencies = {
       react,
       "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },

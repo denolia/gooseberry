@@ -1,3 +1,4 @@
+import type { MessageKey } from "@/i18n/messages";
 import {
   FsrsCardState,
   ReviewMode,
@@ -8,7 +9,7 @@ import {
 } from "@/lib/review/model";
 
 export type ReviewControl = {
-  label: string;
+  labelKey: MessageKey;
   rating: ReviewRatingValue;
   shortcut: "1" | "2" | "3" | "4" | " " | null;
 };
@@ -22,20 +23,22 @@ export function reviewControls(
   mode: ReviewModeValue,
 ): ReviewControl[] {
   if (isNewState(state)) {
-    return [{ label: "Ok", rating: ReviewRating.Good, shortcut: " " }];
+    return [
+      { labelKey: "common.ok", rating: ReviewRating.Good, shortcut: " " },
+    ];
   }
 
   if (mode === ReviewMode.Full) {
     return [
-      { label: "Hard", rating: ReviewRating.Hard, shortcut: "2" },
-      { label: "Good", rating: ReviewRating.Good, shortcut: "3" },
-      { label: "Easy", rating: ReviewRating.Easy, shortcut: "4" },
-      { label: "Again", rating: ReviewRating.Again, shortcut: "1" },
+      { labelKey: "common.hard", rating: ReviewRating.Hard, shortcut: "2" },
+      { labelKey: "common.good", rating: ReviewRating.Good, shortcut: "3" },
+      { labelKey: "common.easy", rating: ReviewRating.Easy, shortcut: "4" },
+      { labelKey: "common.again", rating: ReviewRating.Again, shortcut: "1" },
     ];
   }
 
   return [
-    { label: "No", rating: ReviewRating.Again, shortcut: "1" },
-    { label: "Yes", rating: ReviewRating.Good, shortcut: "2" },
+    { labelKey: "common.no", rating: ReviewRating.Again, shortcut: "1" },
+    { labelKey: "common.yes", rating: ReviewRating.Good, shortcut: "2" },
   ];
 }

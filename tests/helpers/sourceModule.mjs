@@ -1,3 +1,4 @@
+import { messageErrors } from "./i18n.mjs";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import ts from "@typescript/typescript6";
@@ -22,6 +23,7 @@ export function loadSourceModule(path, dependencies = {}, cache = new Map()) {
   ).outputText;
   new Function("require", "exports", code)((name) => {
     if (name in dependencies) return dependencies[name];
+    if (name === "@/i18n/errors") return messageErrors;
     if (name.startsWith("@/"))
       return loadSourceModule(`src/${name.slice(2)}.ts`, dependencies, cache);
     return require(name);

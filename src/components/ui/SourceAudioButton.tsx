@@ -1,4 +1,8 @@
 "use client";
+import type { UiMessage } from "@/i18n/messages";
+import { messageFromError, errorFromResponse } from "@/i18n/errors";
+
+import { useI18n } from "@/i18n/client";
 
 import { useCallback, useEffect, useRef, useState, type Ref } from "react";
 import styles from "./SourceAudioButton.module.css";
@@ -16,8 +20,9 @@ export function SourceAudioButton({
   className?: string;
   ref?: Ref<HTMLButtonElement>;
 }) {
+  const { t } = useI18n();
   const [status, setStatus] = useState<"idle" | "loading" | "playing">("idle");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const requestRef = useRef<AbortController | null>(null);
@@ -47,7 +52,7 @@ export function SourceAudioButton({
 
   async function play() {
     if (status === "loading" || !sourceLanguage) return;
-    setError("");
+    setError(null);
     const request = new AbortController();
     requestRef.current = request;
     let audio: HTMLAudioElement | null = null;
@@ -65,8 +70,9 @@ export function SourceAudioButton({
         if (!response.ok) {
           const body = (await response.json().catch(() => ({}))) as {
             error?: string;
+            errorCode?: string;
           };
-          throw new Error(body.error || "Could not load pronunciation");
+          throw errorFromResponse(body, "errors.couldNotLoadPronunciation");
         }
 
         const blob = await response.blob();
@@ -88,7 +94,7 @@ export function SourceAudioButton({
         if (audioRef.current === audio) {
           releaseAudio();
           setStatus("idle");
-          setError("Could not play pronunciation");
+          setError({ key: "errors.couldNotPlayPronunciation" });
         }
       };
 
@@ -103,11 +109,7 @@ export function SourceAudioButton({
       if (audio && audioRef.current !== audio) return;
       releaseAudio({ keepUrl: audio !== null && !audio.error });
       setStatus("idle");
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Could not play pronunciation",
-      );
+      setError(messageFromError(reason, "errors.couldNotPlayPronunciation"));
     }
   }
 
@@ -122,10 +124,10 @@ export function SourceAudioButton({
         aria-keyshortcuts={shortcut}
         aria-label={
           status === "loading"
-            ? "Generating AI pronunciation"
+            ? t("sourceAudioButton.generatingAiPronunciation")
             : status === "playing"
-              ? "Listen to AI pronunciation again"
-              : "Listen to AI pronunciation"
+              ? t("sourceAudioButton.listenToAiPronunciationAgain")
+              : t("sourceAudioButton.listenToAiPronunciation")
         }
       >
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -135,12 +137,16 @@ export function SourceAudioButton({
             fill="none"
           />
         </svg>
-        <span>{status === "loading" ? "Generating…" : "Listen"}</span>
+        <span>
+          {status === "loading"
+            ? t("enrichmentDialog.generating")
+            : t("textAnalyzer.listen")}
+        </span>
         {shortcut && <kbd className={styles.shortcut}>{shortcut}</kbd>}
       </button>
       {error && (
         <span className={styles.error} role="alert">
-          {error}
+          {t(error.key, error.values)}
         </span>
       )}
     </div>

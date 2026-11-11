@@ -1,3 +1,4 @@
+import { messageErrors, i18n, translations } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -24,6 +25,8 @@ function transpile(path, dependencies = {}) {
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
+    if (name === "@/i18n/client") return dependencies[name] ?? i18n;
     if (name in dependencies) return dependencies[name];
     throw new Error(`Unexpected dependency ${name}`);
   }, exports);
@@ -282,6 +285,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
       "next/link": { default: "a" },
       "next/navigation": { useRouter: () => router },
       "next-auth/react": { useSession: () => ({ status: "authenticated" }) },
+      "@/i18n/client": { useI18n: () => translations(options.locale ?? "en") },
       "@tanstack/react-query": { useQueryClient: () => queryClient },
       "@/components/ui/SourceAudioButton": { SourceAudioButton },
       "@/components/ui/BottomPanelLayout": { BottomPanelLayout },
@@ -469,6 +473,17 @@ test("due-only completion explains excluded introductions without suggesting the
     ),
     "all",
   );
+});
+
+test("combined study scope and due-only labels honor the Russian interface locale", async (t) => {
+  const session = setup(t, [fixture], ReviewMode.Simple, {
+    scope: { kind: "all" },
+    filter: "due_only",
+    locale: "ru",
+  });
+  const tree = await session.ready();
+  assert.match(text(tree), /FI → RU · Все наборы · Только повторение/);
+  assert.doesNotMatch(text(tree), /All sets|Due only|Repeating/);
 });
 
 test("typing spaces, digits, P and Enter never triggers global shortcuts", async (t) => {

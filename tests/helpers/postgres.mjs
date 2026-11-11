@@ -1,3 +1,4 @@
+import { messageErrors } from "./i18n.mjs";
 import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -33,7 +34,7 @@ export function createActivatedReviewer(repo) {
 
 // An isolated, in-memory PostgreSQL engine. Production SQL and migrations run
 // unchanged; DATABASE_URL and all remote services are deliberately unused.
-export async function createPostgresFixture() {
+export async function createPostgresFixture(overrides = {}) {
   const client = new PGlite();
   for (const name of readdirSync(path.join(project, "migrations"))
     .filter((name) => /^\d+.*\.sql$/.test(name))
@@ -57,6 +58,8 @@ export async function createPostgresFixture() {
     });
   const modules = new Map();
   function load(name, parent = path.join(project, "src")) {
+    if (Object.hasOwn(overrides, name)) return overrides[name];
+    if (name === "@/i18n/errors") return messageErrors;
     if (name === "@/db/drizzle") return { getDb: () => database };
     const filename = name.startsWith("@/")
       ? path.join(project, "src", `${name.slice(2)}.ts`)

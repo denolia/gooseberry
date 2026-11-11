@@ -1,4 +1,8 @@
 "use client";
+import type { UiMessage } from "@/i18n/messages";
+import { messageFromError, errorFromResponse } from "@/i18n/errors";
+
+import { useI18n } from "@/i18n/client";
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -18,6 +22,7 @@ export function MoveWordDialog({
   onClose: () => void;
   onMoved: (destination: WordSetOption) => void;
 }) {
+  const { t } = useI18n();
   const { data: session } = useSession();
   const sets = useWordSets(session?.user?.id);
   const client = useQueryClient();
@@ -29,7 +34,7 @@ export function MoveWordDialog({
   const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage | null>(null);
   const languagePair = `${sourceSet.sourceLang.toUpperCase()} → ${sourceSet.targetLang.toUpperCase()}`;
 
   useEffect(() => {
@@ -51,12 +56,15 @@ export function MoveWordDialog({
   }, [sets.isPending, sets.error]);
 
   function unavailableReason(set: WordSetOption) {
-    if (set.id === sourceSet.id) return "Current set";
+    if (set.id === sourceSet.id) return t("moveWordDialog.currentSet");
     if (
       set.sourceLang !== sourceSet.sourceLang ||
       set.targetLang !== sourceSet.targetLang
     ) {
-      return `Different languages · ${set.sourceLang.toUpperCase()} → ${set.targetLang.toUpperCase()}`;
+      return t("moveWordDialog.differentLanguages", {
+        source: set.sourceLang.toUpperCase(),
+        target: set.targetLang.toUpperCase(),
+      });
     }
   }
 
@@ -71,7 +79,7 @@ export function MoveWordDialog({
     if (!destination || !canMove || submitting.current) return;
     submitting.current = true;
     setBusy(true);
-    setError("");
+    setError(null);
     try {
       const response = await fetch(
         `/api/word-sets/${sourceSet.id}/items/${item.id}/move`,
@@ -83,14 +91,12 @@ export function MoveWordDialog({
       );
       const body = await response.json();
       if (!response.ok)
-        throw new Error(body.error || "Could not move this word.");
+        throw errorFromResponse(body, "errors.couldNotMoveThisWord");
       void client.invalidateQueries({ queryKey: ["wordSets"] });
       onMoved(destination);
     } catch (cause) {
       setError(
-        cause instanceof Error
-          ? cause.message
-          : "Could not move this word. Please try again.",
+        messageFromError(cause, "errors.couldNotMoveThisWordPleaseTryAgain"),
       );
     } finally {
       submitting.current = false;
@@ -115,22 +121,24 @@ export function MoveWordDialog({
         }}
       >
         <header className={styles.header}>
-          <h2 id={titleId}>Move to another set</h2>
+          <h2 id={titleId}>{t("moveWordDialog.moveToAnotherSet")}</h2>
         </header>
         <div className={styles.body}>
           <p className={styles.word} title={item.original || item.translation}>
-            {item.original || item.translation || "Imported word"}
+            {item.original ||
+              item.translation ||
+              t("enrichmentDialog.importedWord")}
           </p>
           <p className={styles.hint}>
-            Choose a {languagePair} set. Study progress moves with the word.
+            {t("moveWordDialog.help", { languages: languagePair })}
           </p>
           {sets.isPending ? (
-            <p role="status">Loading sets…</p>
+            <p role="status">{t("moveWordDialog.loadingSets")}</p>
           ) : sets.error ? (
             <div className={styles.error} role="alert">
-              <p>Could not load your sets.</p>
+              <p>{t("moveWordDialog.couldNotLoadYourSets")}</p>
               <button type="button" onClick={() => void sets.refetch()}>
-                Try again
+                {t("moveWordDialog.tryAgain")}
               </button>
             </div>
           ) : (
@@ -139,17 +147,17 @@ export function MoveWordDialog({
               selectedId={selectedId}
               onSelect={(id) => {
                 setSelectedId(id);
-                setError("");
+                setError(null);
               }}
               search={search}
               onSearchChange={(query) => {
                 setSearch(query);
                 setSelectedId("");
-                setError("");
+                setError(null);
               }}
               id={searchId}
               searchRef={searchRef}
-              label="Destination sets"
+              label={t("moveWordDialog.destinationSets")}
               disabled={busy}
               unavailableReason={unavailableReason}
               showLanguages
@@ -157,20 +165,20 @@ export function MoveWordDialog({
           )}
           {error && (
             <p className={styles.error} role="alert">
-              {error}
+              {t(error.key, error.values)}
             </p>
           )}
         </div>
         <footer className={styles.actions}>
           <button type="button" disabled={busy} onClick={onClose}>
-            Cancel
+            {t("moveWordDialog.cancel")}
           </button>
           <button
             type="submit"
             className={styles.move}
             disabled={busy || !canMove}
           >
-            {busy ? "Moving…" : "Move"}
+            {busy ? t("moveWordDialog.moving") : t("moveWordDialog.move")}
           </button>
         </footer>
       </form>

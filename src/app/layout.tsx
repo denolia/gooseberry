@@ -3,6 +3,8 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { Sue_Ellen_Francisco } from "next/font/google";
 import { Providers } from "@/app/providers/Providers";
+import { NextIntlClientProvider } from "next-intl";
+import { getI18n } from "@/i18n/server";
 
 const sueEllenFrancisco = Sue_Ellen_Francisco({
   subsets: ["latin"], // Specify the subset
@@ -21,15 +23,18 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
-export const metadata: Metadata = {
-  title: "Learn.words",
-  description: "Translate, learn and practice words",
-  icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/favicon.ico",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return {
+    title: "Learn.words",
+    description: t("common.appDescription"),
+    icons: {
+      icon: "/favicon.ico",
+      shortcut: "/favicon.ico",
+      apple: "/favicon.ico",
+    },
+  };
+}
 
 export default function RootLayout({
   children,
@@ -41,7 +46,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${sueEllenFrancisco.variable}`}
       >
-        <Providers>{children}</Providers>
+        <NextIntlClientProvider>
+          <Providers>{children}</Providers>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

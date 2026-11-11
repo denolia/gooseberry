@@ -1,4 +1,9 @@
 "use client";
+import type { UiMessage } from "@/i18n/messages";
+import { messageFromError, errorFromResponse } from "@/i18n/errors";
+
+import { useI18n } from "@/i18n/client";
+
 import {
   ReactNode,
   useEffect,
@@ -34,6 +39,7 @@ export function TranslationCard({
   onOpenTranslation?: () => void;
   children: ReactNode;
 }) {
+  const { t } = useI18n();
   const { data: session } = useSession();
   const client = useQueryClient();
   const editorId = useId();
@@ -56,7 +62,7 @@ export function TranslationCard({
   const translationActionRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const newSetNameRef = useRef<HTMLInputElement>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage | null>(null);
   const [saved, setSaved] = useState<
     Record<string, { fingerprint: string; itemId: string }>
   >({});
@@ -102,7 +108,7 @@ export function TranslationCard({
       setEditing(true);
       return;
     }
-    setError("");
+    setError(null);
     setCreating(startCreating);
     setSetSearch("");
     setPickerOpen(true);
@@ -227,7 +233,7 @@ export function TranslationCard({
   async function save() {
     if (busy) return;
     setBusy(true);
-    setError("");
+    setError(null);
     try {
       let nextDraft = draft;
       if (prepareCard && !preparedCard.current) {
@@ -244,7 +250,7 @@ export function TranslationCard({
           body: JSON.stringify({ name: name.trim(), sourceLang, targetLang }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Could not create set.");
+        if (!res.ok) throw errorFromResponse(data, "errors.couldNotCreateSet");
         destination = data.wordSet.id;
         client.setQueryData<WordSet[]>(
           ["wordSets", session?.user?.id],
@@ -265,7 +271,7 @@ export function TranslationCard({
         ),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not save card.");
+      if (!res.ok) throw errorFromResponse(data, "errors.couldNotSaveCard");
       setSaved((old) => ({
         ...old,
         [destination]: {
@@ -284,7 +290,7 @@ export function TranslationCard({
       window.requestAnimationFrame(() => mainActionRef.current?.focus());
       client.invalidateQueries({ queryKey: ["wordSets", session?.user?.id] });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save card.");
+      setError(messageFromError(err, "errors.couldNotSaveCard"));
     } finally {
       setBusy(false);
     }
@@ -318,48 +324,58 @@ export function TranslationCard({
   }
 
   const primaryLabel = busy
-    ? "Saving…"
+    ? t("premiumTierControl.saving")
     : sets.isPending
-      ? "Loading sets…"
+      ? t("moveWordDialog.loadingSets")
       : sets.error
-        ? "Retry loading sets"
+        ? t("translationCard.retryLoadingSets")
         : !sourceLang || !targetLang
-          ? "Edit card"
+          ? t("wordSetManager.editCard")
           : !destinationName
-            ? "Choose a set to save"
+            ? t("translationCard.chooseASetToSave")
             : hasSavedCard
-              ? `Edit card in “${destinationName}”`
-              : `Save card to “${destinationName}”`;
+              ? t("translationCard.editCardInValue", {
+                  value0: destinationName,
+                })
+              : t("translationCard.saveCardToValue", {
+                  value0: destinationName,
+                });
 
   if (!session?.user?.id) return <>{children}</>;
   return (
     <section
       className={styles.container}
-      aria-label="Translation and Anki card"
+      aria-label={t("translationCard.translationAndAnkiCard")}
     >
       {editing && (
         <div className={styles.editor} id={editorId}>
           <div className={styles.bar}>
-            <span className={styles.label}>Anki card</span>
+            <span className={styles.label}>
+              {t("translationCard.ankiCard")}
+            </span>
             {!sourceLang || !targetLang ? (
               <span>
-                Translate this word again to save it with its language pair.
+                {t(
+                  "translationCard.translateThisWordAgainToSaveItWithItsLanguage",
+                )}
               </span>
             ) : sets.isPending ? (
-              <span>Loading sets…</span>
+              <span>{t("moveWordDialog.loadingSets")}</span>
             ) : sets.error ? (
-              <button onClick={() => sets.refetch()}>Retry loading sets</button>
+              <button onClick={() => sets.refetch()}>
+                {t("translationCard.retryLoadingSets")}
+              </button>
             ) : (
               <>
                 {compatible.length > 0 && (
                   <select
-                    aria-label="Anki set"
+                    aria-label={t("translationCard.ankiSet")}
                     value={creating ? "new" : setId}
                     disabled={busy}
                     onChange={(e) => {
                       setCreating(e.target.value === "new");
                       setSelected(e.target.value);
-                      setError("");
+                      setError(null);
                     }}
                   >
                     {compatible.map((s) => (
@@ -367,13 +383,13 @@ export function TranslationCard({
                         {s.name}
                       </option>
                     ))}
-                    <option value="new">+ New set</option>
+                    <option value="new">{t("translationCard.newSet")}</option>
                   </select>
                 )}
                 {(creating || !compatible.length) && (
                   <input
-                    aria-label="New set name"
-                    placeholder="Set name"
+                    aria-label={t("translationCard.newSetName")}
+                    placeholder={t("importDeck.setName")}
                     maxLength={200}
                     value={name}
                     disabled={busy}
@@ -386,18 +402,20 @@ export function TranslationCard({
                   onClick={save}
                 >
                   {busy
-                    ? "Saving…"
+                    ? t("premiumTierControl.saving")
                     : hasSavedCard && !creating
-                      ? "Save changes"
-                      : "Save card"}
+                      ? t("translationCard.saveChanges")
+                      : t("translationCard.saveCard")}
                 </button>
               </>
             )}
             <button disabled={busy} onClick={() => setEditing(false)}>
-              Close editor
+              {t("translationCard.closeEditor")}
             </button>
             <Link href={hasSavedCard ? `/anki/${setId}` : "/anki"}>
-              {hasSavedCard ? "View set ↗" : "Your sets ↗"}
+              {hasSavedCard
+                ? t("translationCard.viewSet")
+                : t("translationCard.yourSets")}
             </Link>
           </div>
           {sourceLang && targetLang && (
@@ -450,8 +468,10 @@ export function TranslationCard({
                     disabled={busy || sets.isPending}
                     aria-label={
                       destinationName
-                        ? `Choose Anki set. Current set: ${destinationName}`
-                        : "Choose an Anki set"
+                        ? t("translationCard.chooseAnkiSetCurrentSetValue", {
+                            value0: destinationName,
+                          })
+                        : t("translationCard.chooseAnAnkiSet")
                     }
                     aria-expanded={pickerOpen}
                     aria-controls={pickerId}
@@ -469,8 +489,8 @@ export function TranslationCard({
                   ref={actionsTriggerRef}
                   type="button"
                   className={styles.actionsTrigger}
-                  aria-label="More translation actions"
-                  title="More translation actions"
+                  aria-label={t("translationCard.moreTranslationActions")}
+                  title={t("translationCard.moreTranslationActions")}
                   aria-haspopup="menu"
                   aria-expanded={actionsOpen}
                   aria-controls={actionsMenuId}
@@ -499,7 +519,7 @@ export function TranslationCard({
                 ref={actionsMenuRef}
                 id={actionsMenuId}
                 role="menu"
-                aria-label="Translation actions"
+                aria-label={t("translationCard.translationActions")}
                 className={styles.actionsMenu}
                 popover="manual"
               >
@@ -513,7 +533,7 @@ export function TranslationCard({
                     onOpenTranslation();
                   }}
                 >
-                  Open in Translation
+                  {t("translationCard.openInTranslation")}
                 </button>
               </div>
             )}
@@ -523,10 +543,10 @@ export function TranslationCard({
                 id={pickerId}
                 className={styles.setPicker}
                 role="dialog"
-                aria-label="Choose an Anki set"
+                aria-label={t("translationCard.chooseAnAnkiSet")}
               >
                 <div className={styles.pickerHeader}>
-                  <strong>Save card to</strong>
+                  <strong>{t("translationCard.saveCardTo")}</strong>
                   <span className={styles.languagePair}>
                     {sourceLang?.toUpperCase()} → {targetLang?.toUpperCase()}
                   </span>
@@ -534,9 +554,9 @@ export function TranslationCard({
 
                 {sets.error ? (
                   <div className={styles.pickerMessage}>
-                    <span>Could not load your sets.</span>
+                    <span>{t("moveWordDialog.couldNotLoadYourSets")}</span>
                     <button type="button" onClick={() => sets.refetch()}>
-                      Try again
+                      {t("moveWordDialog.tryAgain")}
                     </button>
                   </div>
                 ) : creating || compatible.length === 0 ? (
@@ -557,15 +577,17 @@ export function TranslationCard({
                           setName("");
                         }}
                       >
-                        ← Back to sets
+                        {t("translationCard.backToSets")}
                       </button>
                     )}
-                    <label htmlFor={`${pickerId}-new-set`}>New set name</label>
+                    <label htmlFor={`${pickerId}-new-set`}>
+                      {t("translationCard.newSetName")}
+                    </label>
                     <input
                       ref={newSetNameRef}
                       id={`${pickerId}-new-set`}
                       maxLength={200}
-                      placeholder="For example, My words"
+                      placeholder={t("translationCard.forExampleMyWords")}
                       value={name}
                       disabled={busy}
                       onChange={(event) => setName(event.target.value)}
@@ -575,7 +597,9 @@ export function TranslationCard({
                       className={styles.createAndSave}
                       disabled={!canSave}
                     >
-                      {busy ? "Creating and saving…" : "Create and save card"}
+                      {busy
+                        ? t("translationCard.creatingAndSaving")
+                        : t("translationCard.createAndSaveCard")}
                     </button>
                   </form>
                 ) : (
@@ -585,14 +609,14 @@ export function TranslationCard({
                       selectedId={setId}
                       onSelect={(id) => {
                         setSelected(id);
-                        setError("");
+                        setError(null);
                         closePicker({ restoreFocus: true });
                       }}
                       search={setSearch}
                       onSearchChange={setSetSearch}
                       id={`${pickerId}-search`}
                       searchRef={searchRef}
-                      label="Compatible sets"
+                      label={t("translationCard.compatibleSets")}
                     />
                     <div className={styles.pickerFooter}>
                       <button
@@ -603,10 +627,10 @@ export function TranslationCard({
                           setName("");
                         }}
                       >
-                        + Create new set
+                        {t("translationCard.createNewSet")}
                       </button>
                       <Link href="/anki" onClick={() => closePicker()}>
-                        Manage sets ↗
+                        {t("translationCard.manageSets")}
                       </Link>
                     </div>
                   </>
@@ -618,11 +642,13 @@ export function TranslationCard({
       </div>
       {error && (
         <p className={styles.error} role="alert">
-          {error}
+          {t(error.key, error.values)}
         </p>
       )}
       <span className={styles.srOnly} role="status">
-        {isSaved ? `Saved to ${destinationName}.` : ""}
+        {isSaved
+          ? t("translationCard.savedToValue", { value0: destinationName ?? "" })
+          : ""}
       </span>
     </section>
   );

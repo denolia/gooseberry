@@ -1,9 +1,11 @@
+import { MessageError } from "@/i18n/errors";
+import type { ErrorMessageKey, MessageValues } from "@/i18n/messages";
 import { Inflate } from "fflate";
 import { Decompress } from "fzstd";
 
-export class AnkiPackageError extends Error {
-  constructor(message: string) {
-    super(message);
+export class AnkiPackageError extends MessageError {
+  constructor(key: ErrorMessageKey, values?: MessageValues) {
+    super(key, values);
     this.name = "AnkiPackageError";
   }
 }
@@ -20,7 +22,7 @@ type Entry = {
 
 function requireRange(data: Uint8Array, at: number, length: number) {
   if (at < 0 || length < 0 || at + length > data.length)
-    throw new AnkiPackageError("The APKG archive is truncated or damaged.");
+    throw new AnkiPackageError("errors.theApkgArchiveIsTruncatedOrDamaged");
 }
 
 const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -30,7 +32,11 @@ const decoder = new TextDecoder("utf-8", { fatal: true });
 export function inspectArchive(bytes: Uint8Array, maxEntries: number) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let end = -1;
-  for (let at = bytes.length - 22; at >= Math.max(0, bytes.length - 65557); at--) {
+  for (
+    let at = bytes.length - 22;
+    at >= Math.max(0, bytes.length - 65557);
+    at--
+  ) {
     if (
       view.getUint32(at, true) === 0x06054b50 &&
       at + 22 + view.getUint16(at + 20, true) === bytes.length
@@ -39,7 +45,7 @@ export function inspectArchive(bytes: Uint8Array, maxEntries: number) {
       break;
     }
   }
-  if (end < 0) throw new AnkiPackageError("Choose a valid Anki APKG ZIP file.");
+  if (end < 0) throw new AnkiPackageError("errors.chooseAValidAnkiApkgZipFile");
   const count = view.getUint16(end + 10, true);
   const size = view.getUint32(end + 12, true);
   const start = view.getUint32(end + 16, true);
@@ -51,23 +57,29 @@ export function inspectArchive(bytes: Uint8Array, maxEntries: number) {
     size === 0xffffffff ||
     start === 0xffffffff
   )
-    throw new AnkiPackageError("Split-volume and ZIP64 packages are not supported.");
+    throw new AnkiPackageError(
+      "errors.splitVolumeAndZip64PackagesAreNotSupported",
+    );
   if (count > maxEntries)
-    throw new AnkiPackageError("The package contains too many archive entries.");
+    throw new AnkiPackageError(
+      "errors.thePackageContainsTooManyArchiveEntries",
+    );
   requireRange(bytes, start, size);
   if (start + size > end)
-    throw new AnkiPackageError("The APKG central directory is damaged.");
+    throw new AnkiPackageError("errors.theApkgCentralDirectoryIsDamaged");
   const entries = new Map<string, Entry>();
   let at = start;
   for (let i = 0; i < count; i++) {
     requireRange(bytes, at, 46);
     if (view.getUint32(at, true) !== 0x02014b50)
-      throw new AnkiPackageError("The APKG central directory is damaged.");
+      throw new AnkiPackageError("errors.theApkgCentralDirectoryIsDamaged");
     const nameLength = view.getUint16(at + 28, true);
     const extraLength = view.getUint16(at + 30, true);
     const commentLength = view.getUint16(at + 32, true);
     if (nameLength > 4096)
-      throw new AnkiPackageError("An archive filename exceeds the import limit.");
+      throw new AnkiPackageError(
+        "errors.anArchiveFilenameExceedsTheImportLimit",
+      );
     requireRange(bytes, at + 46, nameLength + extraLength + commentLength);
     const name = decoder.decode(bytes.subarray(at + 46, at + 46 + nameLength));
     if (
@@ -77,7 +89,9 @@ export function inspectArchive(bytes: Uint8Array, maxEntries: number) {
       name.split("/").includes("..") ||
       entries.has(name)
     )
-      throw new AnkiPackageError("The package contains unsafe or duplicate filenames.");
+      throw new AnkiPackageError(
+        "errors.thePackageContainsUnsafeOrDuplicateFilenames",
+      );
     const entry: Entry = {
       name,
       flags: view.getUint16(at + 8, true),
@@ -92,39 +106,52 @@ export function inspectArchive(bytes: Uint8Array, maxEntries: number) {
       entry.expanded === 0xffffffff ||
       entry.offset === 0xffffffff
     )
-      throw new AnkiPackageError("ZIP64 packages are not supported.");
+      throw new AnkiPackageError("errors.zip64PackagesAreNotSupported");
     entries.set(name, entry);
     at += 46 + nameLength + extraLength + commentLength;
   }
   if (at !== start + size)
-    throw new AnkiPackageError("The APKG central directory size is invalid.");
+    throw new AnkiPackageError("errors.theApkgCentralDirectorySizeIsInvalid");
 
   return {
     entries,
-    omittedMediaCount: [...entries.keys()].filter((name) => /^\d+$/.test(name)).length,
+    omittedMediaCount: [...entries.keys()].filter((name) => /^\d+$/.test(name))
+      .length,
     extract(name: string, limit: number) {
       const entry = entries.get(name);
-      if (!entry) throw new AnkiPackageError(`The package is missing ${name}.`);
+      if (!entry)
+        throw new AnkiPackageError("errors.thePackageIsMissingValue", {
+          value0: name,
+        });
       if (entry.flags & 1)
-        throw new AnkiPackageError("Encrypted Anki databases are not supported.");
+        throw new AnkiPackageError(
+          "errors.encryptedAnkiDatabasesAreNotSupported",
+        );
       if (entry.expanded > limit)
-        throw new AnkiPackageError("The selected database exceeds the import limit.");
+        throw new AnkiPackageError(
+          "errors.theSelectedDatabaseExceedsTheImportLimit",
+        );
       requireRange(bytes, entry.offset, 30);
       if (
         view.getUint32(entry.offset, true) !== 0x04034b50 ||
         view.getUint16(entry.offset + 8, true) !== entry.method
       )
-        throw new AnkiPackageError("The APKG file header is damaged.");
+        throw new AnkiPackageError("errors.theApkgFileHeaderIsDamaged");
       const nameLength = view.getUint16(entry.offset + 26, true);
       const extraLength = view.getUint16(entry.offset + 28, true);
       const dataStart = entry.offset + 30 + nameLength + extraLength;
       requireRange(bytes, entry.offset + 30, nameLength + extraLength);
       if (
-        decoder.decode(bytes.subarray(entry.offset + 30, entry.offset + 30 + nameLength)) !== name ||
+        decoder.decode(
+          bytes.subarray(entry.offset + 30, entry.offset + 30 + nameLength),
+        ) !== name ||
         dataStart + entry.compressed > start
       )
-        throw new AnkiPackageError("The APKG file boundaries are damaged.");
-      const compressed = bytes.subarray(dataStart, dataStart + entry.compressed);
+        throw new AnkiPackageError("errors.theApkgFileBoundariesAreDamaged");
+      const compressed = bytes.subarray(
+        dataStart,
+        dataStart + entry.compressed,
+      );
       let result: Uint8Array;
       if (entry.method === 0) {
         result = compressed;
@@ -134,14 +161,21 @@ export function inspectArchive(bytes: Uint8Array, maxEntries: number) {
         // Small compressed chunks bound transient inflater output as well as
         // retained bytes; don't trust the ZIP's declared expanded length.
         for (let i = 0; i < compressed.length; i += 1024)
-          inflater.push(compressed.subarray(i, i + 1024), i + 1024 >= compressed.length);
+          inflater.push(
+            compressed.subarray(i, i + 1024),
+            i + 1024 >= compressed.length,
+          );
         if (!compressed.length) inflater.push(compressed, true);
         result = output.finish();
       } else {
-        throw new AnkiPackageError("The database uses unsupported ZIP compression.");
+        throw new AnkiPackageError(
+          "errors.theDatabaseUsesUnsupportedZipCompression",
+        );
       }
       if (result.length !== entry.expanded || crc32(result) !== entry.crc)
-        throw new AnkiPackageError("The selected database failed its archive integrity check.");
+        throw new AnkiPackageError(
+          "errors.theSelectedDatabaseFailedItsArchiveIntegrityCheck",
+        );
       return result;
     },
   };
@@ -154,7 +188,9 @@ function boundedOutput(limit: number) {
     push(chunk: Uint8Array) {
       size += chunk.length;
       if (size > limit)
-        throw new AnkiPackageError("The expanded database exceeds the import limit.");
+        throw new AnkiPackageError(
+          "errors.theExpandedDatabaseExceedsTheImportLimit",
+        );
       if (chunk.length) chunks.push(chunk.slice());
     },
     finish() {
@@ -173,8 +209,7 @@ function crc32(bytes: Uint8Array) {
   let crc = 0xffffffff;
   for (const byte of bytes) {
     crc ^= byte;
-    for (let i = 0; i < 8; i++)
-      crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+    for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
   }
   return (crc ^ 0xffffffff) >>> 0;
 }
@@ -196,10 +231,12 @@ export function decompressDatabase(bytes: Uint8Array, limit: number) {
       continue;
     }
     if (magic !== 0xfd2fb528)
-      throw new AnkiPackageError("The modern Anki database is not valid Zstandard data.");
+      throw new AnkiPackageError(
+        "errors.theModernAnkiDatabaseIsNotValidZstandardData",
+      );
     const descriptor = bytes[at + 4];
     if (descriptor & 0x18)
-      throw new AnkiPackageError("The Zstandard frame header is invalid.");
+      throw new AnkiPackageError("errors.theZstandardFrameHeaderIsInvalid");
     const single = Boolean(descriptor & 0x20);
     const sizeFlag = descriptor >>> 6;
     const dictionarySize = [0, 1, 2, 4][descriptor & 3];
@@ -211,8 +248,10 @@ export function decompressDatabase(bytes: Uint8Array, limit: number) {
       windowSize = base + (base / 8) * (window & 7);
     }
     requireRange(bytes, cursor, dictionarySize);
-    if (bytes.subarray(cursor, cursor + dictionarySize).some((byte) => byte !== 0))
-      throw new AnkiPackageError("Zstandard dictionaries are not supported.");
+    if (
+      bytes.subarray(cursor, cursor + dictionarySize).some((byte) => byte !== 0)
+    )
+      throw new AnkiPackageError("errors.zstandardDictionariesAreNotSupported");
     cursor += dictionarySize;
     const sizeBytes = sizeFlag ? 2 ** sizeFlag : single ? 1 : 0;
     requireRange(bytes, cursor, sizeBytes);
@@ -225,17 +264,20 @@ export function decompressDatabase(bytes: Uint8Array, limit: number) {
     if (single) windowSize = contentSize;
     knownSize += contentSize;
     if (windowSize > limit || contentSize > limit || knownSize > limit)
-      throw new AnkiPackageError("The Zstandard database exceeds the import memory limit.");
+      throw new AnkiPackageError(
+        "errors.theZstandardDatabaseExceedsTheImportMemoryLimit",
+      );
     let last = false;
     while (!last) {
       requireRange(bytes, cursor, 3);
-      const header = bytes[cursor] | (bytes[cursor + 1] << 8) | (bytes[cursor + 2] << 16);
+      const header =
+        bytes[cursor] | (bytes[cursor + 1] << 8) | (bytes[cursor + 2] << 16);
       cursor += 3;
       last = Boolean(header & 1);
       const kind = (header >>> 1) & 3;
       const blockSize = header >>> 3;
       if (kind === 3 || blockSize > 131072)
-        throw new AnkiPackageError("The Zstandard block header is invalid.");
+        throw new AnkiPackageError("errors.theZstandardBlockHeaderIsInvalid");
       const storedSize = kind === 1 ? 1 : blockSize;
       requireRange(bytes, cursor, storedSize);
       cursor += storedSize;
@@ -251,6 +293,6 @@ export function decompressDatabase(bytes: Uint8Array, limit: number) {
   decompressor.push(bytes, true);
   const result = output.finish();
   if (allSizesKnown && result.length !== knownSize)
-    throw new AnkiPackageError("The Zstandard database length is invalid.");
+    throw new AnkiPackageError("errors.theZstandardDatabaseLengthIsInvalid");
   return result;
 }

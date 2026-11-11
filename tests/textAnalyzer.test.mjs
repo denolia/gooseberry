@@ -1,9 +1,11 @@
+import { messageErrors, i18n } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "@typescript/typescript6";
 import * as textAnalysis from "../src/app/utils/textAnalysisSchema.ts";
 import * as languages from "../src/components/ui/Languages.ts";
+import * as readerLibrary from "../src/lib/reader/library.ts";
 
 const SAMPLE = "Berlin ist schön.";
 const nextTick = () => new Promise((resolve) => setImmediate(resolve));
@@ -50,7 +52,13 @@ function analysis(expression = "Berlin", tokenIds = [0]) {
 
 function setup(
   t,
-  { response = async () => Response.json(analysis()), tier = "premium" } = {},
+  {
+    response = async () => Response.json(analysis()),
+    documentResponse,
+    documents = new Map(),
+    initialStorage = new Map(),
+    tier = "premium",
+  } = {},
 ) {
   const hooks = [];
   let cursor = 0;
@@ -58,6 +66,10 @@ function setup(
   let dirty = false;
   let mounted = true;
   let followOptions;
+  let accountId = "user-1";
+  let allowDiscard = true;
+  const confirmations = [];
+  const invalidations = [];
   const pair = {
     currentSourceLanguage: "German",
     currentTargetLanguage: "Russian",
@@ -118,6 +130,7 @@ function setup(
   const timers = new Map();
   const rafs = [];
   const requests = [];
+  const documentRequests = [];
   const navigations = [];
   let timerId = 0;
   let selectedIds = [];
@@ -160,7 +173,7 @@ function setup(
   };
   const removeEventListener = (event, listener) =>
     listeners.get(event)?.delete(listener);
-  const storage = new Map();
+  const storage = initialStorage;
   const globals = new Map(
     ["window", "document", "localStorage"].map((key) => [
       key,
@@ -181,6 +194,10 @@ function setup(
       addEventListener,
       removeEventListener,
       dispatchEvent() {},
+      confirm(message) {
+        confirmations.push(message);
+        return allowDiscard;
+      },
     },
   });
   Object.defineProperty(globalThis, "document", {
@@ -192,10 +209,51 @@ function setup(
     value: {
       getItem: (key) => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, value),
+      removeItem: (key) => storage.delete(key),
     },
   });
-  t.mock.method(globalThis, "fetch", async (url, options) => {
-    const request = { url, options, body: JSON.parse(options.body) };
+  t.mock.method(globalThis, "fetch", async (url, options = {}) => {
+    const request = {
+      url,
+      options,
+      body: options.body ? JSON.parse(options.body) : undefined,
+    };
+    if (url.startsWith("/api/reader-texts")) {
+      documentRequests.push(request);
+      if (documentResponse) {
+        const response = await documentResponse(
+          request,
+          documentRequests.length,
+        );
+        if (response) return response;
+      }
+      const id = request.body?.id ?? url.split("/").at(-1);
+      const existing = documents.get(id);
+      const document =
+        options.method === "POST"
+          ? {
+              ...request.body,
+              title: readerLibrary.defaultReaderTitle(
+                request.body.text,
+                request.body.sourceLang,
+              ),
+              createdAt: "2026-11-11T12:00:00Z",
+              updatedAt: "2026-11-11T12:00:00Z",
+            }
+          : options.method === "PATCH" && existing
+            ? { ...existing, ...request.body }
+            : existing;
+      if (!document)
+        return Response.json(
+          { errorCode: "errors.readerTextNotFound" },
+          { status: 404 },
+        );
+      documents.set(id, document);
+      return Response.json(
+        { text: document },
+        { status: options.method === "POST" ? 201 : 200 },
+      );
+    }
     requests.push(request);
     return response(request, requests.length);
   });
@@ -210,8 +268,8 @@ function setup(
       },
     };
   }
-  const jsx = (type, props) =>
-    type === BottomPanelLayout ? type(props) : { type, props };
+  const jsx = (type, props, key) =>
+    type === BottomPanelLayout ? type(props) : { type, props, key };
   const code = ts.transpileModule(
     readFileSync(
       new URL("../src/components/analyzer/TextAnalyzer.tsx", import.meta.url),
@@ -227,6 +285,8 @@ function setup(
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
+    if (name === "@/i18n/client") return i18n;
     const dependencies = {
       react,
       "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
@@ -242,8 +302,13 @@ function setup(
       },
       "next-auth/react": {
         useSession: () => ({
-          data: { user: { id: "user-1", tier } },
-          status: "authenticated",
+          data: accountId ? { user: { id: accountId, tier } } : null,
+          status: accountId ? "authenticated" : "unauthenticated",
+        }),
+      },
+      "@tanstack/react-query": {
+        useQueryClient: () => ({
+          invalidateQueries: (options) => invalidations.push(options),
         }),
       },
       "@/components/anki/TranslationCard": {
@@ -266,6 +331,18 @@ function setup(
       "@/components/ui/Languages": languages,
       "@/components/ui/BottomPanelLayout": { BottomPanelLayout },
       "@/lib/languages/useLanguages": { useLanguages: () => pair },
+      "@/lib/languages/languageStore": {
+        LanguageStore: {
+          getSnapshot: () => pair,
+          setLanguages(source, target) {
+            pair.currentSourceLanguage = source;
+            pair.currentTargetLanguage = target;
+            dirty = true;
+          },
+        },
+      },
+      "@/lib/reader/library": readerLibrary,
+      "./ReaderHistoryDialog": { ReaderHistoryDialog: "ReaderHistoryDialog" },
       "./ReaderAudioPlayer": { ReaderAudioPlayer: "ReaderAudioPlayer" },
       "./AnalyzerPopover": { AnalyzerPopover: "AnalyzerPopover" },
       "./useReadingFollow": {
@@ -339,6 +416,10 @@ function setup(
   });
   return {
     requests,
+    documentRequests,
+    documents,
+    confirmations,
+    invalidations,
     navigations,
     storage,
     readingCalls,
@@ -347,6 +428,27 @@ function setup(
     timers,
     listeners,
     render,
+    unmount,
+    reactivate() {
+      for (const hook of hooks) {
+        if (hook && Object.hasOwn(hook, "cleanup")) {
+          hook.cleanup?.();
+          hook.cleanup = undefined;
+          hook.deps = undefined;
+        }
+      }
+      return render();
+    },
+    account(id) {
+      accountId = id;
+      return render();
+    },
+    allowDiscard(value) {
+      allowDiscard = value;
+    },
+    history() {
+      return nodes(render(), (node) => node.type === "ReaderHistoryDialog")[0];
+    },
     get followOptions() {
       return followOptions;
     },
@@ -369,7 +471,9 @@ function setup(
     button(label) {
       const button = nodes(
         render(),
-        (node) => node.type === "button" && text(node) === label,
+        (node) =>
+          node.type === "button" &&
+          (text(node) === label || node.props["aria-label"] === label),
       )[0];
       assert(button, `Missing button ${label}`);
       return button;
@@ -499,8 +603,8 @@ test("opened text has one reader, audio in the bottom panel, and Edit text in th
   );
   assert.equal(
     text(tree).split(SAMPLE).length - 1,
-    1,
-    "Do not repeat the full text in a compact preview",
+    2,
+    "A short text appears once as its generated title and once in the reader",
   );
   assert.equal(nodes(tree, (node) => node.type === "textarea").length, 0);
   assert.equal(
@@ -944,7 +1048,10 @@ test("Translate and Retry are explicit, results have only the card translation a
   const ui = setup(t, {
     response: (_request, index) =>
       index === 1
-        ? Response.json({ error: "Analysis unavailable" }, { status: 503 })
+        ? Response.json(
+            { errorCode: "errors.couldNotAnalyzeThisSelectionPleaseTryAgain" },
+            { status: 503 },
+          )
         : Response.json(analysis()),
   });
   await ui.ready();
@@ -955,7 +1062,7 @@ test("Translate and Retry are explicit, results have only the card translation a
   const id = ui.popup().props.id;
   ui.translate();
   await ui.settle();
-  assert.match(text(ui.popup()), /Analysis unavailable/);
+  assert.match(text(ui.popup()), /Could not analyze this selection/);
   assert.equal(ui.popup().props.id, id);
   assert.equal(
     nodes(
@@ -1023,4 +1130,291 @@ test("free accounts keep translation and a Premium notice but cannot read from t
   await ui.settle();
   assert.equal(ui.requests.length, 1);
   assert.match(text(ui.popup()), /Translation: Berlin/);
+});
+
+test("saving a new reader text persists it before opening and prevents duplicate submissions", async (t) => {
+  const pending = deferred();
+  const ui = setup(t, { documentResponse: () => pending.promise });
+  await ui.ready();
+  const area = nodes(ui.render(), (node) => node.type === "textarea")[0];
+  area.props.onChange({ target: { value: SAMPLE } });
+  const open = ui.button("Open text").props.onClick;
+  open();
+  open();
+  assert.equal(ui.documentRequests.length, 1);
+  assert.equal(ui.documentRequests[0].options.method, "POST");
+  assert(ui.button("Saving…").props.disabled);
+  assert.equal(
+    ui.player(),
+    undefined,
+    "A save must be acknowledged before the reader opens",
+  );
+  const body = ui.documentRequests[0].body;
+  pending.resolve(
+    Response.json(
+      { text: { ...body, title: "My saved text" } },
+      { status: 201 },
+    ),
+  );
+  await ui.settle();
+  assert.equal(text(ui.tokens()), SAMPLE);
+  assert.match(text(ui.render()), /Saved to history/);
+  assert.deepEqual(ui.invalidations, [{ queryKey: ["readerTexts", "user-1"] }]);
+  const cache = JSON.parse(ui.storage.get("readerDraft:v1:user-1"));
+  assert.equal(
+    cache.text,
+    "",
+    "Saved content is loaded from the database rather than a local history",
+  );
+  assert.equal(
+    cache.draftId,
+    undefined,
+    "A new draft after reload must not overwrite the last saved text",
+  );
+});
+
+test("a failed save preserves the draft and retries with the same identity", async (t) => {
+  const ui = setup(t, {
+    documentResponse: (_request, attempt) =>
+      attempt === 1
+        ? Response.json(
+            { errorCode: "errors.readerStorageFailed" },
+            { status: 503 },
+          )
+        : undefined,
+  });
+  await ui.ready();
+  await ui.open();
+  assert.match(text(ui.render()), /Could not access your saved texts/);
+  assert.equal(
+    nodes(ui.render(), (node) => node.type === "textarea")[0].props.value,
+    SAMPLE,
+  );
+  assert.equal(ui.player(), undefined);
+  const originalId = ui.documentRequests[0].body.id;
+  assert.equal(
+    JSON.parse(ui.storage.get("readerDraft:v1:user-1")).draftId,
+    originalId,
+  );
+  ui.button("Open text").props.onClick();
+  await ui.settle();
+  assert.equal(ui.documentRequests[1].body.id, originalId);
+  assert.equal(text(ui.tokens()), SAMPLE);
+  assert.equal(ui.documents.size, 1);
+});
+
+test("editing and renaming retain the saved identity and preserve a custom title", async (t) => {
+  const ui = setup(t);
+  await ui.ready();
+  await ui.open();
+  const id = ui.documentRequests[0].body.id;
+  ui.button("Rename text").props.onClick();
+  const input = nodes(
+    ui.render(),
+    (node) => node.props?.["aria-label"] === "Text title",
+  )[0];
+  input.props.onChange({ target: { value: "My story" } });
+  const form = nodes(ui.render(), (node) => node.type === "form")[0];
+  await form.props.onSubmit({ preventDefault() {} });
+  await ui.settle();
+  assert.deepEqual(ui.documentRequests[1].body, { title: "My story" });
+  assert.equal(ui.documentRequests[1].url, `/api/reader-texts/${id}`);
+  ui.button("Edit text").props.onClick();
+  await ui.open("Eine geänderte Geschichte.");
+  assert.equal(ui.documentRequests[2].options.method, "PATCH");
+  assert.equal(ui.documentRequests[2].url, `/api/reader-texts/${id}`);
+  assert.equal(ui.documents.size, 1);
+  assert.equal(ui.documents.get(id).title, "My story");
+  assert.match(text(ui.render()), /My story/);
+});
+
+test("history opens a saved text from the server, restores its languages and clears old analysis and playback", async (t) => {
+  const pending = deferred();
+  const ui = setup(t, { response: () => pending.promise });
+  const secondId = crypto.randomUUID();
+  ui.documents.set(secondId, {
+    id: secondId,
+    title: "Finnish story",
+    text: "Tämä on toinen tarina.",
+    sourceLang: "fi",
+    targetLang: "ru",
+  });
+  await ui.ready();
+  await ui.open();
+  ui.readRange({ start: 0, end: SAMPLE.length });
+  ui.playbackActive(true);
+  ui.clickWord(0);
+  ui.translate();
+  const previousPlayerKey = ui.player().key;
+  ui.button("History").props.onClick();
+  assert.equal(ui.popup(), undefined);
+  assert.equal(ui.history().props.accountId, "user-1");
+  await ui.history().props.onOpen(secondId);
+  await ui.settle();
+  assert.equal(ui.history(), undefined);
+  assert.equal(ui.requests[0].options.signal.aborted, true);
+  assert.equal(text(ui.tokens()), "Tämä on toinen tarina.");
+  assert.equal(ui.player().props.sourceLanguage, "fi");
+  assert.notEqual(ui.player().key, previousPlayerKey);
+  assert.equal(ui.spoken().length, 0);
+  assert.equal(ui.followOptions.active, false);
+  pending.resolve(Response.json(analysis()));
+  await ui.settle();
+  assert.equal(ui.popup(), undefined);
+  ui.clickWord(0);
+  ui.translate();
+  assert.equal(ui.requests.at(-1).body.sourceLanguage, "Finnish");
+  assert.equal(ui.requests.at(-1).body.targetLanguage, "Russian");
+});
+
+test("New text protects unsaved edits and creates an independent entry after confirmation", async (t) => {
+  const ui = setup(t);
+  await ui.ready();
+  await ui.open();
+  ui.button("Edit text").props.onClick();
+  nodes(ui.render(), (node) => node.type === "textarea")[0].props.onChange({
+    target: { value: "Unsaved edit" },
+  });
+  ui.button("History").props.onClick();
+  ui.allowDiscard(false);
+  ui.history().props.onNew();
+  assert(ui.history());
+  assert.equal(
+    nodes(ui.render(), (node) => node.type === "textarea")[0].props.value,
+    "Unsaved edit",
+  );
+  ui.allowDiscard(true);
+  ui.history().props.onNew();
+  assert.equal(ui.history(), undefined);
+  assert.equal(ui.player(), undefined);
+  assert.equal(
+    nodes(ui.render(), (node) => node.type === "textarea")[0].props.value,
+    "",
+  );
+  await ui.open("A second independent story.");
+  assert.equal(ui.documentRequests.at(-1).options.method, "POST");
+  assert.equal(ui.documents.size, 2);
+  assert.equal(ui.confirmations.length, 2);
+});
+
+test("deleting the active text clears the reader while keeping history open", async (t) => {
+  const ui = setup(t);
+  await ui.ready();
+  await ui.open();
+  ui.button("History").props.onClick();
+  ui.history().props.onDeleted(ui.documentRequests[0].body.id);
+  ui.render();
+  assert(ui.history());
+  assert.equal(ui.player(), undefined);
+  assert.equal(
+    nodes(ui.render(), (node) => node.type === "textarea")[0].props.value,
+    "",
+  );
+  assert.equal(ui.history().props.activeId, undefined);
+});
+
+test("account changes cancel document requests and reject late results from the previous account", async (t) => {
+  const pending = deferred();
+  const ui = setup(t, { documentResponse: () => pending.promise });
+  await ui.ready();
+  await ui.open();
+  const original = ui.documentRequests[0];
+  ui.account("user-2");
+  assert.equal(original.options.signal.aborted, true);
+  pending.resolve(
+    Response.json({ text: { ...original.body, title: "Private story" } }),
+  );
+  await ui.settle();
+  assert.equal(ui.player(), undefined);
+  assert.doesNotMatch(text(ui.render()), /Private story/);
+  assert.equal(
+    nodes(ui.render(), (node) => node.type === "textarea")[0].props.value,
+    "",
+  );
+  ui.account("user-1");
+  assert.equal(
+    nodes(ui.render(), (node) => node.type === "textarea")[0].props.value,
+    SAMPLE,
+    "Each account keeps its own unsaved draft",
+  );
+});
+
+test("the old local text is offered as an unsaved draft and is saved only after Open text", async (t) => {
+  const storage = new Map([
+    [
+      "textAnalyzerState:v2",
+      JSON.stringify({
+        text: SAMPLE,
+        readerText: SAMPLE,
+        sourceLanguage: "German",
+        targetLanguage: "Russian",
+      }),
+    ],
+  ]);
+  const ui = setup(t, { initialStorage: storage });
+  await ui.ready();
+  assert.equal(ui.documentRequests.length, 0);
+  assert.equal(ui.player(), undefined);
+  assert.equal(
+    nodes(ui.render(), (node) => node.type === "textarea")[0].props.value,
+    SAMPLE,
+  );
+  assert(!storage.has("textAnalyzerState:v2"));
+  ui.button("Open text").props.onClick();
+  await ui.settle();
+  assert.equal(ui.documentRequests.length, 1);
+  assert.equal(ui.documents.size, 1);
+});
+
+test("returning to the reader tab reconnects effects without resetting the open saved text", async (t) => {
+  const ui = setup(t);
+  await ui.ready();
+  await ui.open();
+  const before = ui.documentRequests[0].body.id;
+  ui.reactivate();
+  await ui.settle();
+  assert.equal(text(ui.tokens()), SAMPLE);
+  assert.equal(ui.documentRequests.length, 1);
+  assert.match(text(ui.render()), /Saved to history/);
+  ui.button("History").props.onClick();
+  assert.equal(ui.history().props.activeId, before);
+});
+
+test("starting again after a fresh account mount creates a new text without overwriting history", async (t) => {
+  const ui = setup(t);
+  await ui.ready();
+  await ui.open();
+  const firstId = ui.documentRequests[0].body.id;
+  ui.account(null);
+  ui.account("user-1");
+  assert.equal(ui.player(), undefined);
+  await ui.open("A new story after reloading.");
+  assert.equal(ui.documentRequests.at(-1).options.method, "POST");
+  assert.notEqual(ui.documentRequests.at(-1).body.id, firstId);
+  assert.equal(ui.documents.size, 2);
+  assert.equal(ui.documents.get(firstId).text, SAMPLE);
+});
+
+test("restoring an unsaved edit keeps the database identity of its saved text", async (t) => {
+  const ui = setup(t);
+  await ui.ready();
+  await ui.open();
+  const firstId = ui.documentRequests[0].body.id;
+  ui.button("Edit text").props.onClick();
+  nodes(ui.render(), (node) => node.type === "textarea")[0].props.onChange({
+    target: { value: "My unfinished edit." },
+  });
+  ui.render();
+  ui.account(null);
+  ui.account("user-1");
+  assert.equal(
+    nodes(ui.render(), (node) => node.type === "textarea")[0].props.value,
+    "My unfinished edit.",
+  );
+  ui.button("Open text").props.onClick();
+  await ui.settle();
+  assert.equal(ui.documentRequests.at(-1).options.method, "PATCH");
+  assert.equal(ui.documentRequests.at(-1).url, `/api/reader-texts/${firstId}`);
+  assert.equal(ui.documents.size, 1);
+  assert.equal(ui.documents.get(firstId).text, "My unfinished edit.");
 });

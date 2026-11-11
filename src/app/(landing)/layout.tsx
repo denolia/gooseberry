@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/i18n/client";
 
 import { useSession } from "next-auth/react";
 import { SignedOutLanding } from "@/components/ui/SignedOutLanding";
@@ -10,13 +11,14 @@ import styles from "@/styles/page.module.css";
 import tabsStyles from "@/components/ui/MainTabs.module.css";
 
 export default function LandingLayout() {
+  const { t } = useI18n();
   const { status } = useSession();
 
   if (status === "loading") {
     return (
       <main
         className={landingStyles.loading}
-        aria-label="Loading Learn.words"
+        aria-label={t("layout.loadingLearnWords")}
         aria-busy="true"
       >
         <span className={`${landingStyles.logo} ${landingStyles.loadingLogo}`}>

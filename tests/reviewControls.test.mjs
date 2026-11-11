@@ -1,3 +1,4 @@
+import { messageErrors } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -22,6 +23,7 @@ const code = ts.transpileModule(
 ).outputText;
 const controls = {};
 new Function("require", "exports", code)((name) => {
+  if (name === "@/i18n/errors") return messageErrors;
   if (name === "@/lib/review/model") {
     return { FsrsCardState, ReviewMode, ReviewRating };
   }
@@ -33,7 +35,7 @@ test("only new cards ask the user to continue without grading", () => {
   assert.equal(isNewState(FsrsCardState.New), true);
   for (const mode of [ReviewMode.Simple, ReviewMode.Full]) {
     assert.deepEqual(reviewControls(FsrsCardState.New, mode), [
-      { label: "Ok", rating: ReviewRating.Good, shortcut: " " },
+      { labelKey: "common.ok", rating: ReviewRating.Good, shortcut: " " },
     ]);
   }
 });
@@ -42,8 +44,8 @@ test("learning cards use grading controls", () => {
   for (const state of [FsrsCardState.Learning, FsrsCardState.Relearning]) {
     assert.equal(isNewState(state), false);
     assert.deepEqual(reviewControls(state, ReviewMode.Simple), [
-      { label: "No", rating: ReviewRating.Again, shortcut: "1" },
-      { label: "Yes", rating: ReviewRating.Good, shortcut: "2" },
+      { labelKey: "common.no", rating: ReviewRating.Again, shortcut: "1" },
+      { labelKey: "common.yes", rating: ReviewRating.Good, shortcut: "2" },
     ]);
     assert.deepEqual(
       reviewControls(state, ReviewMode.Full).map(({ rating }) => rating),
@@ -59,16 +61,16 @@ test("learning cards use grading controls", () => {
 
 test("simple review maps No and Yes to Again and Good", () => {
   assert.deepEqual(reviewControls(FsrsCardState.Review, ReviewMode.Simple), [
-    { label: "No", rating: ReviewRating.Again, shortcut: "1" },
-    { label: "Yes", rating: ReviewRating.Good, shortcut: "2" },
+    { labelKey: "common.no", rating: ReviewRating.Again, shortcut: "1" },
+    { labelKey: "common.yes", rating: ReviewRating.Good, shortcut: "2" },
   ]);
 });
 
 test("full review puts the three passing grades before Again", () => {
   assert.deepEqual(reviewControls(FsrsCardState.Review, ReviewMode.Full), [
-    { label: "Hard", rating: ReviewRating.Hard, shortcut: "2" },
-    { label: "Good", rating: ReviewRating.Good, shortcut: "3" },
-    { label: "Easy", rating: ReviewRating.Easy, shortcut: "4" },
-    { label: "Again", rating: ReviewRating.Again, shortcut: "1" },
+    { labelKey: "common.hard", rating: ReviewRating.Hard, shortcut: "2" },
+    { labelKey: "common.good", rating: ReviewRating.Good, shortcut: "3" },
+    { labelKey: "common.easy", rating: ReviewRating.Easy, shortcut: "4" },
+    { labelKey: "common.again", rating: ReviewRating.Again, shortcut: "1" },
   ]);
 });

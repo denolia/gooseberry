@@ -54,7 +54,10 @@ export async function GET(
 ) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -64,7 +67,7 @@ export async function GET(
     const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
       return NextResponse.json(
-        { error: "Word set not found" },
+        { errorCode: "wordSetManager.wordSetNotFound" },
         { status: 404 },
       );
     }
@@ -94,7 +97,7 @@ export async function GET(
   } catch (error) {
     console.error("Error fetching word set items:", error);
     return NextResponse.json(
-      { error: "Failed to fetch items" },
+      { errorCode: "errors.failedToFetchItems" },
       { status: 500 },
     );
   }
@@ -107,7 +110,10 @@ export async function POST(
 ) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -117,7 +123,7 @@ export async function POST(
     const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
       return NextResponse.json(
-        { error: "Word set not found" },
+        { errorCode: "wordSetManager.wordSetNotFound" },
         { status: 404 },
       );
     }
@@ -137,7 +143,7 @@ export async function POST(
       ) {
         return NextResponse.json(
           {
-            error: "Choose a set with the same languages as this translation.",
+            errorCode: "errors.chooseASetWithTheSameLanguagesAsThisTranslation",
           },
           { status: 400 },
         );
@@ -179,7 +185,7 @@ export async function POST(
 
     if (translations.length === 0) {
       return NextResponse.json(
-        { error: "No valid translations found" },
+        { errorCode: "errors.noValidTranslationsFound" },
         { status: 400 },
       );
     }
@@ -238,12 +244,15 @@ export async function POST(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid input", details: error.message },
+        { errorCode: "errors.invalidInput", details: error.message },
         { status: 400 },
       );
     }
     console.error("Error adding items to word set:", error);
-    return NextResponse.json({ error: "Failed to add items" }, { status: 500 });
+    return NextResponse.json(
+      { errorCode: "errors.failedToAddItems" },
+      { status: 500 },
+    );
   }
 }
 
@@ -254,7 +263,10 @@ export async function PATCH(
 ) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -264,7 +276,7 @@ export async function PATCH(
     const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
       return NextResponse.json(
-        { error: "Word set not found" },
+        { errorCode: "wordSetManager.wordSetNotFound" },
         { status: 404 },
       );
     }
@@ -274,7 +286,7 @@ export async function PATCH(
 
     if (!z.uuid().safeParse(itemId).success) {
       return NextResponse.json(
-        { error: "itemId is required" },
+        { errorCode: "errors.itemidIsRequired" },
         { status: 400 },
       );
     }
@@ -282,13 +294,16 @@ export async function PATCH(
     const validated = UpdateItemSchema.parse(updates);
     const existingItem = await getWordSetItem(itemId);
     if (!existingItem || existingItem.wordSetId !== id)
-      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+      return NextResponse.json(
+        { errorCode: "errors.itemNotFound" },
+        { status: 404 },
+      );
     if (
       !existingItem.sourceNoteKey &&
       (validated.original === "" || validated.translation === "")
     )
       return NextResponse.json(
-        { error: "Source word and translation are required." },
+        { errorCode: "errors.sourceWordAndTranslationAreRequired" },
         { status: 400 },
       );
 
@@ -296,7 +311,7 @@ export async function PATCH(
 
     if (!updatedItem) {
       return NextResponse.json(
-        { error: "This word changed. Refresh before saving." },
+        { errorCode: "errors.thisWordChangedRefreshBeforeSaving" },
         { status: 409 },
       );
     }
@@ -305,13 +320,13 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid input", details: error.message },
+        { errorCode: "errors.invalidInput", details: error.message },
         { status: 400 },
       );
     }
     console.error("Error updating item:", error);
     return NextResponse.json(
-      { error: "Failed to update item" },
+      { errorCode: "errors.failedToUpdateItem" },
       { status: 500 },
     );
   }
@@ -324,7 +339,10 @@ export async function DELETE(
 ) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -334,7 +352,7 @@ export async function DELETE(
     const wordSet = await getWordSet(id, session.user.id);
     if (!wordSet) {
       return NextResponse.json(
-        { error: "Word set not found" },
+        { errorCode: "wordSetManager.wordSetNotFound" },
         { status: 404 },
       );
     }
@@ -345,20 +363,23 @@ export async function DELETE(
     const deletedItem = await deleteWordSetItem(id, itemId);
 
     if (!deletedItem) {
-      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+      return NextResponse.json(
+        { errorCode: "errors.itemNotFound" },
+        { status: 404 },
+      );
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid input", details: error.message },
+        { errorCode: "errors.invalidInput", details: error.message },
         { status: 400 },
       );
     }
     console.error("Error deleting item:", error);
     return NextResponse.json(
-      { error: "Failed to delete item" },
+      { errorCode: "errors.failedToDeleteItem" },
       { status: 500 },
     );
   }

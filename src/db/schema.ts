@@ -56,6 +56,7 @@ export const userPreference = pgTable(
     defaultSourceLang: text("default_source_lang").default("German").notNull(),
     defaultTargetLang: text("default_target_lang").default("English").notNull(),
     reviewMode: text("review_mode").default("simple").notNull(),
+    uiLocale: text("ui_locale"),
     newWordsPerDay: integer("new_words_per_day").default(20).notNull(),
     studyTimeZone: text("study_time_zone").default("UTC").notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -63,6 +64,10 @@ export const userPreference = pgTable(
       .notNull(),
   },
   (t) => [
+    check(
+      "user_preference_ui_locale_check",
+      sql`${t.uiLocale} IN ('en', 'ru')`,
+    ),
     check(
       "user_preference_review_mode_check",
       sql`${t.reviewMode} IN ('simple', 'full')`,
@@ -107,6 +112,41 @@ export const speechAudioCache = pgTable("speech_audio_cache", {
     .defaultNow()
     .notNull(),
 });
+
+export const readerText = pgTable(
+  "reader_text",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    text: text("text").notNull(),
+    sourceLang: text("source_lang").notNull(),
+    targetLang: text("target_lang").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("reader_text_user_created_at_idx").on(
+      t.userId,
+      t.createdAt.desc(),
+      t.id.desc(),
+    ),
+    check(
+      "reader_text_title_length_check",
+      sql`char_length(trim(${t.title})) BETWEEN 1 AND 200`,
+    ),
+    check(
+      "reader_text_text_length_check",
+      sql`char_length(trim(${t.text})) BETWEEN 1 AND 20000`,
+    ),
+  ],
+);
 
 export const translationHistory = pgTable(
   "translation_history",

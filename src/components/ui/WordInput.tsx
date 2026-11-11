@@ -1,4 +1,19 @@
 "use client";
+import {
+  languageLabelKey,
+  getLanguageCode,
+  isSourceLanguage,
+  SourceLanguage,
+  SourceLanguages,
+} from "@/components/ui/Languages";
+import type { UiMessage } from "@/i18n/messages";
+import {
+  messageFromError,
+  MessageError,
+  errorFromResponse,
+} from "@/i18n/errors";
+
+import { useI18n } from "@/i18n/client";
 
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
@@ -12,12 +27,6 @@ import {
 } from "react";
 import styles from "./WordInput.module.css";
 import { StructuredResponseDisplay } from "@/components/ui/StructuredResponseDisplay";
-import {
-  getLanguageCode,
-  isSourceLanguage,
-  SourceLanguage,
-  SourceLanguages,
-} from "@/components/ui/Languages";
 import {
   TranslationResponse,
   TranslationResponseSchema,
@@ -56,7 +65,7 @@ async function fetchHistoryPage({
   const search = pageParam ? `?cursor=${encodeURIComponent(pageParam)}` : "";
   const response = await fetch(`/api/history/list${search}`);
   if (!response.ok) {
-    throw new Error("Failed to fetch history");
+    throw new MessageError("errors.failedToFetchHistory");
   }
 
   const data = (await response.json()) as {
@@ -64,7 +73,7 @@ async function fetchHistoryPage({
     nextCursor?: string | null;
   };
   if (!Array.isArray(data.history)) {
-    throw new Error("Invalid history response");
+    throw new MessageError("errors.invalidHistoryResponse");
   }
 
   return {
@@ -110,6 +119,7 @@ function HistoryList({
   onRetry: () => Promise<unknown>;
   onSelect: (entry: TranslationEntry) => void;
 }) {
+  const { t } = useI18n();
   const listRef = useRef<HTMLUListElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
@@ -179,8 +189,10 @@ function HistoryList({
                 className={styles.loadFromHistoryButton}
                 disabled={disabled}
                 onClick={() => onSelect(entry)}
-                aria-label={`Open translation: ${entry.original}`}
-                title="Open translation"
+                aria-label={t("wordInput.openTranslationValue", {
+                  value0: entry.original,
+                })}
+                title={t("wordInput.openTranslation")}
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                   <circle cx="10.75" cy="10.75" r="6.25" />
@@ -196,16 +208,16 @@ function HistoryList({
       </ul>
       <div ref={loadMoreRef} className={styles.historyStatus}>
         {isFetchingNextPage ? (
-          <span role="status">Loading more history…</span>
+          <span role="status">{t("wordInput.loadingMoreHistory")}</span>
         ) : isFetchNextPageError ? (
           <>
-            <span role="alert">Couldn’t load more history.</span>
+            <span role="alert">{t("wordInput.couldnTLoadMoreHistory")}</span>
             <button type="button" onClick={() => void onRetry()}>
-              Retry
+              {t("reviewSession.retry")}
             </button>
           </>
         ) : reachedEnd ? (
-          <span>End of history</span>
+          <span>{t("wordInput.endOfHistory")}</span>
         ) : null}
       </div>
     </>
@@ -279,6 +291,7 @@ const SPECIAL_CHARACTERS_BY_LANGUAGE: Partial<
 } as const;
 
 export function WordInput() {
+  const { t } = useI18n();
   const { currentSourceLanguage, currentTargetLanguage } = useLanguages();
   const specialCharacters =
     SPECIAL_CHARACTERS_BY_LANGUAGE[currentSourceLanguage] ?? [];
@@ -312,7 +325,7 @@ export function WordInput() {
         setWord(nextText);
         setTranslation(undefined);
         setPreview(undefined);
-        setError("");
+        setError(null);
       }
     };
 
@@ -321,7 +334,7 @@ export function WordInput() {
     return () =>
       window.removeEventListener("gooseberry:translation-draft", loadDraft);
   }, []);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage | null>(null);
   const [showSpecialChars, setShowSpecialChars] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -365,7 +378,7 @@ export function WordInput() {
     if (activeRequest.current || !word.trim()) return;
     const controller = new AbortController();
     activeRequest.current = controller;
-    setError("");
+    setError(null);
     setTranslation(undefined);
     setPreview({ original: word, translation: "" });
     setIsLoading(true);
@@ -383,13 +396,13 @@ export function WordInput() {
       });
       if (!response.ok) {
         const body = await response.json();
-        throw new Error(body.error || "Translation failed. Please try again.");
+        throw errorFromResponse(body, "errors.translationFailedPleaseTryAgain");
       }
       if (!response.body)
-        throw new Error("Streaming is unavailable. Please try again.");
+        throw new MessageError("errors.streamingIsUnavailablePleaseTryAgain");
       for await (const value of readJsonLines(response.body)) {
         if (!value || typeof value !== "object")
-          throw new Error("Invalid translation response.");
+          throw new MessageError("errors.invalidTranslationResponse");
         const event = value as Record<string, unknown>;
         if (event.type === "preview" && !receivedResult) {
           setPreview({
@@ -412,23 +425,17 @@ export function WordInput() {
         } else if (event.type === "done") {
           void queryClient.resetQueries({ queryKey: HISTORY_QUERY_KEY });
         } else if (event.type === "error") {
-          throw new Error(
-            typeof event.error === "string"
-              ? event.error
-              : "Translation failed.",
-          );
+          throw errorFromResponse(event, "errors.translationFailed2");
         }
       }
       if (!receivedResult)
-        throw new Error(
-          "Connection interrupted. The translation is incomplete. Please try again.",
+        throw new MessageError(
+          "errors.connectionInterruptedTheTranslationIsIncompletePleaseTryAgain",
         );
     } catch (error) {
       if (!controller.signal.aborted && !receivedResult) {
         setError(
-          error instanceof Error
-            ? error.message
-            : "Translation failed. Please try again.",
+          messageFromError(error, "errors.translationFailedPleaseTryAgain"),
         );
       }
     } finally {
@@ -448,7 +455,7 @@ export function WordInput() {
   function loadHistoryItem(entry: TranslationEntry) {
     if (activeRequest.current) return;
     setPreview(undefined);
-    setError("");
+    setError(null);
     try {
       // Validate if the entry matches the TranslationResponse schema
       const validEntry = TranslationResponseSchema.parse(entry);
@@ -461,9 +468,7 @@ export function WordInput() {
       });
     } catch (error) {
       console.error("Invalid entry format:", error);
-      alert(
-        "The selected history item is not in the correct format and cannot be loaded.",
-      );
+      alert(t("errors.historyItemInvalid"));
     }
   }
 
@@ -501,7 +506,9 @@ export function WordInput() {
             value={word}
             onChange={handleInputChange}
             onKeyUp={handleKeyUp}
-            placeholder={`Enter ${currentSourceLanguage} text...`}
+            placeholder={t("wordInput.enterValueText", {
+              value0: t(languageLabelKey(currentSourceLanguage)),
+            })}
             disabled={isLoading}
           />
           {word && !isLoading ? (
@@ -509,8 +516,8 @@ export function WordInput() {
               type="button"
               className={styles.clearButton}
               onClick={clearInput}
-              aria-label="Clear input"
-              title="Clear input"
+              aria-label={t("wordInput.clearInput")}
+              title={t("wordInput.clearInput")}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M7 7l10 10M17 7 7 17" />
@@ -523,14 +530,14 @@ export function WordInput() {
           onClick={translate}
           disabled={isLoading || !word.trim()}
         >
-          {isLoading ? "Translating…" : "Translate"}
+          {isLoading ? t("wordInput.translating") : t("textAnalyzer.translate")}
         </button>
       </div>
       <div className={styles.translation}>
         {preview && (
           <section
             className={styles.streamingCard}
-            aria-label="Translation in progress"
+            aria-label={t("wordInput.translationInProgress")}
             aria-busy={isLoading}
           >
             <div className={styles.streamStatus} role="status">
@@ -538,10 +545,10 @@ export function WordInput() {
                 <span className={styles.statusDot} aria-hidden="true" />
               )}
               {error
-                ? "Incomplete translation"
+                ? t("wordInput.incompleteTranslation")
                 : preview.translation
-                  ? "Adding details & examples"
-                  : "Preparing your translation"}
+                  ? t("wordInput.addingDetailsExamples")
+                  : t("wordInput.preparingYourTranslation")}
             </div>
             <h2 className={styles.streamOriginal}>{preview.original}</h2>
             <div className={styles.streamTranslation}>
@@ -553,7 +560,7 @@ export function WordInput() {
             {isLoading && (
               <div className={styles.streamDetails} aria-hidden="true">
                 <span className={styles.streamLabel}>
-                  Language notes & examples
+                  {t("wordInput.languageNotesExamples")}
                 </span>
                 <span className={styles.skeleton} />
                 <span
@@ -565,13 +572,13 @@ export function WordInput() {
         )}
         {error && (
           <div className={styles.streamError} role="alert">
-            {error}
+            {t(error.key, error.values)}
           </div>
         )}
         {translation && (
           <section
             className={`${styles.streamingCard} ${styles.completedCard}`}
-            aria-label="Translation"
+            aria-label={t("cardEditor.translation")}
           >
             <StructuredResponseDisplay
               response={translation}
@@ -583,18 +590,18 @@ export function WordInput() {
       </div>
 
       <div className={styles.history}>
-        <h3>History</h3>
+        <h3>{t("wordInput.history")}</h3>
         {historyQuery.isPending && history.length === 0 ? (
-          <p role="status">Loading history…</p>
+          <p role="status">{t("wordInput.loadingHistory")}</p>
         ) : historyQuery.isError && history.length === 0 ? (
           <div className={styles.historyError} role="alert">
-            <span>Couldn’t load history.</span>
+            <span>{t("wordInput.couldnTLoadHistory")}</span>
             <button type="button" onClick={() => void historyQuery.refetch()}>
-              Retry
+              {t("reviewSession.retry")}
             </button>
           </div>
         ) : history.length === 0 ? (
-          <p>No history available.</p>
+          <p>{t("wordInput.noHistoryAvailable")}</p>
         ) : (
           <>
             <HistoryList
@@ -614,12 +621,12 @@ export function WordInput() {
             />
             {historyQuery.isError && !historyQuery.isFetchNextPageError && (
               <div className={styles.historyError} role="alert">
-                <span>Couldn’t refresh all history.</span>
+                <span>{t("wordInput.couldnTRefreshAllHistory")}</span>
                 <button
                   type="button"
                   onClick={() => void historyQuery.refetch()}
                 >
-                  Retry
+                  {t("reviewSession.retry")}
                 </button>
               </div>
             )}

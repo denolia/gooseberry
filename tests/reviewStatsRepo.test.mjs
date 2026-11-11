@@ -1,3 +1,4 @@
+import { messageErrors } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -39,6 +40,7 @@ function loadRepo(rows) {
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
     const expression = () => ({});
     const tables = new Proxy(
       {},

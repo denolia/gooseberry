@@ -1,0 +1,162 @@
+.dialog {
+  width: min(36rem, calc(100% - 2rem));
+}
+
+.searchLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.searchField {
+  position: relative;
+}
+
+.searchField > svg {
+  position: absolute;
+  inset-inline-start: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.searchField input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border-color);
+  border-radius: 0;
+  padding: 0.65rem 0.7rem 0.65rem 2.25rem;
+  color: var(--foreground);
+  background: var(--input-background);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.list {
+  max-height: min(24rem, 45dvh);
+  margin-top: 0.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.row:hover {
+  background: var(--item-hover);
+}
+
+.selected {
+  background: var(--item-selected);
+}
+
+.dialog .option {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  flex: 1;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+  padding: 0.75rem 0.6rem;
+  border: 0;
+  background: transparent;
+  text-align: start;
+  font-size: 0.875rem;
+}
+
+.mark {
+  display: flex;
+  align-items: center;
+  color: var(--accent);
+}
+
+.name,
+.preview {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.meta,
+.preview {
+  grid-column: 2;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.meta {
+  overflow-wrap: anywhere;
+}
+
+.dialog .deleteButton {
+  display: flex;
+  min-width: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.dialog .deleteButton:hover:not(:disabled) {
+  color: var(--danger);
+}
+
+.dialog .newText {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-inline-end: auto;
+}
+
+.message {
+  padding: 1.5rem 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.dialog .loadMore {
+  display: block;
+  margin: 0.75rem auto 0;
+}
+
+.confirmation {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.confirmation > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.dialog .danger {
+  color: var(--danger);
+}
+
+@media (max-width: 400px) {
+  .dialog {
+    width: calc(100% - 1rem);
+  }
+
+  .dialog footer {
+    flex-wrap: wrap;
+    padding-inline: 0.75rem;
+  }
+}

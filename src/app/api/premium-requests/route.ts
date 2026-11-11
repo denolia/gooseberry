@@ -6,7 +6,10 @@ import { sendPremiumRequestEmail } from "@/lib/premium/email";
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   const body = await request.json().catch(() => null);
@@ -18,7 +21,7 @@ export async function POST(request: Request) {
       : "";
   if (message.length > 500) {
     return NextResponse.json(
-      { error: "Your message must be 500 characters or fewer." },
+      { errorCode: "errors.yourMessageMustBe500CharactersOrFewer" },
       { status: 400 },
     );
   }
@@ -28,17 +31,20 @@ export async function POST(request: Request) {
     message: message || null,
   });
   if (result.kind === "missing-user") {
-    return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    return NextResponse.json(
+      { errorCode: "errors.accountNotFound" },
+      { status: 404 },
+    );
   }
   if (result.kind === "already-premium") {
     return NextResponse.json(
-      { error: "This account already has Premium access." },
+      { errorCode: "errors.thisAccountAlreadyHasPremiumAccess" },
       { status: 409 },
     );
   }
   if (result.kind === "already-pending") {
     return NextResponse.json(
-      { error: "Your Premium request is already pending." },
+      { errorCode: "errors.yourPremiumRequestIsAlreadyPending" },
       { status: 409 },
     );
   }

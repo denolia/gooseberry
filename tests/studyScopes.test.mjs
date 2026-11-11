@@ -339,10 +339,11 @@ test("queue API rejects foreign, missing, empty and invalid scopes without falli
     assert.equal((await getQueue(search)).status, 400);
   }
   for (const id of [foreign.id, crypto.randomUUID()]) {
-    assert.equal(
-      (await getQueue(`?scope=sets&set=${owned.id}&set=${id}`)).status,
-      404,
-    );
+    const response = await getQueue(`?scope=sets&set=${owned.id}&set=${id}`);
+    assert.equal(response.status, 404);
+    const body = await response.json();
+    assert.equal(body.errorCode, "errors.studySetsUnavailable");
+    assert.equal(body.error, undefined);
   }
   const empty = await makeSet({ count: 0 });
   assert.deepEqual(

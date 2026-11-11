@@ -1,3 +1,4 @@
+import { messageErrors } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -9,7 +10,7 @@ const itemId = "22222222-2222-4222-8222-222222222222";
 const destinationId = "33333333-3333-4333-8333-333333333333";
 function setup({ authenticated = true, failure } = {}) {
   const calls = [];
-  class MoveWordSetItemError extends Error {
+  class MoveWordSetItemError extends messageErrors.MessageError {
     constructor(message, status) {
       super(message);
       this.status = status;
@@ -32,6 +33,7 @@ function setup({ authenticated = true, failure } = {}) {
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
     const mocks = {
       "next/server": { NextResponse: Response },
       zod: { z },
@@ -42,7 +44,8 @@ function setup({ authenticated = true, failure } = {}) {
         MoveWordSetItemError,
         moveWordSetItem: async (input) => {
           calls.push(input);
-          if (failure) throw new MoveWordSetItemError("Move rejected", failure);
+          if (failure)
+            throw new MoveWordSetItemError("errors.chooseAnotherSet", failure);
           return { id: input.itemId, wordSetId: input.destinationWordSetId };
         },
       },
@@ -115,6 +118,6 @@ test("move route preserves language, ownership and conflict error statuses", asy
   for (const failure of [400, 404, 409]) {
     const response = await setup({ failure }).submit();
     assert.equal(response.status, failure);
-    assert.equal((await response.json()).error, "Move rejected");
+    assert.equal((await response.json()).errorCode, "errors.chooseAnotherSet");
   }
 });

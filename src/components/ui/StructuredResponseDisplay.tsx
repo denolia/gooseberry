@@ -1,4 +1,6 @@
 "use client";
+import { useI18n } from "@/i18n/client";
+
 import styles from "./StructuredResponseDisplay.module.css";
 import { TranslationResponse } from "@/app/utils/translationSchema";
 import { TranslationCard } from "@/components/anki/TranslationCard";
@@ -22,6 +24,7 @@ export function StructuredResponseDisplay({
   sourceLang?: string;
   targetLang?: string;
 }) {
+  const { t } = useI18n();
   const [isRawVisible, setIsRawVisible] = useState(false);
 
   const toggleRawVisibility = () => setIsRawVisible(!isRawVisible);
@@ -65,16 +68,26 @@ export function StructuredResponseDisplay({
         <div className={styles.details}>
           <div>
             {hasValue(details.plural) && (
-              <span>Plural: {details.plural}, </span>
+              <span>
+                {t("structuredResponseDisplay.plural")} {details.plural},{" "}
+              </span>
             )}
             {hasValue(details.genitive) && (
-              <span>Genitive: {details.genitive}</span>
+              <span>
+                {t("structuredResponseDisplay.genitive")} {details.genitive}
+              </span>
             )}
             {isFinnishSource && hasValue(details.standard_form) && (
-              <div>Standard: {details.standard_form}</div>
+              <div>
+                {t("structuredResponseDisplay.standard")}{" "}
+                {details.standard_form}
+              </div>
             )}
             {isFinnishSource && hasValue(details.colloquial_form) && (
-              <div>Common colloquial: {details.colloquial_form}</div>
+              <div>
+                {t("structuredResponseDisplay.commonColloquial")}{" "}
+                {details.colloquial_form}
+              </div>
             )}
           </div>
 
@@ -94,7 +107,7 @@ export function StructuredResponseDisplay({
 
           {hasValue(details.sentence_grammatical_analysis) && (
             <div className={styles.paragraph}>
-              <h4>Analysis:</h4>
+              <h4>{t("structuredResponseDisplay.analysis")}</h4>
               <div className={styles.rawResponseContent}>
                 <div>{details.sentence_grammatical_analysis}</div>
               </div>
@@ -106,16 +119,18 @@ export function StructuredResponseDisplay({
       {/* Example Usage Section */}
       {example_usage && (
         <div className={styles.paragraph}>
-          <h4>Examples:</h4>
+          <h4>{t("wordSetManager.examples")}</h4>
           <div>
             {example_usage.map((example, index) => (
               <div key={index}>
                 {isFinnishSource && example.language_variant === "standard" && (
-                  <strong>Standard: </strong>
+                  <strong>{t("structuredResponseDisplay.standard")} </strong>
                 )}
                 {isFinnishSource &&
                   example.language_variant === "colloquial" && (
-                    <strong>Common colloquial: </strong>
+                    <strong>
+                      {t("structuredResponseDisplay.commonColloquial")}{" "}
+                    </strong>
                   )}
                 <span className={styles.italic}>{example.sample}</span> -{" "}
                 {example.sample_translation}
@@ -129,7 +144,7 @@ export function StructuredResponseDisplay({
         {details.verb_preposition_case &&
           details.verb_preposition_case.length > 0 && (
             <div className={styles.paragraph}>
-              <h4>Verb + Prep + Case:</h4>
+              <h4>{t("structuredResponseDisplay.verbPrepCase")}</h4>
               {details.verb_preposition_case.map((phrase, index) => (
                 <div key={index}>
                   {phrase.sample} - {phrase.sample_translation}
@@ -139,7 +154,7 @@ export function StructuredResponseDisplay({
           )}
         {details.verb_noun && details.verb_noun.length > 0 && (
           <div className={styles.paragraph}>
-            <h4>Verb + Noun:</h4>
+            <h4>{t("structuredResponseDisplay.verbNoun")}</h4>
             {details.verb_noun.map((phrase, index) => (
               <div key={index}>
                 {phrase.sample} - {phrase.sample_translation}
@@ -149,7 +164,7 @@ export function StructuredResponseDisplay({
         )}
         {details.common_phrases && details.common_phrases.length > 0 && (
           <div className={styles.paragraph}>
-            <h4>Common Phrases:</h4>
+            <h4>{t("structuredResponseDisplay.commonPhrases")}</h4>
             {details.common_phrases.map((phrase, index) => (
               <div key={index}>
                 {phrase.sample} - {phrase.sample_translation}
@@ -159,7 +174,7 @@ export function StructuredResponseDisplay({
         )}
         {details.idioms && details.idioms.length > 0 && (
           <div className={styles.paragraph}>
-            <h4>Idioms:</h4>
+            <h4>{t("structuredResponseDisplay.idioms")}</h4>
             {details.idioms.map((idiom, index) => (
               <div key={index}>
                 {idiom.sample} - {idiom.sample_translation}
@@ -174,19 +189,43 @@ export function StructuredResponseDisplay({
           (isFinnishSource && details.language_variant) ||
           details.comments) && (
           <div className={styles.paragraph}>
-            {response.type && <div>Type: {response.type}</div>}
+            {response.type && (
+              <div>
+                {t("structuredResponseDisplay.type")}{" "}
+                {t(`grammar.${response.type}`)}
+              </div>
+            )}
             {details.usage_frequency && (
-              <div>Frequency: {details.usage_frequency}</div>
+              <div>
+                {t("structuredResponseDisplay.frequency")}{" "}
+                {details.usage_frequency}
+              </div>
             )}
             {details.stylistic_kind && (
-              <div>Style: {details.stylistic_kind}</div>
+              <div>
+                {t("structuredResponseDisplay.style")}{" "}
+                {t(`grammar.${details.stylistic_kind}`)}
+              </div>
             )}
             {isFinnishSource && details.language_variant && (
               <div>
-                Finnish register: {details.language_variant.replace("-", " ")}
+                {t("structuredResponseDisplay.finnishRegister")}{" "}
+                {t(
+                  (
+                    {
+                      standard: "grammar.standard",
+                      colloquial: "grammar.colloquial",
+                      "register-neutral": "grammar.register_neutral",
+                    } as const
+                  )[details.language_variant],
+                )}
               </div>
             )}
-            {details.comments && <div>Comments: {details.comments}</div>}
+            {details.comments && (
+              <div>
+                {t("structuredResponseDisplay.comments")} {details.comments}
+              </div>
+            )}
           </div>
         )}
 
@@ -203,9 +242,15 @@ export function StructuredResponseDisplay({
               className={styles.toggleButton}
               aria-expanded={isRawVisible}
               aria-label={
-                isRawVisible ? "Hide raw response" : "Show raw response"
+                isRawVisible
+                  ? t("structuredResponseDisplay.hideRawResponse")
+                  : t("structuredResponseDisplay.showRawResponse")
               }
-              title={isRawVisible ? "Hide raw response" : "Show raw response"}
+              title={
+                isRawVisible
+                  ? t("structuredResponseDisplay.hideRawResponse")
+                  : t("structuredResponseDisplay.showRawResponse")
+              }
             >
               <span aria-hidden="true">&lt;/&gt;</span>
             </button>

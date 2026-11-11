@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useI18n } from "@/i18n/client";
+import { MessageError } from "@/i18n/errors";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { studyHref } from "@/lib/review/scope";
@@ -21,29 +23,30 @@ export function StudyScopeActions({
   onDueOnlyChange: (value: boolean) => void;
   onClear: () => void;
 }) {
+  const { t } = useI18n();
   const router = useRouter();
   const { data: dailyLimit } = useQuery({
     queryKey: ["studyNewWordLimit", userId],
     staleTime: 0,
     queryFn: async (): Promise<number> => {
       const response = await fetch("/api/profile");
-      if (!response.ok) throw new Error("Could not load your study limit");
+      if (!response.ok) throw new MessageError("errors.couldNotLoadStudyLimit");
       const body = await response.json();
       return body.profile.preferences.newWordsPerDay;
     },
   });
   const count = selectedIds.length || setCount;
   return (
-    <section className={styles.studyActions} aria-label="Study sets">
+    <section className={styles.studyActions} aria-label={t("common.studySets")}>
       <div className={styles.headerActions}>
         <Link className={styles.studyButton} href={studyHref({ kind: "all" })}>
-          Study all available
+          {t("studyScope.studyAllAvailable")}
         </Link>
         <Link
           className={styles.importButton}
           href={studyHref({ kind: "all" }, "due_only")}
         >
-          Repeat due only
+          {t("studyScope.repeatDueOnly")}
         </Link>
       </div>
       <div className={styles.selectionActions}>
@@ -60,7 +63,7 @@ export function StudyScopeActions({
             )
           }
         >
-          Study selected ({selectedIds.length})
+          {t("studyScope.studySelected", { count: selectedIds.length })}
         </button>
         <label className={styles.selectionLabel}>
           <input
@@ -68,7 +71,7 @@ export function StudyScopeActions({
             checked={dueOnly}
             onChange={(event) => onDueOnlyChange(event.target.checked)}
           />
-          Due only for selected sets
+          {t("studyScope.dueOnlyForSelected")}
         </label>
         {selectedIds.length > 0 && (
           <button
@@ -76,15 +79,20 @@ export function StudyScopeActions({
             className={styles.clearSelection}
             onClick={onClear}
           >
-            Clear selection
+            {t("studyScope.clearSelection")}
           </button>
         )}
       </div>
       <p className={styles.setMeta}>
         {dailyLimit === undefined
-          ? "The daily new-word limit applies to each set separately."
-          : `${selectedIds.length ? "Selected" : "All"} sets allow up to ${count * dailyLimit} new words per day (${dailyLimit} per set).`}{" "}
-        <Link href="/profile">Study settings</Link>
+          ? t("studyScope.perSetLimit")
+          : t(
+              selectedIds.length
+                ? "studyScope.selectedAllowance"
+                : "studyScope.allAllowance",
+              { count, total: count * dailyLimit, limit: dailyLimit },
+            )}{" "}
+        <Link href="/profile">{t("studyScope.settings")}</Link>
       </p>
     </section>
   );

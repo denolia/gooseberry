@@ -1,3 +1,4 @@
+import { messageErrors } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -15,6 +16,7 @@ const code = ts.transpileModule(
 ).outputText;
 const stats = {};
 new Function("require", "exports", code)((name) => {
+  if (name === "@/i18n/errors") return messageErrors;
   if (name === "@/lib/review/model") return { FsrsCardState };
   throw new Error(`Unexpected dependency ${name}`);
 }, stats);

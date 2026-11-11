@@ -1,3 +1,4 @@
+import type { MessageKey } from "@/i18n/messages";
 export const STUDY_CARD_TEMPLATE_KEYS = [
   "recognition",
   "production",
@@ -20,7 +21,8 @@ export type StudyCardContentField = keyof StudyCardContent;
 
 export type StudyCardTemplate = {
   key: StudyCardTemplateKey;
-  label: string;
+
+  labelKey: MessageKey;
   promptField: StudyCardContentField;
   answerField: StudyCardContentField;
   requiredFields: readonly StudyCardContentField[];
@@ -32,7 +34,8 @@ export type StudyCardTemplate = {
 export const STUDY_CARD_TEMPLATES: readonly StudyCardTemplate[] = [
   {
     key: "recognition",
-    label: "Recognition",
+
+    labelKey: "common.recognition",
     promptField: "original",
     answerField: "translation",
     requiredFields: ["original", "translation"],
@@ -40,7 +43,8 @@ export const STUDY_CARD_TEMPLATES: readonly StudyCardTemplate[] = [
   },
   {
     key: "production",
-    label: "Production",
+
+    labelKey: "common.production",
     promptField: "translation",
     answerField: "original",
     requiredFields: ["original", "translation"],
@@ -48,7 +52,8 @@ export const STUDY_CARD_TEMPLATES: readonly StudyCardTemplate[] = [
   },
   {
     key: "word_forms",
-    label: "Word forms",
+
+    labelKey: "importDeck.wordForms",
     promptField: "original",
     answerField: "wordForms",
     requiredFields: ["original", "wordForms"],
@@ -56,7 +61,8 @@ export const STUDY_CARD_TEMPLATES: readonly StudyCardTemplate[] = [
   },
   {
     key: "type_answer",
-    label: "Type the source",
+
+    labelKey: "common.typeTheSource",
     promptField: "translation",
     answerField: "original",
     requiredFields: ["original", "translation"],
@@ -64,7 +70,8 @@ export const STUDY_CARD_TEMPLATES: readonly StudyCardTemplate[] = [
   },
   {
     key: "example",
-    label: "Example recall",
+
+    labelKey: "common.exampleRecall",
     promptField: "sampleTranslation",
     answerField: "sample",
     requiredFields: ["sample", "sampleTranslation"],

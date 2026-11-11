@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "oxlint .",
     "test": "node --test --test-isolation=none tests/*.test.mjs",
+    "translations:check": "node scripts/check-translations.mjs",
     "typecheck": "next typegen && tsc --noEmit",
     "update-migrations": "pnpm exec drizzle-kit push --config=drizzle.config.ts --strict"
   },
@@ -25,6 +26,7 @@
     "lucide-react": "^1.58.0",
     "next": "^16.3.7",
     "next-auth": "5.0.0-beta.32",
+    "next-intl": "^4.14.10",
     "openai": "^7.25.0",
     "prettier": "^3.9.9",
     "react": "^19.3.0",

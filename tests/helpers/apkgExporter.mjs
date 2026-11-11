@@ -1,3 +1,4 @@
+import { messageErrors } from "./i18n.mjs";
 import { readFileSync } from "node:fs";
 import * as ankipack from "ankipack";
 import initSqlJs from "sql.js";
@@ -20,6 +21,7 @@ const code = ts.transpileModule(
 ).outputText;
 const exporter = {};
 new Function("require", "exports", code)((name) => {
+  if (name === "@/i18n/errors") return messageErrors;
   const dependencies = {
     ankipack,
     "sql.js": { __esModule: true, default: initSqlJs },

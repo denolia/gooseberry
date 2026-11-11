@@ -810,7 +810,9 @@ test("oversized visible vocabulary is rejected before publishing any set or card
       expectedNoteCount: 300,
     }),
     (error) =>
-      error.status === 413 && /fewer fields|smaller deck/.test(error.message),
+      error.status === 413 &&
+      error.userMessage?.key ===
+        "errors.thisSetWouldBeTooLargeToOpenInTheCurrent",
   );
   assert.equal(
     (await repo.getAnkiImport(job.jobId, userId)).status,
@@ -949,5 +951,27 @@ test("concurrent publication cannot jointly exceed the existing target's visible
   assert.equal(
     (await client.query("SELECT count(*) FROM study_card")).rows[0].count,
     750,
+  );
+});
+
+test("resuming an older import tolerates structured notices without changing its settings", async () => {
+  const input = begin();
+  input.packageMetadata.diagnostics.warnings = ["Legacy diagnostic copy"];
+  const original = await repo.beginAnkiImport(userId, input);
+  const current = structuredClone(input);
+  current.packageMetadata.diagnostics.warnings = [
+    { key: "importDeck.presetNotice" },
+    { key: "importDeck.mediaOmitted", values: { count: 77 } },
+  ];
+  assert.equal(
+    (await repo.beginAnkiImport(userId, current)).jobId,
+    original.jobId,
+  );
+  await assert.rejects(
+    repo.beginAnkiImport(userId, { ...current, name: "Changed" }),
+    (error) =>
+      error.status === 409 &&
+      error.userMessage.key ===
+        "errors.thisImportRequestIdWasAlreadyUsedWithDifferentSettings",
   );
 });

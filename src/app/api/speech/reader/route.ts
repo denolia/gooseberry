@@ -1,3 +1,4 @@
+import { errorEnvelope } from "@/i18n/errors";
 import { auth } from "@/auth";
 import {
   getLanguageCode,
@@ -37,7 +38,10 @@ function normalizeSourceLanguage(value: unknown): SourceLanguage | null {
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
   return NextResponse.json(getReaderSpeechConfig(), {
     headers: { "Cache-Control": "private, no-store" },
@@ -47,7 +51,10 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -55,8 +62,8 @@ export async function POST(request: Request) {
     if (!(await hasPremiumAccess(session.user.id))) {
       return NextResponse.json(
         {
-          error:
-            "Full-text reading is a Premium feature. Request access from your profile.",
+          errorCode:
+            "errors.fullTextReadingIsAPremiumFeatureRequestAccessFromYour",
           code: "premium_required",
         },
         { status: 403 },
@@ -65,7 +72,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Could not check reader access:", error);
     return NextResponse.json(
-      { error: "Could not verify Premium access. Please try again." },
+      { errorCode: "errors.couldNotVerifyPremiumAccessPleaseTryAgain" },
       { status: 503 },
     );
   }
@@ -80,10 +87,7 @@ export async function POST(request: Request) {
       return new Response(null, { status: 499 });
     }
     return NextResponse.json(
-      {
-        error:
-          error instanceof BodyReadError ? error.message : "Invalid request",
-      },
+      { ...errorEnvelope(error, "errors.invalidRequest") },
       { status: error instanceof BodyReadError ? error.status : 400 },
     );
   }
@@ -97,14 +101,15 @@ export async function POST(request: Request) {
 
   if (!text || !sourceLanguage) {
     return NextResponse.json(
-      { error: "Text and a valid source language are required" },
+      { errorCode: "errors.textAndAValidSourceLanguageAreRequired" },
       { status: 400 },
     );
   }
   if (text.length > READER_CHUNK_CHARACTERS) {
     return NextResponse.json(
       {
-        error: `Each text chunk must be ${READER_CHUNK_CHARACTERS} characters or fewer`,
+        errorCode: "errors.eachTextChunkMustBeValueCharactersOrFewer",
+        errorValues: { value0: READER_CHUNK_CHARACTERS },
       },
       { status: 400 },
     );
@@ -115,9 +120,7 @@ export async function POST(request: Request) {
     !getReaderSpeechConfig().voices.some((value) => value.id === voice)
   ) {
     return NextResponse.json(
-      {
-        error: "A supported reader voice is required",
-      },
+      { errorCode: "errors.aSupportedReaderVoiceIsRequired" },
       { status: 400 },
     );
   }
@@ -146,7 +149,7 @@ export async function POST(request: Request) {
     }
     console.error("Reader speech generation failed:", error);
     return NextResponse.json(
-      { error: "Could not read the text aloud. Please try again." },
+      { errorCode: "errors.couldNotReadTheTextAloudPleaseTryAgain" },
       { status: 502 },
     );
   }

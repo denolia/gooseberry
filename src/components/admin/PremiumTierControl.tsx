@@ -1,10 +1,12 @@
 "use client";
+import { useI18n } from "@/i18n/client";
 
 import { useFormStatus } from "react-dom";
 import { setUserPremiumTierAction } from "@/app/admin/actions";
 import styles from "@/app/admin/page.module.css";
 
 function SubmitButton({ tier }: { tier: "free" | "premium" }) {
+  const { t } = useI18n();
   const { pending } = useFormStatus();
   const granting = tier === "free";
   return (
@@ -13,7 +15,11 @@ function SubmitButton({ tier }: { tier: "free" | "premium" }) {
       type="submit"
       disabled={pending}
     >
-      {pending ? "Saving…" : granting ? "Grant Premium" : "Revoke Premium"}
+      {pending
+        ? t("premiumTierControl.saving")
+        : granting
+          ? t("premiumTierControl.grantPremium")
+          : t("premiumTierControl.revokePremium")}
     </button>
   );
 }
@@ -25,6 +31,7 @@ export function PremiumTierControl({
   userId: string;
   tier: "free" | "premium";
 }) {
+  const { t } = useI18n();
   return (
     <form
       className={styles.tierControl}
@@ -33,7 +40,9 @@ export function PremiumTierControl({
         if (
           tier === "premium" &&
           !window.confirm(
-            "Revoke Premium access for this user? They will immediately lose access to Premium features.",
+            t(
+              "premiumTierControl.revokePremiumAccessForThisUserTheyWillImmediatelyLoseAccess",
+            ),
           )
         ) {
           event.preventDefault();
@@ -49,7 +58,9 @@ export function PremiumTierControl({
       <span
         className={`${styles.tierBadge} ${tier === "premium" ? styles.tierPremium : styles.tierFree}`}
       >
-        {tier === "premium" ? "Premium" : "Free"}
+        {tier === "premium"
+          ? t("premiumTierControl.premium")
+          : t("premiumTierControl.free")}
       </span>
       <SubmitButton tier={tier} />
     </form>

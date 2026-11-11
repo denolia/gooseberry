@@ -1,3 +1,4 @@
+import { MessageError } from "@/i18n/errors";
 import { getDb } from "@/db/drizzle";
 import {
   fsrsCardState,
@@ -57,9 +58,9 @@ import type { StudyFilter, StudyScope } from "@/lib/review/scope";
 
 const MAX_REVIEW_WRITE_ATTEMPTS = 3;
 
-export class ReviewCardNotFoundError extends Error {}
-export class ReviewCardNotDueError extends Error {}
-export class ReviewWriteConflictError extends Error {}
+export class ReviewCardNotFoundError extends MessageError {}
+export class ReviewCardNotDueError extends MessageError {}
+export class ReviewWriteConflictError extends MessageError {}
 export class ReviewWordSeenTodayError extends ReviewCardNotDueError {}
 
 export type DueReviewCard = {
@@ -326,7 +327,7 @@ export async function activateReviewCard(input: {
     input.studyCardId,
     input.now,
   );
-  if (!row) throw new ReviewCardNotFoundError("Review card not found");
+  if (!row) throw new ReviewCardNotFoundError("errors.reviewCardNotFound");
   const card = toDueReviewCard(row);
   const previous = await getStudyExposure(input.userId, input.exposureId);
   if (previous) {
@@ -336,7 +337,7 @@ export async function activateReviewCard(input: {
       previous.reviewEventId
     ) {
       throw new ReviewWriteConflictError(
-        "This presentation is no longer available",
+        "errors.thisPresentationIsNoLongerAvailable",
       );
     }
     if (
@@ -344,11 +345,11 @@ export async function activateReviewCard(input: {
       previous.repsBefore !== card.state.reps
     ) {
       throw new ReviewWriteConflictError(
-        "The card changed. Reload the exercise.",
+        "errors.theCardChangedReloadTheExercise",
       );
     }
     if (row.isSuspended || (row.buriedUntil && row.buriedUntil > input.now)) {
-      throw new ReviewCardNotDueError("Review card is suspended or buried");
+      throw new ReviewCardNotDueError("errors.reviewCardIsSuspendedOrBuried");
     }
     await touchStudyExposure(previous, input.now);
     return { card, exposure: previous, studyDay: day };
@@ -360,7 +361,7 @@ export async function activateReviewCard(input: {
     (row.buriedUntil && row.buriedUntil > input.now) ||
     card.state.dueAt > input.now
   ) {
-    throw new ReviewCardNotDueError("This exercise is not available yet");
+    throw new ReviewCardNotDueError("errors.thisExerciseIsNotAvailableYet");
   }
   const receipt = await persistStudyExposure({
     ...input,
@@ -400,16 +401,16 @@ export async function activateReviewCard(input: {
       )
     ) {
       throw new ReviewWordSeenTodayError(
-        "You have already seen this word today. Repetitions resume after 2 am.",
+        "errors.youHaveAlreadySeenThisWordTodayRepetitionsResumeAfter2",
       );
     }
     throw new ReviewCardNotDueError(
-      "This exercise changed. Reload the next exercise.",
+      "errors.thisExerciseChangedReloadTheNextExercise",
     );
   }
   if (receipt.studyCardId !== card.id || receipt.reviewEventId) {
     throw new ReviewWriteConflictError(
-      "This presentation is no longer available",
+      "errors.thisPresentationIsNoLongerAvailable",
     );
   }
   return { card, exposure: receipt, studyDay: day };
@@ -444,17 +445,17 @@ export async function recordReview(input: {
       input.wordSetId,
       input.studyCardId,
     );
-    if (!row) throw new ReviewCardNotFoundError("Review card not found");
+    if (!row) throw new ReviewCardNotFoundError("errors.reviewCardNotFound");
     if (!row.introductionAllowed) {
       throw new ReviewCardNotDueError(
-        "Complete the earlier word exercises first",
+        "errors.completeTheEarlierWordExercisesFirst",
       );
     }
     if (
       row.isSuspended ||
       (row.buriedUntil && row.buriedUntil > input.reviewedAt)
     ) {
-      throw new ReviewCardNotDueError("Review card is suspended or buried");
+      throw new ReviewCardNotDueError("errors.reviewCardIsSuspendedOrBuried");
     }
 
     let currentState = row.projection
@@ -509,7 +510,7 @@ export async function recordReview(input: {
       permission.wordSetItemId !== row.wordSetItemId
     ) {
       throw new ReviewCardNotDueError(
-        "Open this exercise before saving its rating",
+        "errors.openThisExerciseBeforeSavingItsRating",
       );
     }
     if (
@@ -521,11 +522,11 @@ export async function recordReview(input: {
       const alreadyRecorded = await getRecordedReviewState(input);
       if (alreadyRecorded) return alreadyRecorded;
       throw new ReviewWriteConflictError(
-        "The card changed. Reload the exercise.",
+        "errors.theCardChangedReloadTheExercise",
       );
     }
     if (currentState.dueAt.getTime() > input.reviewedAt.getTime()) {
-      throw new ReviewCardNotDueError("Review card is not due yet");
+      throw new ReviewCardNotDueError("errors.reviewCardIsNotDueYet");
     }
 
     const nextState = applyReview(currentState, input.rating, input.reviewedAt);
@@ -547,7 +548,7 @@ export async function recordReview(input: {
   }
 
   throw new ReviewWriteConflictError(
-    "The card changed while the review was being recorded",
+    "errors.theCardChangedWhileTheReviewWasBeingRecorded",
   );
 }
 
@@ -616,7 +617,7 @@ async function getRecordedReviewState(input: {
     row.reviewedAt.getTime() !== input.reviewedAt.getTime()
   ) {
     throw new ReviewWriteConflictError(
-      "The review ID was already used for a different review",
+      "errors.theReviewIdWasAlreadyUsedForADifferentReview",
     );
   }
 

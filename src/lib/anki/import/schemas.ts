@@ -1,3 +1,4 @@
+import { MessageError } from "@/i18n/errors";
 import { z } from "zod";
 import {
   isSourceLanguageCode,
@@ -94,7 +95,16 @@ export const PackageMetadataSchema = z.object({
     sourceBytes: z.number().int().nonnegative(),
     databaseBytes: z.number().int().nonnegative(),
     omittedMediaCount: z.number().int().nonnegative(),
-    warnings: z.array(z.string().max(2000)).max(100),
+    warnings: z
+      .array(
+        z.object({
+          key: z.enum(["importDeck.presetNotice", "importDeck.mediaOmitted"]),
+          values: z
+            .object({ count: z.number().int().nonnegative() })
+            .optional(),
+        }),
+      )
+      .max(100),
   }),
 });
 export const BeginImportSchema = z.object({
@@ -202,14 +212,15 @@ export function validateImportMapping(input: BeginImportInput): void {
     input.packageMetadata.models.map((model) => [model.id, model]),
   );
   if (models.size !== input.packageMetadata.models.length)
-    throw new Error("Duplicate note type IDs");
+    throw new MessageError("errors.duplicateNoteTypeIds");
   const seen = new Set<string>();
   for (const mapping of input.mapping) {
     if (seen.has(mapping.modelId))
-      throw new Error("Duplicate note type mapping");
+      throw new MessageError("errors.duplicateNoteTypeMapping");
     seen.add(mapping.modelId);
     const model = models.get(mapping.modelId);
-    if (!model) throw new Error("Mapping references an unknown note type");
+    if (!model)
+      throw new MessageError("errors.mappingReferencesAnUnknownNoteType");
     const templateOrdinals = new Set(
       model.templates.map((template) => template.ord),
     );
@@ -218,8 +229,8 @@ export function validateImportMapping(input: BeginImportInput): void {
       new Set(overrides.map((entry) => entry.ord)).size !== overrides.length ||
       overrides.some((entry) => !templateOrdinals.has(entry.ord))
     ) {
-      throw new Error(
-        "Exercise mapping references an unknown or duplicate Anki template",
+      throw new MessageError(
+        "errors.exerciseMappingReferencesAnUnknownOrDuplicateAnkiTemplate",
       );
     }
     if (
@@ -227,8 +238,8 @@ export function validateImportMapping(input: BeginImportInput): void {
       !mapping.skip &&
       duplicateAnkiStudyTemplates(model, mapping).length
     ) {
-      throw new Error(
-        "Match each Gooseberry exercise to at most one Anki card type",
+      throw new MessageError(
+        "errors.matchEachGooseberryExerciseToAtMostOneAnkiCardType",
       );
     }
     const selections = [
@@ -247,7 +258,7 @@ export function validateImportMapping(input: BeginImportInput): void {
         selection?.fields.some((ordinal) => !ordinals.has(ordinal)),
       )
     ) {
-      throw new Error("Mapping references an unknown source field");
+      throw new MessageError("errors.mappingReferencesAnUnknownSourceField");
     }
   }
 }

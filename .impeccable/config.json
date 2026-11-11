@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/app/admin/page.module.css"
+        ],
+        "createdAt": "2026-11-11T22:16:54.867Z",
+        "reason": "Agent review: the neutral border-color divider belongs to the explanatory aside below the user table, not a colored accent on a card."
+      }
+    ]
+  }
+}

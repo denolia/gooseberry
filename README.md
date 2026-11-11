@@ -16,6 +16,13 @@ The goal is not just to return a direct translation, but to give enough context 
 - Generates selected missing fields on request, with editable proposals before saving
 - Exports study material for Anki in `.csv` and `.apkg` formats
 
+## Interface Languages
+
+The interface supports English and Russian. On first use it follows the browser
+language; signed-in users can change and save it in Profile settings. See
+[localization behavior and deployment](docs/localization.md). Apply
+[`0014_interface_locale.sql`](migrations/0014_interface_locale.sql) before deploying.
+
 ## Supported Translation Directions
 
 Source and target selectors support 21 configured languages, including Finnish,
@@ -113,6 +120,11 @@ Study settings require `0012_study_set_settings.sql`; exposure protection requir
 [`0013_study_exposure.sql`](migrations/0013_study_exposure.sql). Apply the complete
 SQL migration, including its native-review exposure backfill, before deploying
 the updated reviewer. A schema-only push does not run that backfill.
+
+Reader history requires [`0015_reader_texts.sql`](migrations/0015_reader_texts.sql)
+before deploying the updated reader. Apply it through the existing SQL migration
+workflow; development, builds and tests do not apply it to a remote database.
+See [reader history](docs/reader-history.md) for behavior and a manual UI checklist.
 
 Install/dev/build prepares the local SQL.js WASM used by the import worker.
 `ENRICHMENT_DAILY_TOKEN_LIMIT` defaults to 100,000 reserved tokens per user per

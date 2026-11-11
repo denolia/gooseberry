@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/i18n/client";
 
 import {
   type ReactNode,
@@ -39,6 +40,7 @@ export function AnalyzerPopover({
   compact = false,
   children,
 }: AnalyzerPopoverProps) {
+  const { t } = useI18n();
   const portalRoot = useSyncExternalStore(
     subscribeToDocument,
     getDocumentBody,
@@ -255,7 +257,9 @@ export function AnalyzerPopover({
       role="dialog"
       tabIndex={-1}
       aria-label={
-        compact ? "Selected text actions" : "Selected text translation"
+        compact
+          ? t("analyzerPopover.selectedTextActions")
+          : t("analyzerPopover.selectedTextTranslation")
       }
       className={`${styles.popover}${compact ? ` ${styles.compact}` : ""}`}
       data-placement={currentPosition?.placement}
@@ -273,7 +277,7 @@ export function AnalyzerPopover({
         <button
           ref={closeButtonRef}
           type="button"
-          aria-label="Close translation"
+          aria-label={t("analyzerPopover.closeTranslation")}
           className={styles.closeButton}
           onClick={() => {
             anchorElementRef.current?.focus({ preventScroll: true });

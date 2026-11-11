@@ -1,4 +1,16 @@
 "use client";
+import {
+  languageLabelKey,
+  SourceLanguageSelectOptions,
+} from "@/components/ui/Languages";
+import type { UiMessage } from "@/i18n/messages";
+import {
+  messageFromError,
+  errorFromResponse,
+  MessageError,
+} from "@/i18n/errors";
+
+import { useI18n } from "@/i18n/client";
 
 import {
   useCallback,
@@ -19,7 +31,6 @@ import {
   SkipBack,
   SkipForward,
 } from "lucide-react";
-import { SourceLanguageSelectOptions } from "@/components/ui/Languages";
 import {
   ReaderAudioCache,
   getReaderAudioCacheKey,
@@ -108,15 +119,16 @@ export function ReaderAudioPlayer({
   onAvailabilityChange?: (available: boolean) => void;
   ref?: Ref<ReaderAudioPlayerHandle>;
 }) {
+  const { t } = useI18n();
   const [status, setStatus] = useState<Status>("idle");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage | null>(null);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [voices, setVoices] = useState<VoiceOption[]>([]);
   const [configStatus, setConfigStatus] = useState<
     "loading" | "ready" | "error"
   >("loading");
-  const [configError, setConfigError] = useState("");
+  const [configError, setConfigError] = useState<UiMessage | null>(null);
   const [configRetry, setConfigRetry] = useState(0);
   const [speedPopoverOpen, setSpeedPopoverOpen] = useState(false);
   const speedPopoverId = useId();
@@ -252,7 +264,7 @@ export function ReaderAudioPlayer({
       playback.status = "idle";
       if (updateUi && mountedRef.current) {
         setStatus("idle");
-        setError("");
+        setError(null);
       }
     },
     [updateReadingRange, updatePlaybackActive],
@@ -328,14 +340,14 @@ export function ReaderAudioPlayer({
       await Promise.resolve();
       if (request.signal.aborted) return;
       setConfigStatus("loading");
-      setConfigError("");
+      setConfigError(null);
       try {
         const response = await fetch("/api/speech/reader", {
           signal: request.signal,
         });
         const body = await response.json();
         if (!response.ok)
-          throw new Error(body.error || "Could not load available voices.");
+          throw errorFromResponse(body, "errors.couldNotLoadAvailableVoices");
         const ids = new Set(
           Array.isArray(body.voices)
             ? body.voices.map((voice: { id?: unknown }) => voice?.id)
@@ -343,7 +355,9 @@ export function ReaderAudioPlayer({
         );
         const available = READER_VOICES.filter((voice) => ids.has(voice.id));
         if (!available.length)
-          throw new Error("No reading voices are available. Please try again.");
+          throw new MessageError(
+            "errors.noReadingVoicesAreAvailablePleaseTryAgain",
+          );
         if (request.signal.aborted) return;
         setVoices(available);
         const current = settingsRef.current;
@@ -359,9 +373,7 @@ export function ReaderAudioPlayer({
         if (request.signal.aborted) return;
         setConfigStatus("error");
         setConfigError(
-          reason instanceof Error
-            ? reason.message
-            : "Could not load available voices.",
+          messageFromError(reason, "errors.couldNotLoadAvailableVoices"),
         );
       }
     }
@@ -473,7 +485,7 @@ export function ReaderAudioPlayer({
           playback.urls.delete(cachedIndex);
         }
       }
-      setError("Could not play this part. Press Listen to try again.");
+      setError({ key: "errors.couldNotPlayThisPartPressListenToTryAgain" });
       updateStatus("error");
     };
     updateStatus("playing");
@@ -493,10 +505,10 @@ export function ReaderAudioPlayer({
       updateReadingRange(null);
       audio.pause();
       if (reason instanceof DOMException && reason.name === "NotAllowedError") {
-        setError("Playback needs a tap. Press Listen to continue.");
+        setError({ key: "errors.playbackNeedsATapPressListenToContinue" });
         updateStatus("paused");
       } else {
-        setError("Could not start playback. Press Listen to try again.");
+        setError({ key: "errors.couldNotStartPlaybackPressListenToTryAgain" });
         updateStatus("error");
       }
     }
@@ -542,8 +554,9 @@ export function ReaderAudioPlayer({
         });
         if (!response.ok) {
           const body = await response.json().catch(() => ({}));
-          throw new Error(
-            body.error || "Could not generate audio. Please try again.",
+          throw errorFromResponse(
+            body,
+            "errors.couldNotGenerateAudioPleaseTryAgain",
           );
         }
         const blob = await response.blob();
@@ -568,7 +581,7 @@ export function ReaderAudioPlayer({
             index,
             reason instanceof Error
               ? reason
-              : new Error("Could not generate audio. Please try again."),
+              : new MessageError("errors.couldNotGenerateAudioPleaseTryAgain"),
           );
         }
         throw reason;
@@ -638,9 +651,7 @@ export function ReaderAudioPlayer({
       playback.wantsPlay = false;
       updateReadingRange(null);
       setError(
-        reason instanceof Error
-          ? reason.message
-          : "Could not generate audio. Please try again.",
+        messageFromError(reason, "errors.couldNotGenerateAudioPleaseTryAgain"),
       );
       updateStatus("error");
     }
@@ -670,7 +681,7 @@ export function ReaderAudioPlayer({
       return;
     }
     playbackIntentRef.current = "continuous";
-    setError("");
+    setError(null);
     if (playback.status === "error")
       playback.requestErrors.delete(playback.index);
     getAudio();
@@ -706,9 +717,7 @@ export function ReaderAudioPlayer({
       return playback.chunks.length > 0;
     } catch (reason) {
       updateReadingRange(null);
-      setError(
-        reason instanceof Error ? reason.message : "This text cannot be read.",
-      );
+      setError(messageFromError(reason, "errors.thisTextCannotBeRead"));
       updateStatus("error");
       return false;
     }
@@ -789,17 +798,30 @@ export function ReaderAudioPlayer({
     sentenceNavigation.firstChunkIndex >= 0
       ? sentenceNavigation
       : initialNavigation;
-  const mainAction = active ? "Pause reading" : "Listen to full text";
-  const mainLabel = active ? "Pause" : "Listen";
+  const mainAction = active
+    ? t("readerAudioPlayer.pauseReading")
+    : t("readerAudioPlayer.listenToFullText");
+  const mainLabel = active
+    ? t("signedOutLanding.pause")
+    : t("textAnalyzer.listen");
   const speedIndex = READER_SPEEDS.findIndex(
     (speed) => speed.id === settings.speed,
   );
   const selectedSpeed = READER_SPEEDS[speedIndex];
   const progress =
     status === "complete"
-      ? "Finished reading"
+      ? t("readerAudioPlayer.finishedReading")
       : navigation.sentenceCount > 0
-        ? `Sentence ${navigation.sentenceIndex + 1} of ${navigation.sentenceCount}${status === "loading" ? " · Generating audio…" : status === "paused" ? " · Paused" : ""}`
+        ? t("readerAudioPlayer.sentenceValueOfValueValue", {
+            value0: navigation.sentenceIndex + 1,
+            value1: navigation.sentenceCount,
+            value2:
+              status === "loading"
+                ? t("readerAudioPlayer.generatingAudio")
+                : status === "paused"
+                  ? t("readerAudioPlayer.paused")
+                  : "",
+          })
         : "";
   const PlaybackIcon = active ? Pause : Play;
   const navigationButton = (direction: "previous" | "next") => {
@@ -808,7 +830,9 @@ export function ReaderAudioPlayer({
         ? navigation.previousChunkIndex
         : navigation.nextChunkIndex;
     const label =
-      direction === "previous" ? "Previous sentence" : "Next sentence";
+      direction === "previous"
+        ? t("readerAudioPlayer.previousSentence")
+        : t("readerAudioPlayer.nextSentence");
     const Icon = direction === "previous" ? SkipBack : SkipForward;
     return (
       <button
@@ -851,7 +875,7 @@ export function ReaderAudioPlayer({
         className={styles.controlButton}
         onClick={() => playSentence()}
         disabled={!canListen}
-        aria-label="Repeat sentence"
+        aria-label={t("readerAudioPlayer.repeatSentence")}
       >
         <RotateCcw
           className={styles.playbackIcon}
@@ -859,7 +883,7 @@ export function ReaderAudioPlayer({
           aria-hidden="true"
           focusable="false"
         />
-        Repeat
+        {t("readerAudioPlayer.repeat")}
       </button>
       {navigationButton("next")}
     </>
@@ -868,14 +892,22 @@ export function ReaderAudioPlayer({
   return (
     <section
       className={styles.player}
-      aria-label={`Listen to full text${languageName ? ` in ${languageName}` : ""}`}
+      aria-label={
+        languageName
+          ? t("readerAudioPlayer.listenToFullTextInValue", {
+              value0: t(languageLabelKey(languageName)),
+            })
+          : t("readerAudioPlayer.listenToFullText")
+      }
     >
       <div className={styles.toolbar}>
         <div className={styles.playback}>
           {hasPremium && (
             <p className={styles.progress} role="status" aria-live="polite">
               {progress ||
-                (configStatus === "loading" ? "Loading available voices…" : "")}
+                (configStatus === "loading"
+                  ? t("readerAudioPlayer.loadingAvailableVoices")
+                  : "")}
             </p>
           )}
           <div className={styles.controls}>{playbackControls}</div>
@@ -890,12 +922,15 @@ export function ReaderAudioPlayer({
                   setSpeedPopoverOpen(false);
               }}
             >
-              <span>Reading speed</span>
+              <span>{t("readerAudioPlayer.readingSpeed")}</span>
               <button
                 ref={speedButtonRef}
                 type="button"
                 className={`${styles.controlButton} ${styles.speedButton}`}
-                aria-label={`Reading speed: ${selectedSpeed.speed}× (${selectedSpeed.label})`}
+                aria-label={t("readerAudioPlayer.readingSpeedValueValue", {
+                  value0: selectedSpeed.speed,
+                  value1: t(selectedSpeed.labelKey),
+                })}
                 aria-haspopup="dialog"
                 aria-expanded={speedPopoverOpen}
                 aria-controls={speedPopoverOpen ? speedPopoverId : undefined}
@@ -908,11 +943,14 @@ export function ReaderAudioPlayer({
                 <div
                   id={speedPopoverId}
                   role="dialog"
-                  aria-label="Reading speed"
+                  aria-label={t("readerAudioPlayer.readingSpeed")}
                   className={styles.speedPopover}
                 >
                   <label>
-                    <span>Reading speed · {selectedSpeed.label}</span>
+                    <span>
+                      {t("readerAudioPlayer.readingSpeed2")}{" "}
+                      {t(selectedSpeed.labelKey)}
+                    </span>
                     <span className={styles.speedControl}>
                       <input
                         ref={speedRangeRef}
@@ -922,9 +960,9 @@ export function ReaderAudioPlayer({
                         max={READER_SPEEDS.length - 1}
                         step={1}
                         value={speedIndex}
-                        aria-label="Reading speed"
-                        aria-valuetext={`${selectedSpeed.speed}× — ${selectedSpeed.label}`}
-                        title={selectedSpeed.label}
+                        aria-label={t("readerAudioPlayer.readingSpeed")}
+                        aria-valuetext={`${selectedSpeed.speed}× — ${t(selectedSpeed.labelKey)}`}
+                        title={t(selectedSpeed.labelKey)}
                         onChange={(event) => {
                           const index = Number(event.target.value);
                           const speed = Number.isInteger(index)
@@ -939,15 +977,15 @@ export function ReaderAudioPlayer({
                           <span
                             key={speed.id}
                             className={styles.speedMark}
-                            title={speed.label}
-                            data-label={speed.label}
+                            title={t(speed.labelKey)}
+                            data-label={t(speed.labelKey)}
                           >
                             {speed.speed}×
                           </span>
                         ))}
                       </span>
                       <span className={styles.speedTooltip} aria-hidden="true">
-                        {selectedSpeed.label}
+                        {t(selectedSpeed.labelKey)}
                       </span>
                     </span>
                   </label>
@@ -955,7 +993,7 @@ export function ReaderAudioPlayer({
               )}
             </div>
             <label className={styles.voiceControl}>
-              Voice name
+              {t("readerAudioPlayer.voiceName")}
               <select
                 value={settings.voice}
                 disabled={configStatus !== "ready"}
@@ -969,7 +1007,9 @@ export function ReaderAudioPlayer({
                 }}
               >
                 {!voices.length && (
-                  <option value={settings.voice}>Loading voices…</option>
+                  <option value={settings.voice}>
+                    {t("readerAudioPlayer.loadingVoices")}
+                  </option>
                 )}
                 {voices.map((voice) => (
                   <option key={voice.id} value={voice.id}>
@@ -983,26 +1023,28 @@ export function ReaderAudioPlayer({
       </div>
       {!hasPremium ? (
         <p className={styles.premiumNotice}>
-          Full-text audio and voice settings are available with Premium.{" "}
-          <Link href="/profile">View Premium</Link>
+          {t(
+            "readerAudioPlayer.fullTextAudioAndVoiceSettingsAreAvailableWithPremium",
+          )}{" "}
+          <Link href="/profile">{t("readerAudioPlayer.viewPremium")}</Link>
         </p>
       ) : (
         <>
           {configError && (
             <p className={styles.error} role="alert">
-              {configError}{" "}
+              {t(configError.key, configError.values)}{" "}
               <button
                 type="button"
                 className={styles.retryButton}
                 onClick={() => setConfigRetry((value) => value + 1)}
               >
-                Retry voices
+                {t("readerAudioPlayer.retryVoices")}
               </button>
             </p>
           )}
           {error && (
             <p className={styles.error} role="alert">
-              {error}
+              {t(error.key, error.values)}
             </p>
           )}
         </>

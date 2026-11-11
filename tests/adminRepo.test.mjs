@@ -1,3 +1,4 @@
+import { messageErrors } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { after, test } from "node:test";
@@ -46,6 +47,7 @@ test("admin statistics execute after all migrations and count notes and enrichme
   ).outputText;
   const repo = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
     if (name === "@/lib/admin/requireAdmin")
       return {
         requireAdmin: async () => {

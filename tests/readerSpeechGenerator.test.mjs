@@ -123,8 +123,9 @@ test("native playback uses the Slower ID and label for the 0.7 multiplier", () =
     ["very-slow", "slow", "Slower", "normal", "fast"],
   );
   assert.equal(
-    readerConfig.READER_SPEEDS.find((preset) => preset.id === "Slower").label,
-    "Slower",
+    readerConfig.READER_SPEEDS.find((preset) => preset.id === "Slower")
+      .labelKey,
+    "common.slower",
   );
 });
 

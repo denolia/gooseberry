@@ -1,3 +1,4 @@
+import { MessageError } from "@/i18n/errors";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { listTranslationHistoryPage } from "@/db/translationRepo";
@@ -7,7 +8,7 @@ const HISTORY_PAGE_SIZE = 50;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function encodeHistoryCursor(cursor: TranslationHistoryCursor) {
+function encodeHistoryCursor(cursor: TranslationHistoryCursor) {
   return Buffer.from(
     JSON.stringify({
       createdAt: cursor.createdAt,
@@ -16,7 +17,7 @@ export function encodeHistoryCursor(cursor: TranslationHistoryCursor) {
   ).toString("base64url");
 }
 
-export function decodeHistoryCursor(value: string): TranslationHistoryCursor {
+function decodeHistoryCursor(value: string): TranslationHistoryCursor {
   const parsed = JSON.parse(
     Buffer.from(value, "base64url").toString("utf8"),
   ) as {
@@ -32,7 +33,7 @@ export function decodeHistoryCursor(value: string): TranslationHistoryCursor {
     typeof parsed.id !== "string" ||
     !UUID_PATTERN.test(parsed.id)
   ) {
-    throw new Error("Invalid history cursor");
+    throw new MessageError("errors.invalidHistoryCursor");
   }
 
   return { createdAt, id: parsed.id };
@@ -41,7 +42,10 @@ export function decodeHistoryCursor(value: string): TranslationHistoryCursor {
 export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -52,7 +56,7 @@ export async function GET(request: Request) {
         cursor = decodeHistoryCursor(cursorValue);
       } catch {
         return NextResponse.json(
-          { error: "Invalid history cursor" },
+          { errorCode: "errors.invalidHistoryCursor" },
           { status: 400 },
         );
       }
@@ -80,7 +84,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Error fetching history:", error);
     return NextResponse.json(
-      { error: "Failed to fetch history" },
+      { errorCode: "errors.failedToFetchHistory" },
       { status: 500 },
     );
   }

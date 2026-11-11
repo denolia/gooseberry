@@ -1,4 +1,5 @@
 "use client";
+import { MessageError } from "@/i18n/errors";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -15,7 +16,7 @@ export function useWordSets(userId?: string) {
     enabled: !!userId,
     queryFn: async (): Promise<WordSetOption[]> => {
       const response = await fetch("/api/word-sets");
-      if (!response.ok) throw new Error("Could not load sets.");
+      if (!response.ok) throw new MessageError("errors.couldNotLoadSets");
       return (await response.json()).wordSets;
     },
   });

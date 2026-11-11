@@ -1,10 +1,13 @@
+import { loadSource, messageErrors } from "./helpers/i18n.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import ts from "@typescript/typescript6";
 import { z } from "zod";
 import * as enrichment from "../src/lib/anki/enrichment.ts";
-import * as bodies from "../src/lib/http/readJson.ts";
+const bodies = loadSource(
+  new URL("../src/lib/http/readJson.ts", import.meta.url),
+);
 
 const userId = "11111111-1111-4111-8111-111111111111";
 const setId = "22222222-2222-4222-8222-222222222222";
@@ -86,6 +89,7 @@ function loadRoute({
   ).outputText;
   const exports = {};
   new Function("require", "exports", code)((name) => {
+    if (name === "@/i18n/errors") return messageErrors;
     const dependencies = {
       openai: { __esModule: true, default: Provider },
       "openai/helpers/zod": {

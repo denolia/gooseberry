@@ -1,4 +1,5 @@
 "use client";
+import { MessageError } from "@/i18n/errors";
 
 import { useCallback, useEffect, useRef } from "react";
 import type { StudyDay, StudyExposurePermission } from "@/lib/review/exposure";
@@ -30,7 +31,8 @@ async function recordPresentation<T>(
     // A stale display is still recorded by the endpoint. It must not interrupt
     // the visible exercise; queue filtering handles future siblings.
     if (response.status === 404 || response.status === 409) return null;
-    if (!response.ok) throw new Error("Could not record study exposure");
+    if (!response.ok)
+      throw new MessageError("errors.couldNotRecordStudyExposure");
     const body = await response.json();
     if (
       body.exposure?.id !== attempt.id ||
@@ -38,7 +40,7 @@ async function recordPresentation<T>(
       !body.card ||
       !body.studyDay
     ) {
-      throw new Error("Invalid study exposure response");
+      throw new MessageError("errors.invalidStudyExposureResponse");
     }
     return body as ActivatedStudyCard<T>;
   });
