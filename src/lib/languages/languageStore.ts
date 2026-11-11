@@ -67,6 +67,25 @@ function emitChange() {
 }
 
 export const LanguageStore = {
+  setLanguages(source: SourceLanguage, target: TargetLanguage) {
+    if (!isSourceLanguage(source) || !isTargetLanguage(target)) return;
+    if (
+      data.currentSourceLanguage === source &&
+      data.currentTargetLanguage === target
+    )
+      return;
+    updateStore({
+      currentSourceLanguage: source,
+      currentTargetLanguage: target,
+    });
+    try {
+      localStorage.setItem(SOURCE_LANGUAGE_STORAGE_KEY, source);
+      localStorage.setItem(TARGET_LANGUAGE_STORAGE_KEY, target);
+    } catch (error) {
+      console.error("Failed to save reader languages to localStorage", error);
+    }
+    emitChange();
+  },
   swapLanguages() {
     const { currentSourceLanguage, currentTargetLanguage } = data;
     if (

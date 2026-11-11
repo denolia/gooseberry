@@ -8,7 +8,7 @@ const HISTORY_PAGE_SIZE = 50;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function encodeHistoryCursor(cursor: TranslationHistoryCursor) {
+function encodeHistoryCursor(cursor: TranslationHistoryCursor) {
   return Buffer.from(
     JSON.stringify({
       createdAt: cursor.createdAt,
@@ -17,7 +17,7 @@ export function encodeHistoryCursor(cursor: TranslationHistoryCursor) {
   ).toString("base64url");
 }
 
-export function decodeHistoryCursor(value: string): TranslationHistoryCursor {
+function decodeHistoryCursor(value: string): TranslationHistoryCursor {
   const parsed = JSON.parse(
     Buffer.from(value, "base64url").toString("utf8"),
   ) as {

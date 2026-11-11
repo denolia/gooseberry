@@ -113,6 +113,41 @@ export const speechAudioCache = pgTable("speech_audio_cache", {
     .notNull(),
 });
 
+export const readerText = pgTable(
+  "reader_text",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    text: text("text").notNull(),
+    sourceLang: text("source_lang").notNull(),
+    targetLang: text("target_lang").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("reader_text_user_created_at_idx").on(
+      t.userId,
+      t.createdAt.desc(),
+      t.id.desc(),
+    ),
+    check(
+      "reader_text_title_length_check",
+      sql`char_length(trim(${t.title})) BETWEEN 1 AND 200`,
+    ),
+    check(
+      "reader_text_text_length_check",
+      sql`char_length(trim(${t.text})) BETWEEN 1 AND 20000`,
+    ),
+  ],
+);
+
 export const translationHistory = pgTable(
   "translation_history",
   {

@@ -1,6 +1,9 @@
 "use client";
 import {
   languageLabelKey,
+  LanguageCodes,
+  SourceLanguageOptions,
+  TargetLanguageOptions,
   getLanguageCode,
   SourceLanguage,
   SourceLanguages,
@@ -24,9 +27,10 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
-import { Languages as TranslateIcon } from "lucide-react";
+import { History, Languages as TranslateIcon, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { TranslationCard } from "@/components/anki/TranslationCard";
 import { CardDraft } from "@/app/utils/cardDraft";
 import { mapTranslationToWordSetItem } from "@/app/utils/ankiMapper";
@@ -42,6 +46,8 @@ import {
   TranslationResponseSchema,
 } from "@/app/utils/translationSchema";
 import { useLanguages } from "@/lib/languages/useLanguages";
+import { LanguageStore } from "@/lib/languages/languageStore";
+import { READER_TITLE_LIMIT, type ReaderDocument } from "@/lib/reader/library";
 import { BottomPanelLayout } from "@/components/ui/BottomPanelLayout";
 import type { ReaderTextRange } from "@/lib/audio/readerText";
 import {
@@ -50,28 +56,32 @@ import {
 } from "./ReaderAudioPlayer";
 import { AnalyzerPopover } from "./AnalyzerPopover";
 import { useReadingFollow } from "./useReadingFollow";
+import { ReaderHistoryDialog } from "./ReaderHistoryDialog";
 import styles from "./TextAnalyzer.module.css";
 
-const CACHE_KEY = "textAnalyzerState:v2";
+const LEGACY_CACHE_KEY = "textAnalyzerState:v2";
+const CACHE_KEY = "readerDraft:v1";
 const SAMPLE_TEXT =
   "Berlin liegt mit dem Auto nur 90 Minuten entfernt. Größere Städte am Ufer des Sees sind Waren und Röbel.";
 
 type CachedState = {
   text: string;
-  readerText: string;
-  editorExpanded: boolean;
-  selectedTokenIds: number[];
-  analysis?: SelectionAnalysis;
+  draftId?: string;
+  savedId?: string;
   sourceLanguage: SourceLanguage;
   targetLanguage: TargetLanguage;
 };
 
 function readCache(
+  accountId: string,
   sourceLanguage: SourceLanguage,
   targetLanguage: TargetLanguage,
 ): Partial<CachedState> {
   try {
-    const parsed = JSON.parse(localStorage.getItem(CACHE_KEY) ?? "null");
+    const scoped = localStorage.getItem(`${CACHE_KEY}:${accountId}`);
+    const parsed = JSON.parse(
+      scoped ?? localStorage.getItem(LEGACY_CACHE_KEY) ?? "null",
+    );
     if (
       !parsed ||
       parsed.sourceLanguage !== sourceLanguage ||
@@ -80,16 +90,14 @@ function readCache(
       return {};
     }
     return {
-      text: typeof parsed.text === "string" ? parsed.text : "",
-      readerText:
-        typeof parsed.readerText === "string" ? parsed.readerText : "",
-      editorExpanded: Boolean(parsed.editorExpanded),
-      selectedTokenIds: Array.isArray(parsed.selectedTokenIds)
-        ? parsed.selectedTokenIds.filter(Number.isInteger)
-        : [],
-      analysis: parsed.analysis
-        ? SelectionAnalysisSchema.parse(parsed.analysis)
-        : undefined,
+      text:
+        typeof parsed.text === "string" && parsed.text
+          ? parsed.text
+          : typeof parsed.readerText === "string"
+            ? parsed.readerText
+            : "",
+      draftId: typeof parsed.draftId === "string" ? parsed.draftId : undefined,
+      savedId: typeof parsed.savedId === "string" ? parsed.savedId : undefined,
     };
   } catch {
     return {};
@@ -141,6 +149,8 @@ function responseForCandidate(
 export function TextAnalyzer() {
   const { t } = useI18n();
   const { data: session, status } = useSession();
+  const accountId = session?.user?.id;
+  const queryClient = useQueryClient();
   const hasPremium = session?.user?.tier === "premium";
   const router = useRouter();
   const { currentSourceLanguage, currentTargetLanguage } = useLanguages();
@@ -152,7 +162,14 @@ export function TextAnalyzer() {
   const [analysis, setAnalysis] = useState<SelectionAnalysis>();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<UiMessage | null>(null);
-  const [cacheReady, setCacheReady] = useState(false);
+  const [cacheReady, setCacheReady] = useState<string>();
+  const [savedText, setSavedText] = useState<ReaderDocument | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [documentBusy, setDocumentBusy] = useState(false);
+  const [documentError, setDocumentError] = useState<UiMessage | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [title, setTitle] = useState("");
+  const [documentVersion, setDocumentVersion] = useState(0);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [popoverStage, setPopoverStage] = useState<"actions" | "translation">(
     "actions",
@@ -167,9 +184,16 @@ export function TextAnalyzer() {
   } | null>(null);
   const popoverId = useId();
   const activeRequest = useRef<AbortController | null>(null);
+  const documentRequest = useRef<AbortController | null>(null);
+  const [draftId, setDraftId] = useState<string>();
+  const savedId = useRef<string | undefined>(undefined);
+  const latestAccount = useRef(accountId);
+  const restoredAccount = useRef<string | undefined>(undefined);
+  latestAccount.current = accountId;
   const readerRef = useRef<HTMLDivElement>(null);
   const audioPlayerRef = useRef<ReaderAudioPlayerHandle>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
   const handledTextSelection = useRef(false);
   const touchSelectionTimer = useRef<number | undefined>(undefined);
   const previousLanguagePair = useRef(
@@ -178,6 +202,11 @@ export function TextAnalyzer() {
 
   const sourceCode = getLanguageCode(currentSourceLanguage);
   const targetCode = getLanguageCode(currentTargetLanguage);
+  const hasUnsavedChanges = savedText
+    ? text.trim() !== savedText.text ||
+      sourceCode !== savedText.sourceLang ||
+      targetCode !== savedText.targetLang
+    : !!text.trim();
   const tokens = useMemo(
     () => tokenizeText(readerText, sourceCode),
     [readerText, sourceCode],
@@ -238,6 +267,7 @@ export function TextAnalyzer() {
   useEffect(
     () => () => {
       activeRequest.current?.abort();
+      documentRequest.current?.abort();
       window.clearTimeout(touchSelectionTimer.current);
     },
     [],
@@ -251,44 +281,79 @@ export function TextAnalyzer() {
       document.removeEventListener("selectionchange", updateSelectionPreview);
   }, [readerText]);
   useEffect(() => {
-    const cached = readCache(currentSourceLanguage, currentTargetLanguage);
+    // Activity reconnects effects when returning to this tab, while retaining state.
+    if (restoredAccount.current === accountId) return;
+    restoredAccount.current = accountId;
+    documentRequest.current?.abort();
+    documentRequest.current = null;
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    window.clearTimeout(touchSelectionTimer.current);
+    // oxlint-disable-next-line react/set-state-in-effect -- Synchronize reader state with an external account change before restoring its draft.
+    setHistoryOpen(false);
+    setSavedText(null);
+    setRenaming(false);
+    setDocumentBusy(false);
+    setDocumentError(null);
+    setPopoverOpen(false);
+    setIsLoading(false);
+    setError(null);
+    setReadingHighlight(null);
+    setPlaybackActive(false);
+    setAudioAvailable(false);
+    setSelectedTokenIds([]);
+    setSelectionPreviewIds([]);
+    setAnalysis(undefined);
+    const languages = LanguageStore.getSnapshot();
+    const cached = accountId
+      ? readCache(
+          accountId,
+          languages.currentSourceLanguage,
+          languages.currentTargetLanguage,
+        )
+      : {};
     setText(cached.text ?? "");
-    setReaderText(cached.readerText ?? "");
-    setEditorExpanded(
-      cached.readerText ? Boolean(cached.editorExpanded) : true,
-    );
-    setSelectedTokenIds(cached.selectedTokenIds ?? []);
-    setAnalysis(cached.analysis);
-    setCacheReady(true);
-  }, []);
+    setReaderText("");
+    setEditorExpanded(true);
+    setDraftId(cached.draftId);
+    savedId.current = cached.savedId;
+    setCacheReady(accountId);
+  }, [accountId]);
   useEffect(() => {
-    if (!cacheReady) return;
+    if (!accountId || cacheReady !== accountId) return;
     try {
       localStorage.setItem(
-        CACHE_KEY,
+        `${CACHE_KEY}:${accountId}`,
         JSON.stringify({
-          text,
-          readerText,
-          editorExpanded,
-          selectedTokenIds,
-          analysis,
+          text: hasUnsavedChanges ? text : "",
+          draftId: hasUnsavedChanges ? draftId : undefined,
+          savedId: hasUnsavedChanges ? savedId.current : undefined,
           sourceLanguage: currentSourceLanguage,
           targetLanguage: currentTargetLanguage,
         } satisfies CachedState),
       );
+      localStorage.removeItem(LEGACY_CACHE_KEY);
     } catch {
       /* The analyzer also works when storage is unavailable. */
     }
   }, [
-    analysis,
+    accountId,
     cacheReady,
     currentSourceLanguage,
     currentTargetLanguage,
-    editorExpanded,
-    readerText,
-    selectedTokenIds,
+    hasUnsavedChanges,
+    savedText,
+    documentBusy,
+    draftId,
     text,
   ]);
+
+  useEffect(() => {
+    if (renaming) {
+      titleRef.current?.focus();
+      titleRef.current?.select();
+    }
+  }, [renaming]);
 
   useEffect(() => {
     const languagePair = `${currentSourceLanguage}:${currentTargetLanguage}`;
@@ -305,21 +370,171 @@ export function TextAnalyzer() {
     setError(null);
   }, [currentSourceLanguage, currentTargetLanguage]);
 
-  function openText() {
-    const value = text.trim();
-    if (!value) return;
-    activeRequest.current?.abort();
-    activeRequest.current = null;
-    window.clearTimeout(touchSelectionTimer.current);
-    setPopoverOpen(false);
-    setIsLoading(false);
-    setReaderText(value);
-    setText(value);
-    setEditorExpanded(false);
+  function resetReading() {
+    closePopover();
     setAnalysis(undefined);
     setSelectedTokenIds([]);
     setSelectionPreviewIds([]);
+    setReadingHighlight(null);
+    setPlaybackActive(false);
+    setAudioAvailable(false);
     setError(null);
+    setDocumentVersion((version) => version + 1);
+  }
+
+  function showDocument(document: ReaderDocument) {
+    const source = SourceLanguageOptions.find(
+      (language) => LanguageCodes[language] === document.sourceLang,
+    );
+    const target = TargetLanguageOptions.find(
+      (language) => LanguageCodes[language] === document.targetLang,
+    );
+    if (!source || !target)
+      throw new MessageError("errors.readerUnsupportedLanguage");
+    resetReading();
+    LanguageStore.setLanguages(source, target);
+    setSavedText(document);
+    savedId.current = document.id;
+    setDraftId(document.id);
+    setText(document.text);
+    setReaderText(document.text);
+    setEditorExpanded(false);
+    setRenaming(false);
+    setDocumentError(null);
+  }
+
+  async function openText() {
+    const value = text.trim();
+    if (!value || !accountId || documentRequest.current) return;
+    const id = savedId.current ?? draftId ?? crypto.randomUUID();
+    setDraftId(id);
+    const controller = new AbortController();
+    documentRequest.current = controller;
+    setDocumentBusy(true);
+    setDocumentError(null);
+    try {
+      const response = await fetch(
+        savedId.current ? `/api/reader-texts/${id}` : "/api/reader-texts",
+        {
+          method: savedId.current ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            ...(savedId.current ? {} : { id }),
+            text: value,
+            sourceLang: sourceCode,
+            targetLang: targetCode,
+          }),
+        },
+      );
+      const body = await response.json();
+      if (controller.signal.aborted || latestAccount.current !== accountId)
+        return;
+      if (!response.ok)
+        throw errorFromResponse(body, "errors.readerSaveFailed");
+      showDocument(body.text);
+      void queryClient.invalidateQueries({
+        queryKey: ["readerTexts", accountId],
+      });
+    } catch (cause) {
+      if (!controller.signal.aborted && latestAccount.current === accountId)
+        setDocumentError(messageFromError(cause, "errors.readerSaveFailed"));
+    } finally {
+      if (documentRequest.current === controller) {
+        documentRequest.current = null;
+        setDocumentBusy(false);
+      }
+    }
+  }
+
+  function canLeaveDocument() {
+    return (
+      (!hasUnsavedChanges &&
+        !(renaming && savedText && title.trim() !== savedText.title)) ||
+      window.confirm(t("readerHistory.discardUnsavedChanges"))
+    );
+  }
+
+  function newText(checkChanges = true, closeHistory = true) {
+    if (documentRequest.current || (checkChanges && !canLeaveDocument()))
+      return;
+    resetReading();
+    setSavedText(null);
+    setDraftId(undefined);
+    savedId.current = undefined;
+    setText("");
+    setReaderText("");
+    setEditorExpanded(true);
+    setRenaming(false);
+    setDocumentError(null);
+    if (closeHistory) {
+      setHistoryOpen(false);
+      window.requestAnimationFrame(() => editorRef.current?.focus());
+    }
+  }
+
+  async function openSavedText(id: string) {
+    if (documentRequest.current || !canLeaveDocument()) return;
+    const controller = new AbortController();
+    documentRequest.current = controller;
+    try {
+      const response = await fetch(`/api/reader-texts/${id}`, {
+        signal: controller.signal,
+      });
+      const body = await response.json();
+      if (controller.signal.aborted || latestAccount.current !== accountId)
+        return;
+      if (!response.ok)
+        throw errorFromResponse(body, "errors.readerOpenFailed");
+      showDocument(body.text);
+      setHistoryOpen(false);
+    } finally {
+      if (documentRequest.current === controller)
+        documentRequest.current = null;
+    }
+  }
+
+  async function renameText(event: React.FormEvent) {
+    event.preventDefault();
+    if (!savedText || !title.trim() || documentRequest.current) return;
+    const controller = new AbortController();
+    documentRequest.current = controller;
+    setDocumentBusy(true);
+    setDocumentError(null);
+    try {
+      const response = await fetch(`/api/reader-texts/${savedText.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({ title: title.trim() }),
+      });
+      const body = await response.json();
+      if (controller.signal.aborted || latestAccount.current !== accountId)
+        return;
+      if (!response.ok)
+        throw errorFromResponse(body, "errors.readerRenameFailed");
+      setSavedText((current) =>
+        current
+          ? {
+              ...current,
+              title: body.text.title,
+              updatedAt: body.text.updatedAt,
+            }
+          : current,
+      );
+      setRenaming(false);
+      void queryClient.invalidateQueries({
+        queryKey: ["readerTexts", accountId],
+      });
+    } catch (cause) {
+      if (!controller.signal.aborted && latestAccount.current === accountId)
+        setDocumentError(messageFromError(cause, "errors.readerRenameFailed"));
+    } finally {
+      if (documentRequest.current === controller) {
+        documentRequest.current = null;
+        setDocumentBusy(false);
+      }
+    }
   }
 
   function closePopover() {
@@ -548,7 +763,98 @@ export function TextAnalyzer() {
             <p>{t("textAnalyzer.openATextThenClickAWordOrSelectA")}</p>
           )}
         </div>
+        <button
+          type="button"
+          className={styles.historyButton}
+          disabled={documentBusy}
+          aria-haspopup="dialog"
+          onClick={() => {
+            closePopover();
+            setHistoryOpen(true);
+          }}
+        >
+          <History size={18} aria-hidden="true" />
+          {t("readerHistory.history")}
+        </button>
       </header>
+
+      {savedText && (
+        <div className={styles.documentHeading}>
+          {renaming ? (
+            <form
+              className={styles.titleForm}
+              onSubmit={(event) => void renameText(event)}
+            >
+              <input
+                ref={titleRef}
+                aria-label={t("readerHistory.textTitle")}
+                value={title}
+                maxLength={READER_TITLE_LIMIT}
+                disabled={documentBusy}
+                onChange={(event) => setTitle(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" && !documentBusy) {
+                    event.preventDefault();
+                    setRenaming(false);
+                    setDocumentError(null);
+                  }
+                }}
+              />
+              <button
+                type="submit"
+                className={styles.primaryButton}
+                disabled={documentBusy || !title.trim()}
+              >
+                {t("readerHistory.saveTitle")}
+              </button>
+              <button
+                type="button"
+                className={styles.editButton}
+                disabled={documentBusy}
+                onClick={() => {
+                  setRenaming(false);
+                  setDocumentError(null);
+                }}
+              >
+                {t("readerHistory.cancel")}
+              </button>
+            </form>
+          ) : (
+            <>
+              <h2>{savedText.title}</h2>
+              <button
+                type="button"
+                className={styles.renameButton}
+                disabled={documentBusy}
+                aria-label={t("readerHistory.renameText")}
+                title={t("readerHistory.renameText")}
+                onClick={() => {
+                  setTitle(savedText.title);
+                  setRenaming(true);
+                  setDocumentError(null);
+                }}
+              >
+                <Pencil size={16} aria-hidden="true" />
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {(text || savedText) && (
+        <p className={styles.saveStatus} role="status">
+          {documentBusy
+            ? t("premiumTierControl.saving")
+            : savedText && !hasUnsavedChanges
+              ? t("readerHistory.savedToHistory")
+              : t("readerHistory.unsavedChanges")}
+        </p>
+      )}
+      {documentError && (
+        <p className={styles.error} role="alert">
+          {t(documentError.key, documentError.values)}
+        </p>
+      )}
 
       {(editorExpanded || !readerText) && (
         <div className={styles.composer}>
@@ -561,6 +867,8 @@ export function TextAnalyzer() {
             })}
             rows={6}
             maxLength={20000}
+            aria-label={t("readerHistory.textToRead")}
+            disabled={documentBusy}
           />
           <div className={styles.composerFooter}>
             {!text && currentSourceLanguage === SourceLanguages.German && (
@@ -568,6 +876,7 @@ export function TextAnalyzer() {
                 type="button"
                 className={styles.exampleButton}
                 onClick={() => setText(SAMPLE_TEXT)}
+                disabled={documentBusy}
               >
                 {t("textAnalyzer.useAnExample")}
               </button>
@@ -576,10 +885,12 @@ export function TextAnalyzer() {
             <button
               type="button"
               className={styles.primaryButton}
-              onClick={openText}
-              disabled={!text.trim()}
+              onClick={() => void openText()}
+              disabled={!text.trim() || documentBusy || renaming}
             >
-              {t("textAnalyzer.openText")}
+              {documentBusy
+                ? t("premiumTierControl.saving")
+                : t("textAnalyzer.openText")}
             </button>
           </div>
         </div>
@@ -657,6 +968,7 @@ export function TextAnalyzer() {
                 type="button"
                 className={styles.editButton}
                 onClick={editText}
+                disabled={documentBusy}
               >
                 {t("textAnalyzer.editText")}
               </button>
@@ -789,6 +1101,19 @@ export function TextAnalyzer() {
           )}
         </>
       )}
+      {historyOpen && accountId && (
+        <ReaderHistoryDialog
+          key={accountId}
+          accountId={accountId}
+          activeId={savedId.current}
+          onOpen={openSavedText}
+          onNew={() => newText()}
+          onDeleted={(id) => {
+            if (savedId.current === id) newText(false, false);
+          }}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
     </div>
   );
 
@@ -797,6 +1122,7 @@ export function TextAnalyzer() {
       label={t("textAnalyzer.readerControls")}
       panel={
         <ReaderAudioPlayer
+          key={`${accountId}:${documentVersion}`}
           ref={audioPlayerRef}
           text={readerText}
           sourceLanguage={sourceCode}

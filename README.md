@@ -121,6 +121,11 @@ Study settings require `0012_study_set_settings.sql`; exposure protection requir
 SQL migration, including its native-review exposure backfill, before deploying
 the updated reviewer. A schema-only push does not run that backfill.
 
+Reader history requires [`0015_reader_texts.sql`](migrations/0015_reader_texts.sql)
+before deploying the updated reader. Apply it through the existing SQL migration
+workflow; development, builds and tests do not apply it to a remote database.
+See [reader history](docs/reader-history.md) for behavior and a manual UI checklist.
+
 Install/dev/build prepares the local SQL.js WASM used by the import worker.
 `ENRICHMENT_DAILY_TOKEN_LIMIT` defaults to 100,000 reserved tokens per user per
 UTC day; zero disables new generation. `OPENAI_ENRICHMENT_MODEL` optionally

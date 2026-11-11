@@ -116,6 +116,43 @@ test("blocked local storage does not prevent swapping the live language pair", (
   unsubscribe();
 });
 
+test("opening a reader document publishes both restored languages in one notification", (t) => {
+  const { store, writes } = setup(t, "German", "English");
+  const seen = [];
+  const unsubscribe = store.subscribe(() => {
+    const state = store.getSnapshot();
+    seen.push([state.currentSourceLanguage, state.currentTargetLanguage]);
+  });
+  store.setLanguages("Finnish", "Russian");
+  assert.deepEqual(seen, [["Finnish", "Russian"]]);
+  assert.deepEqual(writes, [
+    ["currentSourceLanguage", "Finnish"],
+    ["currentTargetLanguage", "Russian"],
+  ]);
+  store.setLanguages("Finnish", "Russian");
+  assert.equal(
+    seen.length,
+    1,
+    "Opening another text with the same pair does not invalidate its selection",
+  );
+  unsubscribe();
+});
+
+test("reader language restoration still notifies subscribers when local storage is blocked", (t) => {
+  const { store, storage } = setup(t, "German", "English");
+  t.mock.method(storage, "setItem", () => {
+    throw new Error("Blocked");
+  });
+  t.mock.method(console, "error", () => {});
+  let notifications = 0;
+  const unsubscribe = store.subscribe(() => notifications++);
+  store.setLanguages("Finnish", "Russian");
+  assert.equal(store.getSnapshot().currentSourceLanguage, "Finnish");
+  assert.equal(store.getSnapshot().currentTargetLanguage, "Russian");
+  assert.equal(notifications, 1);
+  unsubscribe();
+});
+
 function nodes(tree, predicate) {
   if (Array.isArray(tree))
     return tree.flatMap((child) => nodes(child, predicate));
