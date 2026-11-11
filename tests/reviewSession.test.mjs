@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "@typescript/typescript6";
+import { loadSourceModule } from "./helpers/sourceModule.mjs";
 import * as diff from "diff";
 import {
   FsrsCardState,
@@ -104,9 +105,15 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
   const focusListeners = new Set();
   const submissions = [];
   const activations = [];
+  const requests = [];
+  const invalidations = [];
   const scrolls = [];
   const router = { replace() {} };
-  const queryClient = { invalidateQueries() {} };
+  const queryClient = {
+    invalidateQueries(input) {
+      invalidations.push(input);
+    },
+  };
   const sameDeps = (left, right) =>
     left &&
     right &&
@@ -199,7 +206,8 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
     };
   };
   t.mock.method(globalThis, "fetch", async (url, requestOptions) => {
-    if (url.endsWith("/exposure")) {
+    requests.push({ url, options: requestOptions });
+    if (url.endsWith("/activate")) {
       const activation = JSON.parse(requestOptions.body);
       activations.push(activation);
       const card = knownCards.get(activation.studyCardId);
@@ -279,6 +287,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
       "@/components/ui/BottomPanelLayout": { BottomPanelLayout },
       "@/lib/review/controls": controls,
       "@/lib/review/queue": queue,
+      "@/lib/review/scope": loadSourceModule("src/lib/review/scope.ts"),
       "@/lib/review/formatInterval": { formatReviewInterval: () => "1 day" },
       "@/lib/review/retry": retries,
       "./useStudyExposure": exposureHook,
@@ -293,6 +302,8 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
   return {
     submissions,
     activations,
+    requests,
+    invalidations,
     scrolls,
     focus() {
       focusListeners.forEach((callback) => callback());
@@ -306,7 +317,11 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
     render() {
       cursor = 0;
       effects = [];
-      const tree = ReviewSession({ wordSetId: "set-1", reviewMode });
+      const tree = ReviewSession({
+        scope: options.scope ?? { kind: "sets", setIds: ["set-1"] },
+        filter: options.filter,
+        reviewMode,
+      });
       audioRefs.forEach((ref) => (ref.current = null));
       audioRefs.length = 0;
       this.audioNodes(tree).forEach((node) => {
@@ -380,6 +395,80 @@ test("each exercise shows its own prompt and reveals the expected answer", async
       assert.equal(session.submissions.length, 0);
     });
   }
+});
+
+test("selected due-only sessions keep scope on refills and switch set, direction and audio with each card", async (t) => {
+  const scope = { kind: "sets", setIds: ["set-1", "set-2"] };
+  const second = {
+    ...fixture,
+    id: "card-2",
+    wordSetId: "set-2",
+    wordSetName: "Spanish vocabulary",
+    sourceLang: "es",
+    targetLang: "de",
+    original: "casa",
+    translation: "Haus",
+    templateKey: "production",
+  };
+  const session = setup(t, [fixture, second], ReviewMode.Simple, {
+    scope,
+    filter: "due_only",
+  });
+  let tree = await session.ready();
+  assert.match(text(tree), /Finnish vocabulary/);
+  assert.match(text(tree), /FI → RU · 2 sets · Due only/);
+  assert.equal(session.audioNodes(tree)[0].props.sourceLanguage, "fi");
+  session.key(" ");
+  session.render();
+  session.key("2");
+  tree = await session.ready();
+  assert.match(text(tree), /Spanish vocabulary/);
+  assert.match(text(tree), /DE → ES · 2 sets · Due only/);
+  assert.equal(session.audioNodes(tree).length, 0);
+  session.key(" ");
+  tree = session.render();
+  assert.equal(session.audioNodes(tree)[0].props.sourceLanguage, "es");
+  assert.equal(session.audioNodes(tree)[0].props.text, "casa");
+  for (const { url, options } of session.requests) {
+    if (options?.method === "POST") {
+      assert(["/api/study/activate", "/api/study/reviews"].includes(url));
+      assert.equal(JSON.parse(options.body).wordSetId, undefined);
+    } else {
+      const search = new URL(url, "http://localhost").searchParams;
+      assert.equal(search.get("scope"), "sets");
+      assert.deepEqual(search.getAll("set"), scope.setIds);
+      assert.equal(search.get("filter"), "due_only");
+    }
+  }
+  assert(
+    session.requests.filter(({ options }) => options?.method !== "POST")
+      .length >= 2,
+  );
+  assert(
+    session.invalidations.some(({ queryKey }) => queryKey[0] === "wordSets"),
+  );
+  assert(
+    session.invalidations.some(
+      ({ queryKey }) => queryKey[0] === "studyActivity",
+    ),
+  );
+});
+
+test("due-only completion explains excluded introductions without suggesting the daily limit was consumed", async (t) => {
+  const session = setup(t, [], ReviewMode.Simple, {
+    scope: { kind: "all" },
+    filter: "due_only",
+  });
+  const tree = await session.ready();
+  assert.match(text(tree), /No more repetitions are due/);
+  assert.match(text(tree), /New exercises are excluded/);
+  assert.doesNotMatch(text(tree), /daily new-word allowance/);
+  assert.equal(
+    new URL(session.requests[0].url, "http://localhost").searchParams.get(
+      "scope",
+    ),
+    "all",
+  );
 });
 
 test("typing spaces, digits, P and Enter never triggers global shortcuts", async (t) => {

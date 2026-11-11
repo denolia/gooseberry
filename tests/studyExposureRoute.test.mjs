@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "@typescript/typescript6";
+import { loadSourceModule } from "./helpers/sourceModule.mjs";
 import { z } from "zod";
 
 function setup({ session = { user: { id: "user-1" } }, failure } = {}) {
@@ -81,6 +82,16 @@ function setup({ session = { user: { id: "user-1" } }, failure } = {}) {
         },
       },
     };
+    if (name === "@/lib/review/routes")
+      return loadSourceModule("src/lib/review/routes.ts", {
+        ...modules,
+        "@/db/studyScope": {
+          assertOwnedStudyScope: async () => {},
+          getOwnedStudyCardSet: async () =>
+            "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          StudyScopeNotFoundError: class extends Error {},
+        },
+      });
     if (!(name in modules)) throw new Error(`Unexpected dependency ${name}`);
     return modules[name];
   }, exports);
@@ -96,7 +107,9 @@ function setup({ session = { user: { id: "user-1" } }, failure } = {}) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }),
-      { params: Promise.resolve({ id: "owned-set" }) },
+      {
+        params: Promise.resolve({ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }),
+      },
     );
   return { calls, displays, submit };
 }
@@ -110,7 +123,7 @@ test("display authorization returns the card, receipt and study-zone boundary", 
   assert.equal(body.exposure.id, "22222222-2222-4222-8222-222222222222");
   assert.equal(body.studyDay.timeZone, "Europe/Berlin");
   assert.equal(body.studyDay.nextStartAt, "2026-11-11T01:00:00.000Z");
-  assert.equal(app.calls[0].wordSetId, "owned-set");
+  assert.equal(app.calls[0].wordSetId, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   assert.equal(app.calls[0].userId, "user-1");
   assert(app.calls[0].now instanceof Date);
 });
@@ -159,7 +172,10 @@ test("reported displays are recorded even when a stale prompt cannot be graded",
     assert.equal(app.displays.length, 1);
     assert.equal(app.displays[0].studyCardId, app.calls[0].studyCardId);
     assert.equal(app.displays[0].userId, "user-1");
-    assert.equal(app.displays[0].wordSetId, "owned-set");
+    assert.equal(
+      app.displays[0].wordSetId,
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    );
     assert.equal(app.displays[0].now.getTime(), app.calls[0].now.getTime());
   }
 });

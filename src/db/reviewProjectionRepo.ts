@@ -25,13 +25,14 @@ import {
   serializeFsrsState,
 } from "@/lib/review/fsrs";
 import { ReviewRatingSchema } from "@/lib/review/model";
+import { studySetCondition, type StudySetSelection } from "@/db/studyScope";
 
 // Restore replaceable caches before due queries and aggregate counts. Source
 // reviews stay in their private archive; only real Gooseberry events are replayed
 // after the canonical imported starting state. Fresh cards need no projection.
 export async function ensureReviewProjections(
   userId: string,
-  wordSetId?: string,
+  selection?: StudySetSelection,
   studyCardId?: string,
 ) {
   const candidates = await getDb()
@@ -61,7 +62,7 @@ export async function ensureReviewProjections(
     .where(
       and(
         eq(wordSet.userId, userId),
-        wordSetId ? eq(wordSet.id, wordSetId) : undefined,
+        studySetCondition(selection),
         studyCardId ? eq(studyCard.id, studyCardId) : undefined,
         or(
           ne(fsrsCardState.schedulerVersion, FSRS_SCHEDULER_VERSION),

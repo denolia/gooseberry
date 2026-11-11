@@ -14,23 +14,19 @@ export type ActivatedStudyCard<T> = {
 type Presentation = { id: string; studyCardId: string };
 
 async function recordPresentation<T>(
-  wordSetId: string,
   attempt: Presentation,
 ): Promise<ActivatedStudyCard<T> | null> {
   return withAutomaticRetries(async () => {
-    const response = await fetch(
-      `/api/word-sets/${wordSetId}/review/exposure`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          exposureId: attempt.id,
-          studyCardId: attempt.studyCardId,
-          displayed: true,
-        }),
-        keepalive: true,
-      },
-    );
+    const response = await fetch("/api/study/activate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        exposureId: attempt.id,
+        studyCardId: attempt.studyCardId,
+        displayed: true,
+      }),
+      keepalive: true,
+    });
     // A stale display is still recorded by the endpoint. It must not interrupt
     // the visible exercise; queue filtering handles future siblings.
     if (response.status === 404 || response.status === 409) return null;
@@ -50,12 +46,10 @@ async function recordPresentation<T>(
 
 export function useStudyExposure<T>({
   studyCardId,
-  wordSetId,
   onPresented,
   onRecorded,
 }: {
   studyCardId?: string;
-  wordSetId: string;
   onPresented: (studyCardId: string) => void;
   onRecorded: (result: ActivatedStudyCard<T>) => void;
 }) {
@@ -78,7 +72,7 @@ export function useStudyExposure<T>({
       if (!active || attemptRef.current !== attempt) return;
       onPresented(attempt.studyCardId);
       try {
-        const result = await recordPresentation<T>(wordSetId, attempt);
+        const result = await recordPresentation<T>(attempt);
         if (active && attemptRef.current === attempt && result)
           onRecorded(result);
       } catch {
@@ -89,7 +83,7 @@ export function useStudyExposure<T>({
     return () => {
       active = false;
     };
-  }, [getPresentation, wordSetId, onPresented, onRecorded]);
+  }, [getPresentation, onPresented, onRecorded]);
 
   const clear = useCallback(() => {
     attemptRef.current = null;
@@ -102,7 +96,7 @@ export function useStudyExposure<T>({
     if (renewalRef.current) return renewalRef.current;
     const renewal = (async () => {
       try {
-        const result = await recordPresentation<T>(wordSetId, attempt);
+        const result = await recordPresentation<T>(attempt);
         if (attemptRef.current === attempt && result) onRecorded(result);
       } catch {
         // Focus and day rollover refresh exposure without changing the prompt.
@@ -112,7 +106,7 @@ export function useStudyExposure<T>({
     });
     renewalRef.current = renewal;
     return renewal;
-  }, [studyCardId, wordSetId, onRecorded]);
+  }, [studyCardId, onRecorded]);
 
   const getPresentationId = useCallback(
     () => getPresentation()?.id ?? null,

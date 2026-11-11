@@ -7,7 +7,7 @@ the server remains the source of truth for review history and FSRS state.
 
 ## Loading the session queue
 
-The review API returns up to 20 due cards at a time. The browser keeps those
+The shared `GET /api/study/queue` API returns up to 20 eligible cards at a time for one, selected, or all owned sets. The scope and all-available/due-only filter remain attached to every refill; due-only excludes New exercises. Scheduled work is ordered globally across sets, then New cards follow fair rounds of each set's introduction/word order. The browser keeps those
 cards in memory and starts loading another batch when five cards remain.
 Twenty is a fetch size; the separate profile allowance limits new words per
 day per set. See [study order and daily limits](study-order.md).
@@ -39,7 +39,7 @@ the next scheduled repetition.
 ## Answering a card
 
 Prefetch does not mark exposure. The next prefetched card appears immediately;
-the browser marks it locally and sends `POST /api/word-sets/[id]/review/exposure`
+the browser marks it locally and sends `POST /api/study/activate`
 with `displayed: true` in the background. The same presentation UUID is reused
 for background retries. Reading, typing, reveal, rating and advancement never
 wait for exposure confirmation. Buttons stay enabled, and exposure failures are
@@ -63,7 +63,7 @@ When the learner chooses a rating, the browser synchronously:
    choice, the time spent on the card, and its client-generated `exposureId`;
 2. removes the answered card from the in-memory queue;
 3. displays the next prefetched card and starts recording its exposure; and
-4. starts the review API request in the background.
+4. starts `POST /api/study/reviews` in the background; the server derives the owned set from the card, so mixed-set answers do not depend on a single session set ID.
 
 The browser does not calculate or persist a new FSRS projection itself. The
 server validates the card and appends the canonical `review_event`,
@@ -95,6 +95,8 @@ After all automatic retries fail, the reviewer shows:
 again. `Ignore` dismisses the failure and keeps that card out of the current
 session. An ignored review is not saved. Its exposure remains durable, so a
 sensitive repetition still waits until the next study day.
+
+Successful saves invalidate set readiness and the global `studyActivity` cache namespace reserved for the upcoming rewards feature. No per-session leaf counter or activity receipt exists yet.
 
 ## Navigating away
 

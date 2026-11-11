@@ -4,6 +4,60 @@
   background: var(--surface-raised);
 }
 
+.studyActions {
+  display: grid;
+  gap: 0.75rem;
+  margin-block: 1rem;
+  padding-block: 1rem;
+  border-block: 1px solid var(--border-color);
+}
+
+.selectionActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.selectionLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.setCheckbox,
+.selectionLabel input {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+
+.setCheckbox {
+  margin-inline-end: 0.5rem;
+}
+
+.clearSelection {
+  border: 0;
+  padding: 0.5rem;
+  color: var(--text-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.studyButton:disabled {
+  border-color: var(--border-color);
+  background: var(--button-secondary-bg);
+  color: var(--text-muted);
+  cursor: default;
+  transform: none;
+}
+
 .header {
   display: flex;
   justify-content: space-between;

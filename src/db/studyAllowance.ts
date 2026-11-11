@@ -3,6 +3,8 @@ import { fsrsCardState, wordSetItem } from "@/db/schema";
 import { studyCardContentCondition } from "@/db/studyCardRepo";
 import { FsrsCardState } from "@/lib/review/model";
 import { DEFAULT_NEW_WORDS_PER_DAY } from "@/lib/review/settings";
+import { studySetCondition, studySetSelection } from "@/db/studyScope";
+import type { StudyScope } from "@/lib/review/scope";
 
 // Select a stable word cohort before applying card exclusions or fetch limits.
 // Prefetching never consumes an allowance or opens a second cohort. A word's
@@ -12,6 +14,7 @@ export function studyWordAvailabilityCondition(input: {
   userId: string;
   now: Date;
   wordSetId?: string;
+  scope?: StudyScope;
 }) {
   return or(
     // No daily cap ever hides an already-scheduled learning/review exercise.
@@ -51,7 +54,7 @@ export function studyWordAvailabilityCondition(input: {
           GROUP BY sibling.word_set_item_id
         ) native ON native.word_set_item_id = candidate.id
         WHERE owned_set.user_id = ${input.userId}
-          ${input.wordSetId ? sql`AND owned_set.id = ${input.wordSetId}` : sql``}
+          AND ${studySetCondition(studySetSelection(input), "owned_set")}
       ), used_today AS (
         SELECT word_set_id, count(*) AS used
         FROM progress CROSS JOIN settings

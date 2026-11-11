@@ -48,6 +48,12 @@ import {
 } from "@/db/studyExposureRepo";
 import { isExposureSensitive } from "@/lib/review/policy";
 import type { RatingPreview } from "@/lib/review/fsrs";
+import {
+  studyFilterCondition,
+  studySetCondition,
+  studySetSelection,
+} from "@/db/studyScope";
+import type { StudyFilter, StudyScope } from "@/lib/review/scope";
 
 const MAX_REVIEW_WRITE_ATTEMPTS = 3;
 
@@ -101,7 +107,9 @@ type ReviewCardRow = Omit<DueReviewCard, "state" | "revision"> & {
 
 export async function getNextDueReviewCard(input: {
   userId: string;
-  wordSetId: string;
+  wordSetId?: string;
+  scope?: StudyScope;
+  filter?: StudyFilter;
   now: Date;
 }): Promise<DueReviewCard | null> {
   const [card] = await getDueReviewCards({ ...input, limit: 1 });
@@ -110,19 +118,23 @@ export async function getNextDueReviewCard(input: {
 
 export async function getDueReviewCards(input: {
   userId: string;
-  wordSetId: string;
+  wordSetId?: string;
+  scope?: StudyScope;
+  filter?: StudyFilter;
   now: Date;
   limit: number;
   excludedStudyCardIds?: string[];
   studyDay?: StudyDayContext;
 }): Promise<DueReviewCard[]> {
-  await ensureStudyCards(input.userId, input.wordSetId);
-  await ensureReviewProjections(input.userId, input.wordSetId);
+  const selection = studySetSelection(input);
+  await ensureStudyCards(input.userId, selection);
+  await ensureReviewProjections(input.userId, selection);
   const day = input.studyDay ?? (await getStudyDay(input.userId, input.now));
 
   const conditions = [
     eq(wordSet.userId, input.userId),
-    eq(wordSet.id, input.wordSetId),
+    studySetCondition(selection),
+    studyFilterCondition(input.filter),
     eligibleStudyCardCondition(),
     availableStudyCardCondition(input.now),
     studyCardIntroductionCondition(input.userId),
@@ -131,19 +143,51 @@ export async function getDueReviewCards(input: {
     studyWordAvailabilityCondition(input),
     or(isNull(fsrsCardState.studyCardId), lte(fsrsCardState.dueAt, input.now)),
   ];
-  if (input.excludedStudyCardIds?.length) {
-    conditions.push(notInArray(studyCard.id, input.excludedStudyCardIds));
-  }
-
-  const rows = await baseCardQuery(input.userId)
-    .where(and(...conditions))
+  const rankedCandidates = getDb()
+    .$with("ranked_study_candidates")
+    .as(
+      getDb()
+        .select({
+          id: studyCard.id,
+          rank: sql<number>`row_number() OVER (
+        PARTITION BY ${wordSet.id}, coalesce(${fsrsCardState.state}, 0) = 0
+        ORDER BY ${exerciseIntroductionOrder()}, ${wordSetItem.position}, ${wordSetItem.id}, ${studyCard.id}
+      )`.as("candidate_rank"),
+        })
+        .from(studyCard)
+        .innerJoin(wordSetItem, eq(wordSetItem.id, studyCard.wordSetItemId))
+        .innerJoin(wordSet, eq(wordSet.id, wordSetItem.wordSetId))
+        .leftJoin(
+          fsrsCardState,
+          and(
+            eq(fsrsCardState.studyCardId, studyCard.id),
+            eq(fsrsCardState.userId, input.userId),
+          ),
+        )
+        .where(and(...conditions)),
+    );
+  const rows = await baseCardQuery(
+    input.userId,
+    false,
+    undefined,
+    undefined,
+    getDb().with(rankedCandidates),
+  )
+    .innerJoin(rankedCandidates, eq(rankedCandidates.id, studyCard.id))
+    .where(
+      input.excludedStudyCardIds?.length
+        ? notInArray(studyCard.id, input.excludedStudyCardIds)
+        : sql`true`,
+    )
     .orderBy(
       // Existing reviews keep their due-date priority. New exercises follow
       // the same introduction order for every note, regardless of position.
       sql`CASE WHEN ${fsrsCardState.studyCardId} IS NULL OR ${fsrsCardState.state} = ${FsrsCardState.New} THEN 1 ELSE 0 END`,
       sql`CASE WHEN ${fsrsCardState.state} <> ${FsrsCardState.New} THEN ${fsrsCardState.dueAt} ELSE NULL END ASC NULLS LAST`,
-      exerciseIntroductionOrder(),
-      asc(wordSetItem.position),
+      // Fair rounds preserve each set's introduction/word order. Ranking before
+      // exclusions keeps refills stable and handles sparse imported positions.
+      asc(rankedCandidates.rank),
+      asc(wordSet.id),
       asc(studyCard.id),
     )
     .limit(Math.max(1, Math.min(input.limit, 50)));
@@ -153,7 +197,9 @@ export async function getDueReviewCards(input: {
 
 export async function getNextScheduledReviewAt(input: {
   userId: string;
-  wordSetId: string;
+  wordSetId?: string;
+  scope?: StudyScope;
+  filter?: StudyFilter;
   now: Date;
   studyDay?: StudyDayContext;
 }): Promise<Date | null> {
@@ -162,7 +208,9 @@ export async function getNextScheduledReviewAt(input: {
 
 export async function getReviewQueueTiming(input: {
   userId: string;
-  wordSetId: string;
+  wordSetId?: string;
+  scope?: StudyScope;
+  filter?: StudyFilter;
   now: Date;
   studyDay?: StudyDayContext;
 }): Promise<{ nextDueAt: Date | null; exposureDeferredCount: number }> {
@@ -193,7 +241,7 @@ export async function getReviewQueueTiming(input: {
     .where(
       and(
         eq(wordSet.userId, input.userId),
-        eq(wordSet.id, input.wordSetId),
+        studySetCondition(studySetSelection(input)),
         eligibleStudyCardCondition(),
         eq(studyCard.isSuspended, false),
         sql`${fsrsCardState.state} <> ${FsrsCardState.New}`,
@@ -600,8 +648,9 @@ function baseCardQuery(
   checkIntroduction = false,
   allowanceNow?: Date,
   wordSetId?: string,
+  database: Pick<ReturnType<typeof getDb>, "select"> = getDb(),
 ) {
-  return getDb()
+  return database
     .select({
       id: studyCard.id,
       wordSetItemId: wordSetItem.id,

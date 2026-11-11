@@ -19,6 +19,11 @@ import {
 } from "@/lib/review/queue";
 import type { StudyDay } from "@/lib/review/exposure";
 import {
+  studySearchParams,
+  type StudyFilter,
+  type StudyScope,
+} from "@/lib/review/scope";
+import {
   getStudyCardTemplate,
   type StudyCardTemplateKey,
 } from "@/lib/review/templates";
@@ -66,12 +71,15 @@ type ReviewSubmission = {
 const MAX_QUEUE_EXCLUSIONS = 100;
 
 export function ReviewSession({
-  wordSetId,
+  scope,
+  filter = "all_available",
   reviewMode,
 }: {
-  wordSetId: string;
+  scope: StudyScope;
+  filter?: StudyFilter;
   reviewMode: ReviewModeValue;
 }) {
+  const scopeSearch = studySearchParams(scope, filter).toString();
   const { status } = useSession();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -228,7 +236,7 @@ export function ReviewSession({
         setLoadingMore(true);
       }
 
-      const search = new URLSearchParams();
+      const search = new URLSearchParams(scopeSearch);
       for (const studyCardId of exclusions) {
         search.append("exclude", studyCardId);
       }
@@ -236,10 +244,9 @@ export function ReviewSession({
       try {
         const encodedSearch = search.toString();
         const query = encodedSearch ? `?${encodedSearch}` : "";
-        const response = await fetch(
-          `/api/word-sets/${wordSetId}/review${query}`,
-          { cache: "no-store" },
-        );
+        const response = await fetch(`/api/study/queue${query}`, {
+          cache: "no-store",
+        });
         if (!response.ok) {
           const body = await response.json().catch(() => ({}));
           throw new Error(body.error || "Could not load the next review.");
@@ -315,7 +322,7 @@ export function ReviewSession({
         }
       }
     },
-    [acceptStudyDay, updateCards, wordSetId],
+    [acceptStudyDay, updateCards, scopeSearch],
   );
 
   const {
@@ -324,7 +331,6 @@ export function ReviewSession({
     renew: renewExposure,
   } = useStudyExposure<ReviewCard>({
     studyCardId: card?.id,
-    wordSetId,
     onPresented,
     onRecorded,
   });
@@ -335,7 +341,7 @@ export function ReviewSession({
 
       try {
         await withAutomaticRetries(async () => {
-          const response = await fetch(`/api/word-sets/${wordSetId}/review`, {
+          const response = await fetch("/api/study/reviews", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(submission),
@@ -357,6 +363,7 @@ export function ReviewSession({
         });
         pendingReviewsRef.current.delete(submission.reviewId);
         void queryClient.invalidateQueries({ queryKey: ["wordSets"] });
+        void queryClient.invalidateQueries({ queryKey: ["studyActivity"] });
       } catch {
         pendingReviewsRef.current.delete(submission.reviewId);
         updateFailedReviews((current) =>
@@ -370,7 +377,7 @@ export function ReviewSession({
         }
       }
     },
-    [loadCards, queryClient, updateFailedReviews, wordSetId],
+    [loadCards, queryClient, updateFailedReviews],
   );
 
   useEffect(() => {
@@ -602,8 +609,9 @@ export function ReviewSession({
           <p className={styles.eyebrow}>Session complete</p>
           <h1>You’re caught up</h1>
           <p>
-            No more exercises are available right now within your daily new-word
-            allowance.
+            {filter === "due_only"
+              ? "No more repetitions are due in this selection. New exercises are excluded."
+              : "No more exercises are available in this selection right now within your daily new-word allowance."}
           </p>
           {nextDueAt && (
             <p>Next review: {new Date(nextDueAt).toLocaleString()}.</p>
@@ -615,7 +623,7 @@ export function ReviewSession({
             </p>
           )}
           <Link className={styles.textLink} href="/profile">
-            Study set settings
+            Study settings
           </Link>
           <Link className={styles.primaryButton} href="/anki">
             Back to sets
@@ -710,6 +718,11 @@ export function ReviewSession({
             <h1 title={card.wordSetName}>{card.wordSetName}</h1>
             <p className={styles.languagePair}>
               {promptLanguage.toUpperCase()} → {answerLanguage.toUpperCase()}
+              {" · "}
+              {scope.kind === "all"
+                ? "All sets"
+                : `${scope.setIds.length} ${scope.setIds.length === 1 ? "set" : "sets"}`}
+              {filter === "due_only" ? " · Due only" : ""}
             </p>
           </div>
           <Link

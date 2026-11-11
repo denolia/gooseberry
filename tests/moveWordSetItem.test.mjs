@@ -42,6 +42,12 @@ async function makeItem(setId, extra = {}) {
       ...extra,
     },
   ]);
+  // Keep fresh-card due times inside this fixture's fixed clock, even when the
+  // suite runs after 11 November. New cards otherwise inherit wall-clock now().
+  await client.query(
+    "UPDATE study_card SET created_at=$1 WHERE word_set_item_id IN (SELECT id FROM word_set_item WHERE anki_note_guid=$2)",
+    [now, guid],
+  );
   return (await repo.getWordSetItems(setId)).find(
     (item) => item.ankiNoteGuid === guid,
   );

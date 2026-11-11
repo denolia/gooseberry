@@ -1,6 +1,7 @@
 import { getDb } from "@/db/drizzle";
 import { studyCard, wordSetItem } from "@/db/schema";
 import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
+import { studySetCondition, type StudySetSelection } from "@/db/studyScope";
 import {
   STUDY_CARD_TEMPLATES,
   STUDY_CARD_TEMPLATE_KEYS,
@@ -51,7 +52,10 @@ export function availableStudyCardCondition(now: Date) {
 
 // `drizzle-kit push` applies DDL but skips data migrations. Reconciliation also
 // covers those environments without creating scheduling state or replacing IDs.
-export async function ensureStudyCards(userId: string, wordSetId?: string) {
+export async function ensureStudyCards(
+  userId: string,
+  selection?: StudySetSelection,
+) {
   const templateRows = sql.join(
     STUDY_CARD_TEMPLATE_KEYS.map((key) => sql`(${key}::text)`),
     sql`, `,
@@ -64,7 +68,7 @@ export async function ensureStudyCards(userId: string, wordSetId?: string) {
     INNER JOIN word_set AS owned_set ON owned_set.id = item.word_set_id
     CROSS JOIN (VALUES ${templateRows}) AS template(key)
     WHERE owned_set.user_id = ${userId}
-      ${wordSetId ? sql`AND owned_set.id = ${wordSetId}` : sql``}
+      AND ${studySetCondition(selection, "owned_set")}
     ON CONFLICT (word_set_item_id, template_key) DO NOTHING
   `);
 }

@@ -60,12 +60,19 @@ function loadRepo({
     orderBy() {
       return this;
     },
+    as() {
+      return this;
+    },
     then(resolve, reject) {
       return Promise.resolve(rows).then(resolve, reject);
     },
     limit: async () => rows,
   });
   const db = {
+    $with: () => ({ as: () => ({ id: "id", rank: "rank" }) }),
+    with() {
+      return this;
+    },
     select(fields) {
       calls.selects += 1;
       if (Object.hasOwn(fields, "id")) calls.ownedCardReads += 1;
@@ -146,10 +153,19 @@ function loadRepo({
         lte: expression("lte"),
         notInArray: expression("notInArray"),
         or: expression("or"),
-        sql: Object.assign((strings, ...values) => ({ strings, values }), {
-          raw: (value) => value,
-          join: (values) => values,
-        }),
+        sql: Object.assign(
+          (strings, ...values) => ({
+            strings,
+            values,
+            as() {
+              return this;
+            },
+          }),
+          {
+            raw: (value) => value,
+            join: (values) => values,
+          },
+        ),
       },
       "@/lib/review/fsrs": {
         applyReview: () => nextState,
@@ -181,6 +197,11 @@ function loadRepo({
         },
       },
       "@/db/reviewProjectionRepo": { ensureReviewProjections: async () => {} },
+      "@/db/studyScope": {
+        studySetSelection: (input) => input.wordSetId,
+        studySetCondition: () => ({ op: "scope" }),
+        studyFilterCondition: () => ({ op: "filter" }),
+      },
       "@/db/studyAllowance": {
         studyWordAvailabilityCondition: () => ({ op: "allowance" }),
       },
@@ -240,7 +261,8 @@ test("reconciles missing native card identities before selecting a due card", as
     calls.executes[0].strings.join(" "),
     /INSERT INTO study_card .* ON CONFLICT/s,
   );
-  assert.equal(calls.selects, 1);
+  // The candidate CTE and the card SELECT form one executed SQL statement.
+  assert.equal(calls.selects, 2);
 });
 
 test("records the review event and state projection in one atomic batch", async () => {

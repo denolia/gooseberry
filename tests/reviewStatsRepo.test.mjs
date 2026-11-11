@@ -73,6 +73,11 @@ function loadRepo(rows) {
       },
       "@/db/reviewProjectionRepo": { ensureReviewProjections: async () => {} },
       "@/db/studyAllowance": { studyWordAvailabilityCondition: expression },
+      "@/db/studyScope": {
+        studySetSelection: () => undefined,
+        studySetCondition: expression,
+        studyFilterCondition: expression,
+      },
       "@/db/studyPolicy": { studyCardIntroductionCondition: expression },
       "@/db/studyDay": { getStudyDay: async () => ({}) },
       "@/db/studyExposurePolicy": {

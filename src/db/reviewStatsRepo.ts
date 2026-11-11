@@ -15,6 +15,12 @@ import {
   effectiveReviewDueAt,
   studyExposureAllowedCondition,
 } from "@/db/studyExposurePolicy";
+import {
+  studyFilterCondition,
+  studySetCondition,
+  studySetSelection,
+} from "@/db/studyScope";
+import type { StudyFilter, StudyScope } from "@/lib/review/scope";
 
 export type WordSetItemReviewStats = {
   wordSetItemId: string;
@@ -111,9 +117,12 @@ export async function getWordSetItemReviewStats(input: {
 export async function getWordSetReviewStats(input: {
   userId: string;
   now: Date;
+  scope?: StudyScope;
+  filter?: StudyFilter;
 }): Promise<WordSetReviewStats[]> {
-  await ensureStudyCards(input.userId);
-  await ensureReviewProjections(input.userId);
+  const selection = studySetSelection(input);
+  await ensureStudyCards(input.userId, selection);
+  await ensureReviewProjections(input.userId, selection);
   const day = await getStudyDay(input.userId, input.now);
   const rows = await getDb()
     .select({
@@ -122,6 +131,7 @@ export async function getWordSetReviewStats(input: {
       cardCount: sql<number>`count(${studyCard.id})`,
       dueCount: sql<number>`count(${studyCard.id}) FILTER (
         WHERE ${availableStudyCardCondition(input.now)}
+          AND ${studyFilterCondition(input.filter)}
           AND ${studyCardIntroductionCondition(input.userId)}
           AND ${studyExposureAllowedCondition(day)}
           AND ${studyWordAvailabilityCondition(input)}
@@ -144,7 +154,7 @@ export async function getWordSetReviewStats(input: {
         eq(fsrsCardState.userId, input.userId),
       ),
     )
-    .where(eq(wordSet.userId, input.userId))
+    .where(and(eq(wordSet.userId, input.userId), studySetCondition(selection)))
     .groupBy(wordSet.id);
 
   return rows.map((row) => ({
