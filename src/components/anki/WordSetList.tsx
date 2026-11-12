@@ -17,7 +17,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
-import { EllipsisVertical } from "lucide-react";
+import { EllipsisVertical, Plus, X } from "lucide-react";
 import styles from "./WordSetList.module.css";
 import { useLanguages } from "@/lib/languages/useLanguages";
 import { StudyPlant } from "@/components/review/StudyPlant";
@@ -161,13 +161,26 @@ export function WordSetList() {
   return (
     <div className={styles.container}>
       <div className={styles.toolbar}>
-        {wordSets.length > 0 && <StudyScopeActions sets={wordSets} />}
+        <StudyScopeActions sets={wordSets} />
         <div className={`${styles.headerActions} ${styles.managementActions}`}>
-          <Link className={styles.importButton} href="/anki/import">
+          <Link
+            className={`${styles.importButton} ${styles.expandedAction}`}
+            href="/anki/import"
+          >
             {t("wordSetList.importAnkiDeck")}
           </Link>
           <button
             className={styles.createButton}
+            aria-label={
+              showCreateForm
+                ? t("moveWordDialog.cancel")
+                : t("translationCard.newSet")
+            }
+            title={
+              showCreateForm
+                ? t("moveWordDialog.cancel")
+                : t("translationCard.newSet")
+            }
             onClick={() => {
               if (!showCreateForm) {
                 setCreateSourceLang(
@@ -180,9 +193,24 @@ export function WordSetList() {
               setShowCreateForm(!showCreateForm);
             }}
           >
-            {showCreateForm
-              ? t("moveWordDialog.cancel")
-              : t("translationCard.newSet")}
+            <span className={styles.createButtonLabel}>
+              {showCreateForm
+                ? t("moveWordDialog.cancel")
+                : t("translationCard.newSet")}
+            </span>
+            {showCreateForm ? (
+              <X
+                className={styles.createButtonIcon}
+                size={18}
+                aria-hidden="true"
+              />
+            ) : (
+              <Plus
+                className={styles.createButtonIcon}
+                size={18}
+                aria-hidden="true"
+              />
+            )}
           </button>
         </div>
       </div>
