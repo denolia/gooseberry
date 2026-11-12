@@ -5,22 +5,8 @@ import type { Ref } from "react";
 import type { WordSetOption } from "./useWordSets";
 import styles from "./WordSetPicker.module.css";
 
-export function WordSetPicker({
-  sets,
-  selectedId,
-  onSelect,
-  search,
-  onSearchChange,
-  id,
-  searchRef,
-  label,
-  disabled = false,
-  unavailableReason,
-  showLanguages = false,
-}: {
+type WordSetPickerProps = {
   sets: WordSetOption[];
-  selectedId: string;
-  onSelect: (id: string) => void;
   search: string;
   onSearchChange: (search: string) => void;
   id: string;
@@ -29,8 +15,35 @@ export function WordSetPicker({
   disabled?: boolean;
   unavailableReason?: (set: WordSetOption) => string | undefined;
   showLanguages?: boolean;
-}) {
+} & (
+  | {
+      selectionMode?: "single";
+      selectedId: string;
+      onSelect: (id: string) => void;
+    }
+  | {
+      selectionMode: "multiple";
+      selectedIds: readonly string[];
+      onToggle: (id: string) => void;
+      maxSelected?: number;
+    }
+);
+
+export function WordSetPicker(props: WordSetPickerProps) {
+  const {
+    sets,
+    search,
+    onSearchChange,
+    id,
+    searchRef,
+    label,
+    disabled = false,
+    unavailableReason,
+    showLanguages = false,
+  } = props;
   const { t } = useI18n();
+  const selectedId =
+    props.selectionMode === "multiple" ? null : props.selectedId;
   const normalized = search.trim().toLocaleLowerCase();
   const options = [...sets]
     .sort((a, b) => {
@@ -62,27 +75,60 @@ export function WordSetPicker({
       >
         {options.map((set) => {
           const reason = unavailableReason?.(set);
+          const selected =
+            props.selectionMode === "multiple"
+              ? props.selectedIds.includes(set.id)
+              : set.id === selectedId;
+          const atCapacity =
+            props.selectionMode === "multiple" &&
+            !selected &&
+            props.maxSelected !== undefined &&
+            props.selectedIds.length >= props.maxSelected;
+          const unavailable = disabled || !!reason || atCapacity;
+          const copy = (
+            <>
+              <span className={styles.name}>{set.name}</span>
+              {(showLanguages || reason) && (
+                <small className={styles.meta}>
+                  {reason ??
+                    `${set.sourceLang.toUpperCase()} → ${set.targetLang.toUpperCase()}`}
+                </small>
+              )}
+            </>
+          );
+          if (props.selectionMode === "multiple") {
+            return (
+              <label
+                key={set.id}
+                title={set.name}
+                className={`${styles.option} ${styles.checkboxOption} ${selected ? styles.selected : ""} ${unavailable ? styles.disabled : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  className={styles.checkbox}
+                  checked={selected}
+                  disabled={unavailable}
+                  aria-label={t("studyScope.selectSet", { name: set.name })}
+                  onChange={() => props.onToggle(set.id)}
+                />
+                {copy}
+              </label>
+            );
+          }
           return (
             <button
               key={set.id}
               type="button"
-              className={`${styles.option} ${set.id === selectedId ? styles.selected : ""}`}
-              aria-pressed={set.id === selectedId}
-              disabled={disabled || !!reason}
-              onClick={() => onSelect(set.id)}
+              className={`${styles.option} ${selected ? styles.selected : ""}`}
+              aria-pressed={selected}
+              disabled={unavailable}
+              onClick={() => props.onSelect(set.id)}
               title={set.name}
             >
               <span className={styles.mark} aria-hidden="true">
-                {set.id === selectedId ? "✓" : ""}
+                {selected ? "✓" : ""}
               </span>
-              <span className={styles.name}>{set.name}</span>
-              {(showLanguages || reason) && (
-                <small className={styles.meta}>
-                  {reason
-                    ? reason
-                    : `${set.sourceLang.toUpperCase()} → ${set.targetLang.toUpperCase()}`}
-                </small>
-              )}
+              {copy}
             </button>
           );
         })}

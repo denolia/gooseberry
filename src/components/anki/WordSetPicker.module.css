@@ -50,7 +50,7 @@
   cursor: pointer;
 }
 
-.list .option:hover:not(:disabled) {
+.list .option:hover:not(:disabled):not(.disabled) {
   background: var(--item-hover);
 }
 
@@ -58,9 +58,22 @@
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
-.list .option:disabled {
+.list .option:disabled,
+.list .disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.list .checkboxOption {
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+}
+
+.checkbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: inherit;
 }
 
 .mark {

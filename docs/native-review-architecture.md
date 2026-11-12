@@ -30,7 +30,7 @@ Profile study settings default to 20 new words per day per set, currently resett
 
 ## Study scopes and routes
 
-`/study?scope=all` includes every owned set across language pairs. Explicit selections use `scope=sets&set=<uuid>` with repeated `set` parameters; one ID is single-set study. Add `filter=due_only` to exclude New exercises while retaining due Learning/Review/Relearning. The library exposes all/selected actions and the due-only filter, and shows the combined per-set new-word allowance.
+`/study?scope=all` includes every owned set across language pairs. Explicit selections use `scope=sets&set=<uuid>` with repeated `set` parameters; one ID is single-set study. Add `filter=due_only` to exclude New exercises while retaining due Learning/Review/Relearning. The library toolbar offers Study all, Repeat all, and Custom study on the left, with import/create actions on the right. Button heights match, and the heading, description, and section/set separators are omitted. Custom study uses the existing native move-dialog shell and shared searchable picker with checkboxes; its footer offers Cancel, Repeat due only, and Study. The main set list has no selection checkboxes or allowance/settings description.
 
 `GET /api/study/queue` validates 1–100 explicit UUIDs, normalizes duplicates, and rejects empty, foreign, missing, or deleted selections. It reconciles the scope in bulk, applies eligibility before LIMIT, and returns global timing metadata. Search and the translation screen's language pair do not narrow the all-sets scope. Note/card identity, history, and exposure remain shared across every scope.
 

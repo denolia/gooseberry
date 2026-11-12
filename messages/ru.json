@@ -339,8 +339,6 @@
     "loading": "Загрузка…",
     "pleaseSignInToManageWordSets": "Войдите, чтобы управлять наборами слов.",
     "yourSessionCouldNotBeInitializedPleaseSignOutAnd": "Не удалось подготовить сеанс. Выйдите из аккаунта и войдите снова.",
-    "yourStudySets": "Ваши учебные наборы",
-    "saveWordsAsYouTranslateStudyRefineOrExportThem": "Сохраняйте слова при переводе. Здесь их можно учить, редактировать и экспортировать.",
     "importAnkiDeck": "Импортировать колоду Anki",
     "setNameEGGermanVerbs": "Название набора, например «Немецкие глаголы»",
     "sourceLanguage": "Исходный язык",
@@ -963,8 +961,7 @@
     "readerSaveConflict": "Не удалось сохранить текст. Создайте новый текст.",
     "readerSearchTooLong": "Поисковый запрос не должен превышать 200 символов.",
     "readerTextNotFound": "Текст не найден.",
-    "studySetsUnavailable": "Один или несколько наборов недоступны",
-    "couldNotLoadStudyLimit": "Не удалось загрузить лимит обучения"
+    "studySetsUnavailable": "Один или несколько наборов недоступны"
   },
   "common": {
     "ok": "Ок",
@@ -1078,16 +1075,9 @@
     "discardUnsavedChanges": "Отменить несохранённые изменения этого текста?"
   },
   "studyScope": {
-    "studyAllAvailable": "Учить всё доступное",
     "repeatDueOnly": "Только повторение",
-    "studySelected": "Учить выбранные ({count})",
-    "dueOnlyForSelected": "Только повторение в выбранных наборах",
-    "clearSelection": "Снять выделение",
-    "perSetLimit": "Дневной лимит новых слов применяется к каждому набору отдельно.",
-    "selectedAllowance": "Выбрано наборов: {count}. Лимит новых слов: {total} в день ({limit} на набор).",
-    "allAllowance": "Всего наборов: {count}. Лимит новых слов: {total} в день ({limit} на набор).",
     "settings": "Настройки обучения",
-    "selectionLimit": "Можно выбрать не более {limit} наборов. Действие «Учить всё доступное» включает все наборы.",
+    "selectionLimit": "Можно выбрать не более {limit} наборов.",
     "selectSet": "Выбрать {name}",
     "chooseSets": "Выберите наборы для обучения",
     "invalidSelection": "Наборы для обучения не выбраны или указаны неверно.",
@@ -1095,6 +1085,11 @@
     "noAvailable": "В выбранных наборах сейчас больше нет доступных упражнений с учётом дневного лимита новых слов.",
     "allSets": "Все наборы",
     "setCount": "{count, plural, one {# набор} few {# набора} many {# наборов} other {# набора}}",
-    "dueOnly": "Только повторение"
+    "dueOnly": "Только повторение",
+    "customStudy": "Выборочное обучение",
+    "study": "Учить",
+    "selectedCount": "{count, plural, one {Выбран # набор} few {Выбрано # набора} many {Выбрано # наборов} other {Выбрано # набора}}",
+    "studyAll": "Учить всё",
+    "repeatAll": "Повторить всё"
   }
 }

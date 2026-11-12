@@ -5,65 +5,34 @@
 }
 
 .studyActions {
-  display: grid;
-  gap: 0.75rem;
-  margin-block: 1rem;
-  padding-block: 1rem;
-  border-block: 1px solid var(--border-color);
-}
-
-.selectionActions {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem;
+  min-width: 0;
 }
 
-.selectionLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-}
-
-.setCheckbox,
-.selectionLabel input {
-  width: 1.5rem;
-  height: 1.5rem;
-  flex-shrink: 0;
-  accent-color: var(--accent);
-}
-
-.setCheckbox {
-  margin-inline-end: 0.5rem;
-}
-
-.clearSelection {
-  border: 0;
-  padding: 0.5rem;
-  color: var(--text-secondary);
-  background: transparent;
-  font: inherit;
-  font-size: 0.8rem;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.studyButton:disabled {
-  border-color: var(--border-color);
-  background: var(--button-secondary-bg);
-  color: var(--text-muted);
-  cursor: default;
-  transform: none;
-}
-
-.header {
+.toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
-  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  gap: 0.75rem 1rem;
+}
+
+.managementActions {
+  margin-inline-start: auto;
+}
+
+.toolbar .headerActions > :is(a, button) {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  padding: var(--button-padding);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 .createButton {
@@ -96,6 +65,8 @@
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 .importButton:hover {
@@ -172,7 +143,6 @@
 
 .card {
   background: var(--surface-raised);
-  border-top: 1px solid var(--border-color, #ddd);
   padding: 1rem 0;
   display: flex;
   justify-content: space-between;
@@ -239,11 +209,6 @@
     padding: var(--panel-padding);
   }
 
-  .header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .card {
     flex-direction: column;
     align-items: stretch;
@@ -255,13 +220,6 @@
   }
 }
 
-.header {
-  margin-bottom: 1rem;
-}
-.header h2 {
-  font-size: 1.35rem;
-  margin-bottom: 0.35rem;
-}
 .setMeta {
   font-size: 0.8rem;
   line-height: 1.6;
@@ -329,9 +287,6 @@
   .card {
     flex-direction: row;
     align-items: center;
-  }
-  .header {
-    align-items: flex-start;
   }
   .languageRow {
     flex-direction: row;

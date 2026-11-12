@@ -21,7 +21,6 @@ import styles from "./WordSetList.module.css";
 import { useLanguages } from "@/lib/languages/useLanguages";
 import { StudyPlant } from "@/components/review/StudyPlant";
 import { plantReadinessStage } from "@/lib/review/stats";
-import { MAX_STUDY_SETS } from "@/lib/review/scope";
 import { StudyScopeActions } from "./StudyScopeActions";
 
 interface WordSet {
@@ -45,8 +44,6 @@ export function WordSetList() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [dueOnly, setDueOnly] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createSourceLang, setCreateSourceLang] = useState<SourceLanguageCode>(
@@ -160,20 +157,11 @@ export function WordSetList() {
     );
   }
 
-  const ownedSelectedIds = selectedIds.filter((id) =>
-    wordSets.some((set) => set.id === id),
-  );
-
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <div>
-          <h2>{t("wordSetList.yourStudySets")}</h2>
-          <p className={styles.setMeta}>
-            {t("wordSetList.saveWordsAsYouTranslateStudyRefineOrExportThem")}
-          </p>
-        </div>
-        <div className={styles.headerActions}>
+      <div className={styles.toolbar}>
+        {wordSets.length > 0 && <StudyScopeActions sets={wordSets} />}
+        <div className={`${styles.headerActions} ${styles.managementActions}`}>
           <Link className={styles.importButton} href="/anki/import">
             {t("wordSetList.importAnkiDeck")}
           </Link>
@@ -254,21 +242,6 @@ export function WordSetList() {
       )}
 
       {wordSets.length > 0 && (
-        <StudyScopeActions
-          userId={session.user.id}
-          setCount={wordSets.length}
-          selectedIds={ownedSelectedIds}
-          dueOnly={dueOnly}
-          onDueOnlyChange={setDueOnly}
-          onClear={() => setSelectedIds([])}
-        />
-      )}
-      {ownedSelectedIds.length === MAX_STUDY_SETS && (
-        <p role="status" className={styles.setMeta}>
-          {t("studyScope.selectionLimit", { limit: MAX_STUDY_SETS })}
-        </p>
-      )}
-      {wordSets.length > 0 && (
         <input
           className={styles.search}
           aria-label={t("wordSetList.searchSets")}
@@ -302,23 +275,6 @@ export function WordSetList() {
               };
               return (
                 <div key={set.id} className={styles.card}>
-                  <input
-                    type="checkbox"
-                    className={styles.setCheckbox}
-                    aria-label={t("studyScope.selectSet", { name: set.name })}
-                    checked={ownedSelectedIds.includes(set.id)}
-                    disabled={
-                      !ownedSelectedIds.includes(set.id) &&
-                      ownedSelectedIds.length >= MAX_STUDY_SETS
-                    }
-                    onChange={(event) =>
-                      setSelectedIds(
-                        event.target.checked
-                          ? [...ownedSelectedIds, set.id]
-                          : ownedSelectedIds.filter((id) => id !== set.id),
-                      )
-                    }
-                  />
                   <Link
                     className={styles.cardContent}
                     href={`/anki/${set.id}/review`}

@@ -339,8 +339,6 @@
     "loading": "Loading...",
     "pleaseSignInToManageWordSets": "Please sign in to manage word sets.",
     "yourSessionCouldNotBeInitializedPleaseSignOutAnd": "Your session could not be initialized. Please sign out and sign in again.",
-    "yourStudySets": "Your study sets",
-    "saveWordsAsYouTranslateStudyRefineOrExportThem": "Save words as you translate. Study, refine, or export them here.",
     "importAnkiDeck": "Import Anki deck",
     "setNameEGGermanVerbs": "Set name (e.g., 'German Verbs')",
     "sourceLanguage": "Source language",
@@ -963,8 +961,7 @@
     "readerSaveConflict": "Could not save this text. Please start a new text.",
     "readerSearchTooLong": "Search must be 200 characters or fewer.",
     "readerTextNotFound": "Text not found.",
-    "studySetsUnavailable": "One or more study sets are unavailable",
-    "couldNotLoadStudyLimit": "Could not load your study limit"
+    "studySetsUnavailable": "One or more study sets are unavailable"
   },
   "common": {
     "ok": "Ok",
@@ -1078,16 +1075,9 @@
     "discardUnsavedChanges": "Discard your unsaved changes to this text?"
   },
   "studyScope": {
-    "studyAllAvailable": "Study all available",
     "repeatDueOnly": "Repeat due only",
-    "studySelected": "Study selected ({count})",
-    "dueOnlyForSelected": "Due only for selected sets",
-    "clearSelection": "Clear selection",
-    "perSetLimit": "The daily new-word limit applies to each set separately.",
-    "selectedAllowance": "Selected {count, plural, one {set allows} other {sets allow}} up to {total} new words per day ({limit} per set).",
-    "allAllowance": "All {count} sets allow up to {total} new words per day ({limit} per set).",
     "settings": "Study settings",
-    "selectionLimit": "You can select up to {limit} sets at once. Study all available includes every set.",
+    "selectionLimit": "Select up to {limit} sets.",
     "selectSet": "Select {name}",
     "chooseSets": "Choose study sets",
     "invalidSelection": "This study selection is invalid or empty.",
@@ -1095,6 +1085,11 @@
     "noAvailable": "No more exercises are available in this selection right now within your daily new-word allowance.",
     "allSets": "All sets",
     "setCount": "{count, plural, one {# set} other {# sets}}",
-    "dueOnly": "Due only"
+    "dueOnly": "Due only",
+    "customStudy": "Custom study",
+    "study": "Study",
+    "selectedCount": "{count, plural, one {# set selected} other {# sets selected}}",
+    "studyAll": "Study all",
+    "repeatAll": "Repeat all"
   }
 }
