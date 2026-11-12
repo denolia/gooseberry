@@ -61,16 +61,6 @@ export function StudyActivitySummary({
       aria-label={t("studyActivity.today")}
       aria-busy={!activity}
     >
-      <span
-        ref={counterRef}
-        className={styles.leafCounter}
-        role="img"
-        aria-label={leafLabel}
-        title={leafLabel}
-      >
-        <Leaf size={28} aria-hidden="true" />
-        <strong aria-hidden="true">{leaves ?? "—"}</strong>
-      </span>
       <div className={styles.leafProgress}>
         <span className={styles.fraction} aria-hidden="true">
           <strong>{activity ? progress : "—"}</strong>
@@ -100,12 +90,22 @@ export function StudyActivitySummary({
         </div>
       </div>
       <span
+        ref={counterRef}
+        className={styles.leafCounter}
+        role="img"
+        aria-label={leafLabel}
+        title={leafLabel}
+      >
+        <Leaf size={28} aria-hidden="true" />
+        <strong aria-hidden="true">{leaves ?? "—"}</strong>
+      </span>
+      <span
         className={styles.streakCounter}
         role="img"
         aria-label={streakLabel}
         title={streakLabel}
       >
-        <Flame size={18} aria-hidden="true" />
+        <Flame size={28} aria-hidden="true" />
         <strong aria-hidden="true">{activity?.currentStreak ?? "—"}</strong>
       </span>
     </section>

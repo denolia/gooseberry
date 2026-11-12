@@ -61,9 +61,10 @@ When the learner chooses a rating, the browser synchronously:
 
 1. creates a review submission with a new UUID, the rating, the time of the
    choice, the time spent on the card, and its client-generated `exposureId`;
-2. removes the answered card from the in-memory queue;
-3. displays the next prefetched card and starts recording its exposure; and
-4. starts `POST /api/study/reviews` in the background; the server derives the owned set from the card, so mixed-set answers do not depend on a single session set ID.
+2. increments the account-scoped activity cache by one provisional completion;
+3. removes the answered card from the in-memory queue;
+4. displays the next prefetched card and starts recording its exposure; and
+5. starts `POST /api/study/reviews` in the background; the server derives the owned set from the card, so mixed-set answers do not depend on a single session set ID.
 
 The browser does not calculate or persist a new FSRS projection itself. The
 server validates the card and appends the canonical `review_event`,
@@ -96,11 +97,11 @@ again. `Ignore` dismisses the failure and keeps that card out of the current
 session. Ignoring stops retries; it does not undo a write that committed before its response was lost. A review that never committed earns no credit. Its confirmed exposure remains durable, so a
 sensitive repetition still waits until the next study day.
 
-Successful saves invalidate set readiness and the global `studyActivity` query. Leaves, partial daily effort and streaks come from committed activity receipts across every scope/session. Twenty saves earn one leaf; every rating counts. Exposure alone earns nothing. The save response returns the original `activityCredit`, including on retries after rollover. Both APIs require a stable review UUID and timestamp; first writes accept timestamps up to 24 hours old or 5 minutes ahead, while committed retries remain valid indefinitely.
+Successful saves invalidate set readiness. The HUD projects a small UUID-keyed optimistic ledger over the last server activity snapshot, incrementing on a valid rating without awaiting either the save or a history fetch. Retrying the same review does not add another completion. Failed saves roll back only their own provisional credit. Activity reads are cancelled before new optimistic changes and wait until pending saves settle, so stale snapshots cannot erase clicks or double-count committed reviews. One refresh after a one-second quiet period replaces the projection with authoritative totals and clears its ledger. Focus and rollover refreshes use the same coordinator. Unknown initial totals stay unknown until the first load. Durable leaves, partial daily effort and streaks come from committed activity receipts across every scope/session. Twenty saves earn one leaf; every rating counts. Exposure alone earns nothing. The save response returns the original `activityCredit`, including on retries after rollover. Both APIs require a stable review UUID and timestamp; first writes accept timestamps up to 24 hours old or 5 minutes ahead, while committed retries remain valid indefinitely.
 
 ## Navigating away
 
-Routine saves remain silent: the reviewer adds no saving message, exit hold, unload prompt, or temporary completion heading. The next buffered exercise stays immediately usable. The fixed HUD reserves its size before activity loads and across counter changes; only confirmed progress animates. New leaves get a brief in-place pulse instead of a milestone banner or Continue/Finish prompt, with reduced-motion support. Actual failures retain a fixed Retry/Ignore notice, and activity-query errors also stay outside document flow.
+Routine saves remain silent: the reviewer adds no saving message, exit hold, unload prompt, or temporary completion heading. The next buffered exercise stays immediately usable. The fixed HUD reserves its size before activity loads and across counter changes; rating clicks animate provisional progress immediately, then reconcile silently with the server. New leaves get a brief in-place pulse instead of a milestone banner or Continue/Finish prompt, with reduced-motion support. Actual failures retain a fixed Retry/Ignore notice, and activity-query errors also stay outside document flow.
 
 Review POST requests use the Fetch API's `keepalive` option. This gives a
 small in-flight request a better chance of completing when the learner leaves

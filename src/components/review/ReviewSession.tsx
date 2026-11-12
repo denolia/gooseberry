@@ -101,7 +101,8 @@ export function ReviewSession({
   const [typedAnswer, setTypedAnswer] = useState("");
   const [error, setError] = useState<UiMessage | null>(null);
   const [failedReviews, setFailedReviews] = useState<ReviewSubmission[]>([]);
-  const activity = useStudyActivity();
+  const activity = useStudyActivity(studyDay);
+  const { addReview, startSave, completeSave, failSave } = activity;
   const cardsRef = useRef<ReviewCard[]>([]);
   const pendingReviewsRef = useRef(new Map<string, ReviewSubmission>());
   const failedReviewsRef = useRef<ReviewSubmission[]>([]);
@@ -347,8 +348,10 @@ export function ReviewSession({
   const sendReview = useCallback(
     async (submission: ReviewSubmission) => {
       pendingReviewsRef.current.set(submission.reviewId, submission);
+      startSave(submission.reviewId);
 
       try {
+        let creditedDate: string | undefined;
         await withAutomaticRetries(async () => {
           const response = await fetch("/api/study/reviews", {
             method: "POST",
@@ -361,6 +364,7 @@ export function ReviewSession({
             throw errorFromResponse(body, "errors.couldNotSaveThisReview");
           }
           const body = await response.json();
+          creditedDate = body.activityCredit?.creditedDate;
           const dueAt = (body.nextAvailableAt ?? body.state?.dueAt) as
             string | undefined;
           if (dueAt) {
@@ -371,10 +375,11 @@ export function ReviewSession({
           }
         });
         pendingReviewsRef.current.delete(submission.reviewId);
+        completeSave(submission.reviewId, creditedDate);
         void queryClient.invalidateQueries({ queryKey: ["wordSets"] });
-        void queryClient.invalidateQueries({ queryKey: ["studyActivity"] });
       } catch {
         pendingReviewsRef.current.delete(submission.reviewId);
+        failSave(submission.reviewId);
         updateFailedReviews((current) =>
           current.some(({ reviewId }) => reviewId === submission.reviewId)
             ? current
@@ -386,7 +391,14 @@ export function ReviewSession({
         }
       }
     },
-    [loadCards, queryClient, updateFailedReviews],
+    [
+      loadCards,
+      queryClient,
+      updateFailedReviews,
+      startSave,
+      completeSave,
+      failSave,
+    ],
   );
 
   useEffect(() => {
@@ -476,6 +488,7 @@ export function ReviewSession({
         ),
       };
       const remainingCards = cardsRef.current.slice(1);
+      addReview(submission.reviewId);
       presentedCardIdRef.current = null;
       clearExposure();
       updateCards(remainingCards);
@@ -494,6 +507,7 @@ export function ReviewSession({
     },
     [
       card,
+      addReview,
       clearExposure,
       getPresentationId,
       onPresented,

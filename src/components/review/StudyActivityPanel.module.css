@@ -5,8 +5,8 @@
 
 .summary {
   display: inline-grid;
-  grid-template-columns: 6rem 5rem 3rem;
-  width: 15rem;
+  grid-template-columns: 5rem 6rem 6rem;
+  width: 18rem;
   min-height: 2.25rem;
   align-items: center;
   gap: 0.5rem;
@@ -40,7 +40,9 @@
   fill: color-mix(in srgb, var(--success) 24%, transparent);
 }
 
-.leafCounter strong {
+.leafCounter strong,
+.streakCounter strong {
+  min-width: 0;
   font-size: 2rem;
   font-weight: 700;
   width: 3ch;
@@ -93,52 +95,38 @@
 }
 
 .streakCounter {
-  gap: 0.25rem;
   color: var(--warning);
-  font-size: 1rem;
 }
 
 .streakCounter svg {
   fill: color-mix(in srgb, var(--warning) 18%, transparent);
 }
 
-.streakCounter strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 @media (max-width: 640px) {
   .summary {
-    grid-template-columns: 4.75rem 4.5rem 2.75rem;
-    width: 13rem;
+    grid-template-columns: 4.5rem 4.75rem 4.75rem;
+    width: 15rem;
     min-height: 1.875rem;
   }
 
-  .leafCounter {
+  .leafCounter,
+  .streakCounter {
     gap: 0.375rem;
   }
 
-  .leafCounter svg {
+  .leafCounter svg,
+  .streakCounter svg {
     width: 1.375rem;
     height: 1.375rem;
   }
 
-  .leafCounter strong {
+  .leafCounter strong,
+  .streakCounter strong {
     font-size: 1.5rem;
   }
 
   .fraction strong {
     font-size: 0.8125rem;
-  }
-
-  .streakCounter {
-    font-size: 0.875rem;
-  }
-
-  .streakCounter svg {
-    width: 1rem;
-    height: 1rem;
   }
 }
 

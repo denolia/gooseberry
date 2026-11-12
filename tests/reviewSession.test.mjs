@@ -110,6 +110,13 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
   const activations = [];
   const requests = [];
   const invalidations = [];
+  const activityActions = { add: [], start: [], complete: [], fail: [] };
+  const activityMethods = {
+    addReview: (id) => activityActions.add.push(id),
+    startSave: (id) => activityActions.start.push(id),
+    completeSave: (id, date) => activityActions.complete.push({ id, date }),
+    failSave: (id) => activityActions.fail.push(id),
+  };
   const scrolls = [];
   const router = { replace() {} };
   const queryClient = {
@@ -298,6 +305,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
       "./useStudyExposure": exposureHook,
       "./useStudyActivity": {
         useStudyActivity: () => ({
+          ...activityMethods,
           data: options.activity?.(),
           isError: false,
         }),
@@ -316,6 +324,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
     activations,
     requests,
     invalidations,
+    activityActions,
     scrolls,
     focus() {
       focusListeners.forEach((callback) => callback());
@@ -458,11 +467,6 @@ test("selected due-only sessions keep scope on refills and switch set, direction
   );
   assert(
     session.invalidations.some(({ queryKey }) => queryKey[0] === "wordSets"),
-  );
-  assert(
-    session.invalidations.some(
-      ({ queryKey }) => queryKey[0] === "studyActivity",
-    ),
   );
 });
 
@@ -1182,6 +1186,10 @@ test("pending saves stay silent and never block the next exercise or exit", asyn
   session.key(" ");
   session.render();
   session.key("2");
+  assert.deepEqual(session.activityActions.add, [
+    session.submissions[0].reviewId,
+  ]);
+  assert.equal(session.activityActions.complete.length, 0);
   let tree = await session.ready();
   assert.doesNotMatch(
     text(tree),
@@ -1197,10 +1205,43 @@ test("pending saves stay silent and never block the next exercise or exit", asyn
   assert(text(session.render()).includes(fixture.translation));
   finish({});
   tree = await session.ready();
+  assert.equal(session.activityActions.add.length, 1);
+  assert.equal(session.activityActions.complete.length, 1);
   assert.doesNotMatch(text(tree), /review is saving/);
   assert.deepEqual(nodes(tree, (node) => node.type === "h2").map(text), [
     "next word",
     fixture.translation,
+  ]);
+});
+
+test("failed saves and retries reuse the optimistic rating identity without another increment", async (t) => {
+  let attempts = 0;
+  const session = setup(t, [fixture], ReviewMode.Simple, {
+    saveReview: () => {
+      if (++attempts === 1) throw new Error("offline");
+      return { activityCredit: { creditedDate: "2026-11-12" } };
+    },
+  });
+  await session.ready();
+  session.key(" ");
+  session.render();
+  session.key("2");
+  const failed = await session.ready();
+  const id = session.submissions[0].reviewId;
+  assert.deepEqual(session.activityActions.add, [id]);
+  assert.deepEqual(session.activityActions.fail, [id]);
+  nodes(
+    failed,
+    (node) => node.type === "button" && text(node) === "Retry",
+  )[0].props.onClick();
+  await session.ready();
+  assert.deepEqual(
+    session.submissions.map((review) => review.reviewId),
+    [id, id],
+  );
+  assert.deepEqual(session.activityActions.add, [id]);
+  assert.deepEqual(session.activityActions.complete, [
+    { id, date: "2026-11-12" },
   ]);
 });
 

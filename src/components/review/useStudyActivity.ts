@@ -4,24 +4,24 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import type { StudyActivity } from "@/lib/review/activity";
+import type { StudyDay } from "@/lib/review/exposure";
+import { getStudyActivityTracker } from "@/lib/review/activityCache";
 
-export function useStudyActivity() {
+const noop = () => {};
+
+export function useStudyActivity(day?: StudyDay | null) {
   const { data: session, status } = useSession();
   const client = useQueryClient();
   const userId = session?.user?.id;
+  const tracker = userId ? getStudyActivityTracker(client, userId) : undefined;
   const query = useQuery<StudyActivity>({
     queryKey: ["studyActivity", userId],
     enabled: status === "authenticated" && !!userId,
-    queryFn: async () => {
-      const response = await fetch("/api/study/activity", {
-        cache: "no-store",
-      });
-      if (!response.ok) throw new Error("Activity unavailable");
-      return response.json();
-    },
+    queryFn: ({ signal }) => tracker!.fetch(signal),
     staleTime: 0,
     refetchOnWindowFocus: "always",
   });
+  useEffect(() => tracker?.setDay(day ?? undefined), [day, tracker]);
   const boundary = query.data?.studyDay.nextStartAt;
   useEffect(() => {
     if (!boundary) return;
@@ -35,5 +35,11 @@ export function useStudyActivity() {
     );
     return () => clearTimeout(timer);
   }, [boundary, client, userId, query.dataUpdatedAt]);
-  return query;
+  return {
+    ...query,
+    addReview: tracker?.addReview ?? noop,
+    startSave: tracker?.startSave ?? noop,
+    completeSave: tracker?.completeSave ?? noop,
+    failSave: tracker?.failSave ?? noop,
+  };
 }
