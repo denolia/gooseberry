@@ -64,6 +64,7 @@ test("an admin profile displays its actual free tier", async () => {
     premiumGrantedAt: null,
   };
   const { getUserProfile } = loadModule("../src/db/profileRepo.ts", {
+    "@/db/studyDay": {},
     "drizzle-orm": {
       and: () => true,
       desc: () => true,

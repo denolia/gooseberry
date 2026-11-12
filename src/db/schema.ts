@@ -15,6 +15,7 @@ import {
   doublePrecision,
   primaryKey,
   smallint,
+  date,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { SerializedFsrsStateProjection } from "@/lib/review/fsrs";
@@ -59,6 +60,13 @@ export const userPreference = pgTable(
     uiLocale: text("ui_locale"),
     newWordsPerDay: integer("new_words_per_day").default(20).notNull(),
     studyTimeZone: text("study_time_zone").default("UTC").notNull(),
+    previousStudyTimeZone: text("previous_study_time_zone"),
+    previousStudyDayStartAt: timestamp("previous_study_day_start_at", {
+      withTimezone: true,
+    }),
+    studyTimeZoneEffectiveAt: timestamp("study_time_zone_effective_at", {
+      withTimezone: true,
+    }),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -424,6 +432,26 @@ export const studyExposure = pgTable(
     check("study_exposure_state_check", sql`${t.stateBefore} BETWEEN 0 AND 3`),
     check("study_exposure_reps_check", sql`${t.repsBefore} >= 0`),
   ],
+);
+
+// Immutable credit, independent of content and replaceable scheduler history.
+// Attribution UUIDs deliberately have no content foreign keys.
+export const studyActivity = pgTable(
+  "study_activity",
+  {
+    reviewId: uuid("review_id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    completedAt: timestamp("completed_at", { withTimezone: true }).notNull(),
+    creditedDate: date("credited_date").notNull(),
+    studyTimeZone: text("study_time_zone").notNull(),
+    templateKey: text("template_key").notNull(),
+    studyCardId: uuid("study_card_id").notNull(),
+    wordSetItemId: uuid("word_set_item_id").notNull(),
+    wordSetId: uuid("word_set_id").notNull(),
+  },
+  (t) => [index("study_activity_user_date_idx").on(t.userId, t.creditedDate)],
 );
 
 // Separate from saved history: unsuccessful calls may still consume tokens.

@@ -31,6 +31,7 @@ function loadRoute({ session = { user: { id: "user-1" } }, card = null } = {}) {
     const mocks = {
       "next/server": { NextResponse: Response },
       "@/auth": { auth: async () => session },
+      "@/db/studyActivityRepo": { getStudyActivityCredit: async () => null },
       "@/db/reviewRepo": {
         ...errors,
         getReviewQueueTiming: async () => ({
@@ -188,4 +189,30 @@ test("review routes require authentication and reject invalid ratings", async ()
   );
   assert.equal(invalidResponse.status, 400);
   assert.equal(invalid.calls.record.length, 0);
+});
+
+test("native saves require stable review IDs and timestamps", async () => {
+  const { route, calls } = loadRoute();
+  const valid = {
+    reviewId: "22222222-2222-4222-8222-222222222222",
+    studyCardId: "11111111-1111-4111-8111-111111111111",
+    exposureId: "33333333-3333-4333-8333-333333333333",
+    rating: 3,
+    reviewedAt: new Date().toISOString(),
+  };
+  for (const field of ["reviewId", "reviewedAt"]) {
+    const body = { ...valid };
+    delete body[field];
+    const response = await route.POST(
+      new Request(
+        "http://localhost/api/word-sets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/review",
+        { method: "POST", body: JSON.stringify(body) },
+      ),
+      {
+        params: Promise.resolve({ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }),
+      },
+    );
+    assert.equal(response.status, 400);
+  }
+  assert.equal(calls.record.length, 0);
 });

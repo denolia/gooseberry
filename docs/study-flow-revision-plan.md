@@ -1,71 +1,95 @@
-# Study flow: implementation state and remaining plan
+# Study flow: implementation state
 
-Updated **12 November 2026**. This document replaces the original 9 November audit and its superseded proposals with the implemented behavior and remaining work. Steps 1–3 are complete; rewards, history, and streaks remain in step 4.
+Updated **12 November 2026**. All four revision steps are implemented. This document describes the current contract and deployment requirements; superseded proposals and historical validation checkpoints have been removed.
 
 ## Implementation checklist
 
 1. [x] Recognition first, production second.
 2. [x] Note exposure and the 2 am repetition gate, with immediate client transitions.
 3. [x] Study one, selected, or all sets; due-only filtering.
-4. [ ] Leaves, durable daily activity, history, and streaks.
+4. [x] Leaves, durable daily activity, history, streaks, and completion messaging.
 
-### Step 1 — Introduction order: complete
+## Step 1 — Introduction order
 
 A genuinely new note starts with recognition (source → target). Its first saved introduction unlocks production (target → source); saving production unlocks typing, forms, and examples. These introductions may happen on the same day. A due Learning return can appear before the next New introduction; recognition need not graduate before production is introduced.
 
-Queues, ready counts, and submissions enforce saved prerequisites. Short batches, exclusions, missing content, suspension, or burial cannot bypass them. Existing studied/imported exercises retain their progress. Native history and import baselines restore missing/outdated FSRS projections without inventing reviews. A refill requested during an older fetch runs after it finishes so newly unlocked siblings become available promptly.
+Queues, counts, and submissions enforce saved prerequisites before batching or exclusions. Missing content, suspension, burial, and short batches cannot bypass them. Existing studied/imported exercises retain their progress. Native history and import baselines restore projections without inventing reviews. A refill requested during an older fetch runs after it finishes so newly unlocked siblings appear promptly.
 
-Implementation: [policy order](../src/lib/review/policy.ts), [SQL prerequisites](../src/db/studyPolicy.ts), [queue/submission](../src/db/reviewRepo.ts), and [regression coverage](../tests/studyIntroduction.test.mjs).
+Implementation: [policy](../src/lib/review/policy.ts), [SQL prerequisites](../src/db/studyPolicy.ts), [scheduler repository](../src/db/reviewRepo.ts), [regressions](../tests/studyIntroduction.test.mjs).
 
-### Step 2 — Exposure and immediate transitions: complete
+## Step 2 — Exposure and immediate transitions
 
-**Confirmed policy:** New/Learning are initial learning; Review/Relearning are repetition for exposure filtering. Every displayed card attempts to record exposure. Only recognition, production, and typing in Review/Relearning defer after any prior exposure of that note during the current study day. New/Learning and forms/examples bypass the gate but still contribute exposure. Only New shows Ok; the existing grading controls are unchanged.
+Every displayed card attempts to record note exposure. Only recognition, production, and typing in Review/Relearning defer after any prior exposure of that note in the current study day. New/Learning and forms/examples bypass the gate but still contribute exposure. A 10-minute Learning return stays eligible; a sensitive Review → Again/Relearning return waits until the next day. Stored FSRS due dates remain unchanged. Effective availability also respects burial and exposure reset.
 
-Exposure resets at **2 am in the saved study time zone**, default UTC, rather than after a rolling 24 hours. Resolve local boundaries through PostgreSQL: a nonexistent spring 2 am moves past the gap; an ambiguous fall 2 am uses the later occurrence. A 10-minute Learning return remains eligible when due. A sensitive Review → Again/Relearning return after exposure waits until the next study day. Stored FSRS due dates are preserved; effective availability also respects burial and the exposure reset.
+The note's `last_exposed_at` is the eligibility source. Minimal `study_exposure` receipts authorize one saved completion per presentation and identify retries. Prefetch does not mark exposure. The browser displays buffered prompts immediately, filters waiting sensitive siblings locally, and records displays in the background. Reading, typing, reveal, rating, and advancement never wait for exposure confirmation. Late responses never replace a prompt or clear input. Focus and rollover refresh eligibility while preserving the answer.
 
-The note's `lastExposedAt` is the eligibility source. Minimal `study_exposure` receipts identify presentation retries and allow one completion per presentation. All types share the same note marker, including displays with no saved grade. No separate note-day table or exposure-history scan is needed.
+Cross-device exclusion of already-buffered cards is best effort. A stale display still records actual exposure. A grade can create its missing presentation receipt without consulting prior exposure, while ownership, prerequisites, due/state, allowance, presentation consumption, and revision checks still protect saves. Confirmed exposure survives abandoned/failed grades. An unconfirmed ungraded display can be lost on close.
 
-Queues apply eligibility before their 20-card limit and choose one sensitive repetition per note before exclusions. The browser shows the active buffered card immediately, marks its note locally, filters waiting sensitive siblings and stale refill responses, and records its display in the background. Prefetch does not mark exposure. Reading, typing, reveal, rating, and advancement never wait for confirmation. Exposure errors are silent; late responses do not replace the prompt or clear input. Focus and 2 am refresh visibility and eligibility while preserving the answer.
+Implementation: [day resolution](../src/db/studyDay.ts), [SQL gate](../src/db/studyExposurePolicy.ts), [persistence](../src/db/studyExposureRepo.ts), [client hook](../src/components/review/useStudyExposure.ts), [regressions](../tests/studyExposure.test.mjs).
 
-This immediate flow is the user's explicit choice after the original strict-before-display implementation (`39b5223`). **Cross-device exclusion of already-buffered cards is best effort.** A stale reported display still records actual exposure. A lost marker request does not prevent saving its rating: the grade can create the missing receipt without consulting prior exposure. Confirmed exposure remains after failed/abandoned grades; an unconfirmed ungraded display can be lost on close. Ownership, due/state, prerequisites, allowance, presentation consumption, and write-conflict checks still protect saves.
+## Step 3 — One, selected, or all sets
 
-Activation repairs only the active card's projection; only New recognition checks its set's unseen cohort. Exposure invalidates cached readiness without refetching the library per display. Grades atomically append the event, update the FSRS projection, consume the receipt, and renew exposure using Neon HTTP batches.
-
-Implementation: [migration/backfill](../migrations/0013_study_exposure.sql), [study-day resolution](../src/db/studyDay.ts), [SQL gate/effective availability](../src/db/studyExposurePolicy.ts), [exposure persistence](../src/db/studyExposureRepo.ts), [client hook](../src/components/review/useStudyExposure.ts), and [database coverage](../tests/studyExposure.test.mjs).
-
-**Deployment:** apply all of `0013_study_exposure.sql` before using the exposure-aware reviewer, including the native-review backfill omitted by a schema-only push. Imported source logs and historical ungraded displays do not seed exposure. No external database was migrated during this work. The new-word allowance still resets at midnight; aligning it to 2 am remains a product decision.
-
-### Step 3 — One, selected, or all sets: complete
-
-The common [study page](../src/app/study/page.tsx) and [shared handlers](../src/lib/review/routes.ts) use the existing scheduler for every scope:
+The shared [study page](../src/app/study/page.tsx) and [handlers](../src/lib/review/routes.ts) use the same scheduler for every scope:
 
 ```ts
 type StudyScope = { kind: "all" } | { kind: "sets"; setIds: string[] };
 type StudyFilter = "all_available" | "due_only";
 ```
 
-- `/study?scope=all` studies every owned set, across language pairs.
-- `/study?scope=all&filter=due_only` includes due Learning/Review/Relearning and excludes missing or persisted FSRS New projections.
-- `/study?scope=sets&set=<uuid>&set=<uuid>` studies an explicit selection; `filter=due_only` also applies here. A one-ID selection is single-set study.
-- `GET /api/study/queue` validates scope/filter/exclusions, returns up to 20 eligible cards and effective timing/day metadata.
-- `POST /api/study/activate` records a presentation; `POST /api/study/reviews` saves a rating. Both derive the owned set from the card, rather than trusting a session's single set ID.
-- Existing `/anki/[id]/review` URLs and `/api/word-sets/[id]/review[/exposure]` endpoints remain wrappers. Legacy API mutations retain their set constraint.
+- `/study?scope=all` includes all owned sets across language pairs.
+- `/study?scope=sets&set=<uuid>&set=<uuid>` studies a selection. One ID is single-set study.
+- `filter=due_only` excludes missing or persisted FSRS New projections; due Learning/Review/Relearning remain eligible.
+- `GET /api/study/queue` returns up to 20 cards with effective timing and day metadata.
+- `POST /api/study/activate` records presentations; `/api/study/reviews` saves ratings. Both derive the owned set from the card.
+- Legacy `/anki/[id]/review` pages and single-set APIs remain wrappers; legacy mutations keep their set constraint.
 
-Explicit selections require 1–100 UUIDs. Duplicate IDs are normalized, including case, without multiplying work; the size cap applies before deduplication. Invalid or empty selections return 400; any foreign, missing, or deleted selected set returns 404. A valid empty set produces an empty queue. An explicit empty list never widens to all sets, including during identity/projection reconciliation. Exclusions require UUIDs and are capped at 100.
+Explicit selections require 1–100 UUIDs, with the cap before case-insensitive deduplication. Invalid/empty selections return 400; foreign, missing, or deleted selected sets return 404. Valid empty sets return an empty queue. An empty selection never widens to all. Exclusions require UUIDs and are capped at 100.
 
-One SQL candidate query applies ownership, content, suspension/burial, saved introduction prerequisites, due time, independent per-set allowances, and exposure policy before LIMIT. Due scheduled cards are globally ordered by due time across sets. New cards follow fair rounds of each set's eligible introduction/word order, with stable set/card tie breakers. Ranking and unseen cohorts precede exclusions, so refills cannot open extra unseen words. Selected-subset reconciliation uses array predicates rather than separate per-set queues.
+One candidate query applies ownership, content, suspension/burial, prerequisites, due time, independent per-set allowances, and exposure before LIMIT. Scheduled work is globally ordered by due time; New work follows fair rounds of each set's introduction/word order with stable tie breakers. Ranking and unseen cohorts precede exclusions. Five fresh sets can still admit 100 words at the default 20 per set; there is no user-wide new-word allowance.
 
-The library toolbar offers **Study all**, **Repeat all**, and **Custom study** on the left, with **Import Anki deck** and **New set** on the right. It replaces the heading/description, uses matching button heights, and omits section/set divider lines. Custom study opens a native modal using the existing move-dialog shell and searchable set picker, extended with checkboxes. It lists all owned sets regardless of the main library search. Its footer has **Cancel**, **Repeat due only**, and **Study**; both study actions require a nonempty selection, and search preserves selections. Cancel/Escape dismiss without navigating and return focus to the trigger. The main set view has no selection checkboxes or allowance/settings description. Per-set allowances remain independent: five fresh sets can still admit up to 100 words at the default of 20 per set. There is no new user-wide allowance.
+The library has Study all, Repeat all, and Custom study alongside import/create actions. Custom study uses the native modal and searchable checkbox picker, lists all owned sets, preserves selection during search, and requires a nonempty selection. Cancel/Escape return focus to the trigger. The reviewer preserves scope/filter and the current prompt on refills, shows the current set/direction, and uses each card's source language for audio. Note UUIDs retain their schedules, exposure, and history in every scope. Identical text saved as separate notes remains independent.
 
-`ReviewSession` takes scope/filter, preserves them on refills, and keeps the active card stable. Its header shows the current set, actual exercise direction, scope size/all sets, and due-only mode. Pronunciation uses the current card's source language. The completion message explains when New exercises were excluded. Successful grades invalidate set readiness and the global `studyActivity` cache namespace reserved for step 4; exposure only invalidates readiness. No session-local reward counter was introduced. Leaves and the activity endpoint do not exist yet.
+Implementation: [scope contract](../src/lib/review/scope.ts), [ownership](../src/db/studyScope.ts), [queue](../src/db/reviewRepo.ts), [library controls](../src/components/anki/StudyScopeActions.tsx), [dialog](../src/components/anki/CustomStudyDialog.tsx), [scope regressions](../tests/studyScopes.test.mjs).
 
-Note UUIDs retain the same schedules, history, and exposure across all scopes. Identical text saved as separate notes remains independent; cross-set text deduplication is outside this revision.
+## Step 4 — Leaves and durable activity
 
-Implementation: [scope validation/URLs](../src/lib/review/scope.ts), [owned scope/card resolution](../src/db/studyScope.ts), [shared queue](../src/db/reviewRepo.ts), [scope-aware counts](../src/db/reviewStatsRepo.ts), [library actions](../src/components/anki/StudyScopeActions.tsx), [custom study dialog](../src/components/anki/CustomStudyDialog.tsx), [reviewer](../src/components/review/ReviewSession.tsx), and [scope regression coverage](../tests/studyScopes.test.mjs). No schema migration is needed for step 3.
+| Item                  | Implemented rule                                                                                      |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| Completion            | One successfully committed native review/introduction, across all sets and exercise types             |
+| Included              | New-card Ok, Again/No, every other saved rating, genuinely due repeats                                |
+| Excluded              | Fetch/reveal/display alone, rolled-back writes, duplicate retries, imported logs, projection rebuilds |
+| Leaf size             | 20 completions                                                                                        |
+| Daily leaves/progress | `floor(todayCompletions / 20)` and `todayCompletions % 20`                                            |
+| Scope                 | User-wide across sets, selections, sessions, and devices                                              |
+| Partial chunks        | Reset when the credited calendar date advances; no carryover                                          |
+| Streak qualification  | Any saved completion; no full leaf required                                                           |
+| Spending              | Earned totals only; no wallet                                                                         |
 
-## Current exercise and scheduling contract
+Twelve saves in set A plus fifteen in B yield 27 today: one leaf and 7/20 toward the next. Again counts effort. Earned full leaves remain in the lifetime total after rollover. Partial days appear in history and qualify for streaks.
 
-A note owns five stable exercise identities. Missing content hides dependent exercises without deleting their history. A basic note with source/translation has three exercises; complete notes can have five.
+`study_activity` stores one immutable receipt per original review UUID, with user, server-accepted completion time, credited date, time-zone snapshot, template, and content-attribution UUID snapshots. Content UUIDs have no foreign keys: deleting or moving notes/sets cannot revoke credit. Account deletion cascades. The activity insert, native event, FSRS update, receipt consumption, and renewed exposure commit in the same Neon HTTP batch. Thresholds are derived from receipt counts, so concurrent saves cannot create duplicate awards or a second wallet balance.
+
+Both native save APIs require stable `reviewId` and `reviewedAt`. First writes accept scheduler timestamps up to 24 hours old or 5 minutes ahead of server time. Credit always uses server acceptance time. Already-committed UUID retries are checked before this window and retain their original credit indefinitely, including after rollover. A changed card/rating/timestamp on the same review UUID conflicts. The response includes the original `activityCredit`; replay never creates activity.
+
+### One shared day and time-zone changes
+
+Exposure, new-word allowances, rewards, and streaks use resolved **2 am in the saved study time zone**, default UTC. PostgreSQL moves nonexistent spring 2 am past the gap and uses the later occurrence of ambiguous fall 2 am. The allowance uses accepted activity time for new saves, with native review time as a fallback for legacy history.
+
+A requested time-zone change takes effect at the current day's next boundary. Until then the previous zone and active day start remain effective. At transition, the new day starts at that boundary and ends at the next resolved 2 am in the new zone. The transition day can be shorter. Repeated preference saves do not postpone a pending change; successive changes preserve a clipped active day.
+
+Credited dates use the effective zone's local calendar date associated with its resolved 2 am. Existing receipts never move. Travel can repeat a date, which merges counts without granting an extra streak day, or skip a date, which breaks calendar continuity. On a repeated date, partial progress remains associated with that date. Streaks use unique credited dates; if today is empty but yesterday was active, the current streak lasts until today ends. Future dates from earlier travel do not extend today's streak. Lifetime leaves still include all credited dates.
+
+### API and UI
+
+`GET /api/study/activity?days=365` requires authentication and accepts 1–365 dates, default 365. It returns a bounded, zero-filled calendar, today's completions/leaves/partial progress, lifetime earned leaves, current/longest streaks, and the shared study-day context. The response is private and uncached. SQL computes lifetime summaries from indexed receipts; no daily aggregate table or wallet is needed.
+
+The library shows saved daily progress and an expandable history view. Heatmap intensity uses completions, with date/count tooltips and a keyboard-accessible daily table including zero days. The reviewer shows confirmed global progress in a compact header HUD: a prominent green leaf counter, `n / 20` above a short thin progress bar, and an icon/count for the streak. Routine explanatory copy is hidden from the visual HUD; localized accessible names and hover labels retain its meaning. On narrow screens the HUD occupies a second header row. Confirmed progress advances with a short transform transition. A newly observed leaf increase gets a brief, local counter pulse, with gentler reduced-motion feedback. No milestone banner or Continue/Finish prompt interrupts studying. HUD dimensions stay reserved during loading and counter changes; a new leaf/day resets the bar without animating backwards. Loading/error states do not invent rewards. English and Russian catalogs cover the new UI.
+
+Successful saves invalidate readiness and `studyActivity`; displays invalidate only readiness. Activity refreshes on focus and rollover. Routine saves stay silent in the background, with no saving message, completion-heading swap, exit hold, or unload prompt. Buffered-card advancement never awaits saving. Failed saves retain a fixed Retry/Ignore notice; activity errors also appear outside document flow, so notices cannot push the card down. Ignoring an unconfirmed response does not undo a write that actually committed. The completion screen distinguishes due-only exclusions, exposure deferral, future due times, exhausted new-word allowances, and partial effort.
+
+Implementation: [migration/backfill](../migrations/0016_study_activity.sql), [activity repository](../src/db/studyActivityRepo.ts), [endpoint](../src/app/api/study/activity/route.ts), [query hook](../src/components/review/useStudyActivity.ts), [history/progress](../src/components/review/StudyActivityPanel.tsx), [reviewer](../src/components/review/ReviewSession.tsx), [database regressions](../tests/studyActivity.test.mjs), [UI regressions](../tests/studyActivityPanel.test.mjs).
+
+## Exercise and scheduling contract
 
 | Key           | Prompt → answer                     | Required content       |
 | ------------- | ----------------------------------- | ---------------------- |
@@ -75,98 +99,32 @@ A note owns five stable exercise identities. Missing content hides dependent exe
 | `word_forms`  | Source word → word forms            | Source and forms       |
 | `example`     | Translated example → source example | Both example sentences |
 
-Each exercise retains its independent FSRS state/history. Typing comparison is feedback; the learner chooses the rating. Forms and examples can expose related content, and revealed answers may show forms, example pairs, and comments. This is why all displays contribute note exposure.
+Each exercise has independent FSRS memory/history. Missing content hides exercises without deleting identities. Typing comparison provides feedback; the learner chooses the rating. Forms, examples, and answer context can expose related content, so all displayed types contribute note exposure. Due work precedes New introductions. Learning/Review/Relearning use global due-time order without extra short-step priority. All-available never pulls future work forward.
 
-Due work precedes New introductions. Learning, Review, and Relearning use global due-time order; there is no additional short-step priority. Imported baselines and native history restore projections before selection. New material must be due/eligible and obey its set's allowance; all-available does not pull future work forward. Import suspension/burial and saved prerequisites remain effective in every scope.
+## Deployment
 
-```mermaid
-flowchart TD
-    A[One, selected, or all owned sets] --> B[Validate scope and filter]
-    B --> C[Reconcile selected identities and projections]
-    C --> D[Apply content, due, allowance, introduction and exposure policy]
-    D --> E[Globally order due work, then fair New rounds]
-    E --> F[Apply exclusions and return up to 20 cards]
-    F --> G[Display active prompt immediately and filter local siblings]
-    G --> H[Record display in background]
-    G --> I[Reveal and rate]
-    I --> J[Advance immediately and save grade in background]
-    J --> K[Atomic event, FSRS projection and receipt consumption]
-    K --> F
-```
+Apply **all of [0016_study_activity.sql](../migrations/0016_study_activity.sql)** before deploying step 4. A schema-only push omits its native-history backfill. The backfill is idempotent, includes only retained native reviews owned by the note owner, and resolves historical 2 am using the saved zone at migration time. Historical zone snapshots and deleted reviews are unavailable, so those credits are approximate/incomplete. Imports, source logs, and ungraded displays earn nothing.
 
-## Remaining work
+Earlier prerequisites remain: complete [0013](../migrations/0013_study_exposure.sql), including its exposure backfill, and intervening migrations. No external database was migrated during implementation.
 
-### Step 4a — Leaves and durable activity
+## Separate follow-ups
 
-These are proposed defaults, not implemented rewards:
-
-| Item                  | Proposed rule                                                                                   |
-| --------------------- | ----------------------------------------------------------------------------------------------- |
-| Completion            | One successfully saved native review/introduction, across every set/type                        |
-| Included              | New-card Ok, Again/No, other saved ratings, genuinely due repeats                               |
-| Excluded              | Fetch/reveal only, failed/ignored writes, duplicate retries, imported logs, projection rebuilds |
-| Leaf size             | 20 saved completions                                                                            |
-| Scope                 | User-wide across sets, selected scopes, and sessions                                            |
-| Daily leaves/progress | `floor(todayCompletions / 20)` and `todayCompletions % 20`                                      |
-| Daily boundary        | Proposed alignment to resolved 2 am in the saved study zone                                     |
-| Partial chunks        | Proposed daily reset; carryover remains undecided                                               |
-| Streak qualification  | Proposed any saved completion; no full leaf required                                            |
-
-For example, 12 completions in set A and 15 in B yield 27 today: one leaf and 7/20. Again counts effort, avoiding incentives to inflate ratings. An abandoned exposure earns nothing.
-
-Add `study_activity`, one receipt per native completion, unique by original `reviewId`. Store user, server-accepted completion time, immutable credited date, time-zone snapshot, template key, and optional note/set snapshots or nullable attribution. Activity must survive note/set deletion; account deletion may cascade. Review events currently cascade with deleted content, so surviving FSRS history alone cannot preserve earned effort.
-
-Require a stable review UUID in the new contract (currently optional at the API). Append the event, FSRS update, presentation consumption, and activity receipt in the same atomic Neon HTTP batch. Validate any retained client scheduler timestamp against an agreed skew policy. A retry after rollover must return its original credited day. Imported progress, replay, and failed writes never award activity.
-
-Start with indexed receipts and bounded activity queries, including `GET /api/study/activity`. Add daily aggregates only if measurements justify them. Earned leaves need no wallet while there is no spending. If spending is introduced, add an idempotent wallet ledger with unique award ordinals and atomic debits.
-
-**Acceptance:** 19 → 20 → 21 and 39 → 40 saves yield correct global progress across sets/sessions. Retries count once, failures zero, concurrent thresholds award once, deleting a set retains rewards, and imports/rebuilds award none.
-
-### Step 4b — History, streaks, and completion messaging
-
-Return a bounded, zero-filled calendar range, such as 365 study dates, with completion counts and leaves. Use completions for heatmap intensity so partial-leaf days remain visible; provide text/tooltips and an accessible list/table equivalent.
-
-Calculate current and longest streaks from credited calendar dates. If today is still empty but yesterday was active, retain the current streak until today ends. Snapshot day/time-zone attribution so preference changes do not rewrite history. Define and test the effectiveness of study-zone changes, including travel and DST; proposed policy is at the next boundary with one shared day context.
-
-Leaf milestones should offer Continue/Finish without discarding buffered work. Completion/waiting messages should distinguish exposure deferral, future due times, exhausted allowance, due-only filtering, and partial daily effort. Pending saves must remain visibly pending before exit; confirmed rewards survive reload. Update the current behavior sections of the companion study docs as rewards ship.
-
-**Acceptance:** zero/partial/full-leaf days, 2 am rollover/DST, yesterday-active streaks, and rejoining partial progress behave as agreed. Durable activity remains global when study scopes change.
-
-### Decisions before step 4
-
-| Decision             | Suggested default                                 | Alternative                                 |
-| -------------------- | ------------------------------------------------- | ------------------------------------------- |
-| Allowance/reward day | Align to the existing 2 am exposure boundary      | Keep distinct boundaries                    |
-| Partial daily chunks | Reset at study-day rollover                       | Carry progress across days                  |
-| Streak day           | Any saved exercise                                | At least one full leaf                      |
-| Time-zone changes    | Effective at the next boundary                    | Another explicitly tested transition policy |
-| Historical activity  | Backfill retained native history with zone caveat | Start at launch                             |
-| Leaves               | Earned totals without spending                    | Wallet and ledger now                       |
-
-Historical backfill cannot recover deleted reviews or historical ungraded displays. Where no time-zone snapshot exists, the current zone is only an approximation. Define this policy before running a data migration.
-
-### Separate follow-ups
-
-- Presentation receipts currently remain until note/account deletion. Define retry/resume retention before adding timed cleanup; preserve pending attempts and idempotency.
-- Measure representative queue/activation/save latency, query counts, SQL plans, skipped candidates, and post-grade library refetches before adding indexes, session caches, aggregates, or write queues. No production throughput benchmark exists.
-- Background requests, `keepalive`, and in-memory retries do not guarantee delivery after close. A persistent browser outbox is a separate feature. Exposure confirmation intentionally remains best effort.
-- A user-wide new-word allowance, cross-set text deduplication, preferential short-step scheduling, and merging typing into production require separate product/history-migration decisions.
+- Define presentation-receipt retry/resume retention before timed cleanup; preserve pending attempts and idempotency.
+- Measure production latency, query plans, and activity-query cost before adding caches, indexes, or daily aggregates. No production throughput benchmark exists.
+- A persistent browser outbox remains separate. Background requests, `keepalive`, and in-memory retries cannot guarantee delivery after close.
+- User-wide word allowances, cross-set text deduplication, preferential short-step scheduling, typing/production merging, and spending wallets require separate decisions.
 
 ## Verification
 
-Step 1 checkpoint: 418 tests, typecheck, production build, and changed-file lint passed. Step 2 loading follow-up checkpoint: 477 tests, typecheck, production build, changed-file lint, formatting, and whitespace checks passed. These are historical checkpoint totals.
+Step 4 validation: **585 tests passed**, TypeScript checking and the standard Turbopack production build passed, and English/Russian translation validation, changed-file lint, formatting and whitespace checks passed. Subsequent focused checks also cover westward travel preserving the lifetime longest streak while excluding future dates from the current streak. Database regressions run real migrations and production SQL in isolated PGlite; no external database is used. Component checks run in Node without browser automation.
 
-Step 3 validation after integration with current main: **560 tests passed**, typecheck and the standard Turbopack production build passed, and changed-file lint, formatting, and whitespace checks passed. The scope tests cover global due priority, fair mixed-type/sparse-position rounds and refills, independent fixed allowances, due-only states and counts, subset reconciliation, cross-scope exposure, UUID/list-size/ownership checks, empty/foreign/deleted sets, mutation retries, and mixed-language rendering/audio, and Russian scope labels. The scope controls and API errors use the existing English/Russian catalogs; the local Open set action and reader-history work are preserved. A preexisting move-test fixture now pins card creation to its fixed clock so it remains valid after that calendar date.
+Repository-wide lint still reports the existing errors in `TranslationSelector.tsx` and `WordInput.tsx`; the existing Profile image warning also remains. Browser/UI verification is performed by the user.
 
-Full-repository lint still reports preexisting errors in `TranslationSelector.tsx` and `WordInput.tsx`; none are changed here. Verification uses in-memory PostgreSQL and mocked component checks. No browser automation or remote migration was used. Browser layout, keyboard interaction, and audio playback remain for the user's manual checks below.
+### Manual handoff
 
-Custom-study modal follow-up: **564 tests passed**, typecheck, production build, English/Russian catalog validation, changed-file lint, formatting, and whitespace checks passed. Mocked component coverage includes the three footer actions, empty-selection protection, search-preserved selection, removed sets, selection limits, Cancel/Escape, focus restoration, and Russian labels. The existing move/save pickers retain their single-selection behavior. No browser automation was used.
-
-### Manual checklist for the user
-
-1. Open **Custom study**, select two sets with different language pairs, then **Study**. Only those sets appear; the set name, exercise direction, and pronunciation language follow each card. Reopen a bookmarked single-set review URL and confirm it still works.
-2. Use **Study all** while the translation screen has a different language pair selected and while the library search hides some sets. All owned sets remain included. The custom modal still lists all sets, and its search preserves checked selections.
-3. Compare **Repeat all** and **Repeat due only** inside the custom modal with all-available. Due Learning/Review/Relearning remain; New exercises disappear. Future, suspended, buried, and exposure-blocked cards remain unavailable. The empty due-only screen explains that New exercises are excluded.
-4. Combine a set of fresh words with another set's overdue cards. Due cards appear first globally, then New material alternates fairly across eligible set streams. Each set retains its own saved daily new-word allowance.
-5. Display a mature sensitive card, then reopen through a different scope or tab. Future queues defer that note's sensitive repetitions until 2 am; New/Learning and forms/examples remain eligible. Slow/failed exposure requests must leave reveal, typing, ratings, and advancement usable.
-6. Use the custom modal's checkboxes, search, and footer actions with keyboard navigation at narrow and wide widths. Cancel/Escape should close it and return focus to **Custom study**. Zero selected sets disables both study actions. A malformed/empty selection URL shows an error rather than studying all sets.
+1. After applying migration 0016, save exercises across two sets and study scopes. Check 19 → 20 → 21 and 39 → 40: leaves and partial progress must match globally and survive reload.
+2. Slow down save requests and keep rating buffered cards: advancement stays immediate with no saving message, disabled exit, or shifting header/card. A failed save shows a fixed Retry/Ignore notice. At 9 → 10 and 19 → 20 completions, verify stable HUD dimensions, a gentle fill advance, and a small counter pulse on earning the leaf. Reloading existing progress and rolling over to a new date must not replay the celebration; reduced-motion mode removes spatial motion.
+3. Open Study history with keyboard navigation. Confirm partial and zero days, date/count tooltips, daily table, current/longest streak, and English/Russian text at narrow and wide widths.
+4. Delete a studied set: its saved activity and leaves remain. Import a deck or rebuild projections: activity does not grow.
+5. Verify completion messages for due-only mode, future repetitions, exposure deferral, exhausted allowance, and partial daily effort. Refocusing or reloading restores server-confirmed totals.
+6. Check 2 am rollover and a saved time-zone change: exposure/allowance/progress share the boundary; the changed zone becomes active at the next boundary. Today may remain empty while yesterday preserves the streak.

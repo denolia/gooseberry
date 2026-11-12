@@ -92,6 +92,7 @@ const route = (path, session = { user: { id: userId } }) =>
     "@/db/studyScope": scopes,
     "@/db/studyDay": load("@/db/studyDay"),
     "@/db/studyExposureRepo": load("@/db/studyExposureRepo"),
+    "@/db/studyActivityRepo": load("@/db/studyActivityRepo"),
   });
 const getQueue = (search = "") =>
   route("queue").GET(new Request(`http://localhost/api/study/queue${search}`));

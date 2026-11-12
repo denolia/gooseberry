@@ -24,13 +24,14 @@ import {
   StudyScopeNotFoundError,
 } from "@/db/studyScope";
 import { parseStudyQuery, StudyScopeSchema } from "@/lib/review/scope";
+import { getStudyActivityCredit } from "@/db/studyActivityRepo";
 
 const SubmitReviewSchema = z.object({
-  reviewId: z.string().uuid().optional(),
+  reviewId: z.string().uuid(),
   studyCardId: z.string().uuid(),
   exposureId: z.string().uuid(),
   rating: ReviewRatingSchema,
-  reviewedAt: z.string().datetime().optional(),
+  reviewedAt: z.string().datetime(),
   durationMs: z
     .number()
     .int()
@@ -153,10 +154,10 @@ export async function submitStudyReview(request: Request, wordSetId?: string) {
       studyCardId: input.studyCardId,
       exposureId: input.exposureId,
       now,
-      reviewEventId: input.reviewId ?? crypto.randomUUID(),
+      reviewEventId: input.reviewId,
       rating: input.rating,
       durationMs: input.durationMs,
-      reviewedAt: input.reviewedAt ? new Date(input.reviewedAt) : new Date(),
+      reviewedAt: new Date(input.reviewedAt),
     });
 
     const day = await getStudyDay(session.user.id, now);
@@ -167,7 +168,16 @@ export async function submitStudyReview(request: Request, wordSetId?: string) {
       state,
       studyDay: day,
     });
-    return NextResponse.json({ success: true, state, nextAvailableAt });
+    const activityCredit = await getStudyActivityCredit(
+      session.user.id,
+      input.reviewId,
+    );
+    return NextResponse.json({
+      success: true,
+      state,
+      nextAvailableAt,
+      activityCredit,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

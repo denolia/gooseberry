@@ -214,13 +214,17 @@ export async function getReviewQueueTiming(input: {
   filter?: StudyFilter;
   now: Date;
   studyDay?: StudyDayContext;
-}): Promise<{ nextDueAt: Date | null; exposureDeferredCount: number }> {
+}): Promise<{
+  nextDueAt: Date | null;
+  exposureDeferredCount: number;
+  allowanceBlockedCount: number;
+}> {
   const day = input.studyDay ?? (await getStudyDay(input.userId, input.now));
   const effectiveDue = effectiveReviewDueAt(day);
   const [row] = await getDb()
     .select({
       nextDueAt:
-        sql<Date | null>`min(${effectiveDue}) FILTER (WHERE ${effectiveDue} > ${input.now})`.mapWith(
+        sql<Date | null>`min(${effectiveDue}) FILTER (WHERE ${fsrsCardState.state} <> ${FsrsCardState.New} AND ${effectiveDue} > ${input.now})`.mapWith(
           fsrsCardState.dueAt,
         ),
       exposureDeferredCount: sql<number>`count(*) FILTER (WHERE
@@ -228,11 +232,20 @@ export async function getReviewQueueTiming(input: {
         AND ${fsrsCardState.dueAt} <= ${input.now}
         AND (${studyCard.buriedUntil} IS NULL OR ${studyCard.buriedUntil} <= ${input.now})
       )`.mapWith(Number),
+      allowanceBlockedCount:
+        sql<number>`count(DISTINCT ${wordSetItem.id}) FILTER (WHERE
+        coalesce(${fsrsCardState.state}, 0) = 0
+        AND ${studyFilterCondition(input.filter)}
+        AND (${fsrsCardState.dueAt} IS NULL OR ${fsrsCardState.dueAt} <= ${input.now})
+        AND (${studyCard.buriedUntil} IS NULL OR ${studyCard.buriedUntil} <= ${input.now})
+        AND ${studyCardIntroductionCondition(input.userId)}
+        AND NOT (${studyWordAvailabilityCondition(input)})
+      )`.mapWith(Number),
     })
     .from(studyCard)
     .innerJoin(wordSetItem, eq(wordSetItem.id, studyCard.wordSetItemId))
     .innerJoin(wordSet, eq(wordSet.id, wordSetItem.wordSetId))
-    .innerJoin(
+    .leftJoin(
       fsrsCardState,
       and(
         eq(fsrsCardState.studyCardId, studyCard.id),
@@ -245,12 +258,12 @@ export async function getReviewQueueTiming(input: {
         studySetCondition(studySetSelection(input)),
         eligibleStudyCardCondition(),
         eq(studyCard.isSuspended, false),
-        sql`${fsrsCardState.state} <> ${FsrsCardState.New}`,
       ),
     );
   return {
     nextDueAt: row?.nextDueAt ?? null,
     exposureDeferredCount: row?.exposureDeferredCount ?? 0,
+    allowanceBlockedCount: row?.allowanceBlockedCount ?? 0,
   };
 }
 
@@ -438,6 +451,14 @@ export async function recordReview(input: {
 }): Promise<FsrsStateProjection> {
   const recordedState = await getRecordedReviewState(input);
   if (recordedState) return recordedState;
+  const now = input.now ?? input.reviewedAt;
+  // Existing UUID retries above remain valid indefinitely, including rollover.
+  // New writes allow delayed delivery, but never trust arbitrary client clocks.
+  const skew = input.reviewedAt.getTime() - now.getTime();
+  if (!Number.isFinite(skew) || skew > 5 * 60_000 || skew < -24 * 60 * 60_000) {
+    throw new ReviewCardNotDueError("errors.reviewTimestampOutsideWindow");
+  }
+  const activityDay = await getStudyDay(input.userId, now);
 
   for (let attempt = 0; attempt < MAX_REVIEW_WRITE_ATTEMPTS; attempt += 1) {
     const row = await getOwnedReviewCard(
@@ -538,6 +559,10 @@ export async function recordReview(input: {
         exposedAt: input.now ?? input.reviewedAt,
         expectedRevision: row.projection?.revision ?? null,
         nextState,
+        activityDay,
+        templateKey: row.templateKey,
+        wordSetItemId: row.wordSetItemId,
+        wordSetId: row.wordSetId,
       });
       return nextState;
     } catch (error) {
@@ -775,6 +800,10 @@ async function persistReview(input: {
   exposedAt: Date;
   expectedRevision: number | null;
   nextState: FsrsStateProjection;
+  activityDay: StudyDayContext;
+  templateKey: string;
+  wordSetItemId: string;
+  wordSetId: string;
 }) {
   const db = getDb();
   const eventWrite = db.insert(reviewEvent).values({
@@ -839,6 +868,10 @@ async function persistReview(input: {
     db.execute(consumeStudyExposure(input)),
     db.execute(sql`UPDATE word_set_item SET last_exposed_at = greatest(last_exposed_at, ${input.exposedAt}::timestamptz)
       WHERE id = (SELECT word_set_item_id FROM study_exposure WHERE id = ${input.exposureId} AND user_id = ${input.userId})`),
+    db.execute(sql`INSERT INTO study_activity
+      (review_id,user_id,completed_at,credited_date,study_time_zone,template_key,study_card_id,word_set_item_id,word_set_id)
+      VALUES (${input.reviewEventId},${input.userId},${input.exposedAt},${input.activityDay.creditedDate}::date,
+        ${input.activityDay.timeZone},${input.templateKey},${input.studyCardId},${input.wordSetItemId},${input.wordSetId})`),
   ]);
 }
 

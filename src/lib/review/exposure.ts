@@ -1,4 +1,5 @@
 export type StudyDay = {
+  creditedDate?: string;
   startAt: string;
   nextStartAt: string;
   timeZone: string;

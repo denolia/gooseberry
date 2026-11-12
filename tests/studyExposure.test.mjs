@@ -679,6 +679,7 @@ test("the gate releases at local 2 am rather than after 24 hours", async () => {
     userId,
     reviewMode: "simple",
     studyTimeZone: "Europe/Berlin",
+    now: new Date("2026-01-01T12:00:00Z"),
   });
   const set = await makeSet();
   await activate(set, "example", { now: new Date("2026-11-10T00:59:00Z") });
@@ -704,6 +705,7 @@ test("2 am boundaries resolve spring gaps and fall overlaps exactly once", async
     userId,
     reviewMode: "simple",
     studyTimeZone: "Europe/Berlin",
+    now: new Date("2026-01-01T12:00:00Z"),
   });
   const cases = [
     [

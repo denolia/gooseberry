@@ -68,7 +68,7 @@ When the learner chooses a rating, the browser synchronously:
 The browser does not calculate or persist a new FSRS projection itself. The
 server validates the card and appends the canonical `review_event`,
 updates the materialized `fsrs_card_state`, consumes the receipt and renews
-exposure in one atomic database batch. If the display request was lost or has
+exposure and inserts its durable `study_activity` receipt in one atomic database batch. If the display request was lost or has
 not yet arrived, the grade request creates the same presentation receipt first,
 without reapplying the prior-exposure gate. The new-word allowance, introduction
 prerequisites, ownership, due time, suspension/burial and revision checks remain.
@@ -93,12 +93,14 @@ After all automatic retries fail, the reviewer shows:
 
 `Retry` sends the same idempotent submission through the automatic retry cycle
 again. `Ignore` dismisses the failure and keeps that card out of the current
-session. An ignored review is not saved. Its exposure remains durable, so a
+session. Ignoring stops retries; it does not undo a write that committed before its response was lost. A review that never committed earns no credit. Its confirmed exposure remains durable, so a
 sensitive repetition still waits until the next study day.
 
-Successful saves invalidate set readiness and the global `studyActivity` cache namespace reserved for the upcoming rewards feature. No per-session leaf counter or activity receipt exists yet.
+Successful saves invalidate set readiness and the global `studyActivity` query. Leaves, partial daily effort and streaks come from committed activity receipts across every scope/session. Twenty saves earn one leaf; every rating counts. Exposure alone earns nothing. The save response returns the original `activityCredit`, including on retries after rollover. Both APIs require a stable review UUID and timestamp; first writes accept timestamps up to 24 hours old or 5 minutes ahead, while committed retries remain valid indefinitely.
 
 ## Navigating away
+
+Routine saves remain silent: the reviewer adds no saving message, exit hold, unload prompt, or temporary completion heading. The next buffered exercise stays immediately usable. The fixed HUD reserves its size before activity loads and across counter changes; only confirmed progress animates. New leaves get a brief in-place pulse instead of a milestone banner or Continue/Finish prompt, with reduced-motion support. Actual failures retain a fixed Retry/Ignore notice, and activity-query errors also stay outside document flow.
 
 Review POST requests use the Fetch API's `keepalive` option. This gives a
 small in-flight request a better chance of completing when the learner leaves

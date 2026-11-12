@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db/drizzle";
 import { appUser, premiumRequest, userPreference } from "@/db/schema";
 import { isAdminEmail } from "@/lib/admin/access";
@@ -9,6 +9,7 @@ import {
 } from "@/lib/review/model";
 import { DEFAULT_NEW_WORDS_PER_DAY } from "@/lib/review/settings";
 import { isUiLocale, type UiLocale } from "@/i18n/locale";
+import { getStudyDay } from "@/db/studyDay";
 
 export type AccountTier = "free" | "premium";
 export type PremiumRequestStatus =
@@ -100,7 +101,21 @@ export async function updateUserPreferences(input: {
   uiLocale?: UiLocale;
   newWordsPerDay?: number;
   studyTimeZone?: string;
+  now?: Date;
 }) {
+  const now = input.now ?? new Date();
+  const day = input.studyTimeZone ? await getStudyDay(input.userId, now) : null;
+  const changedZone =
+    input.studyTimeZone && day
+      ? {
+          previousStudyTimeZone: sql`CASE WHEN ${userPreference.studyTimeZone} IS DISTINCT FROM ${input.studyTimeZone}
+      THEN ${day.timeZone} ELSE ${userPreference.previousStudyTimeZone} END`,
+          previousStudyDayStartAt: sql`CASE WHEN ${userPreference.studyTimeZone} IS DISTINCT FROM ${input.studyTimeZone}
+      THEN ${day.startAt}::timestamptz ELSE ${userPreference.previousStudyDayStartAt} END`,
+          studyTimeZoneEffectiveAt: sql`CASE WHEN ${userPreference.studyTimeZone} IS DISTINCT FROM ${input.studyTimeZone}
+      THEN ${day.nextStartAt}::timestamptz ELSE ${userPreference.studyTimeZoneEffectiveAt} END`,
+        }
+      : {};
   const [preferences] = await getDb()
     .insert(userPreference)
     .values({
@@ -109,7 +124,10 @@ export async function updateUserPreferences(input: {
       uiLocale: input.uiLocale,
       newWordsPerDay: input.newWordsPerDay,
       studyTimeZone: input.studyTimeZone,
-      updatedAt: new Date(),
+      previousStudyTimeZone: day?.timeZone,
+      previousStudyDayStartAt: day?.startAt,
+      studyTimeZoneEffectiveAt: day?.nextStartAt,
+      updatedAt: now,
     })
     .onConflictDoUpdate({
       target: userPreference.userId,
@@ -118,7 +136,8 @@ export async function updateUserPreferences(input: {
         uiLocale: input.uiLocale,
         newWordsPerDay: input.newWordsPerDay,
         studyTimeZone: input.studyTimeZone,
-        updatedAt: new Date(),
+        ...changedZone,
+        updatedAt: now,
       },
     })
     .returning();

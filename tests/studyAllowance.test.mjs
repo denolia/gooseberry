@@ -62,6 +62,7 @@ const settings = (limit, studyTimeZone = "UTC") =>
     reviewMode: "simple",
     newWordsPerDay: limit,
     studyTimeZone,
+    now: new Date("2026-01-01T12:00:00Z"),
   });
 const answer = (set, card, reviewedAt = now) =>
   review({
@@ -191,8 +192,8 @@ test("empty, suspended and buried words do not occupy the new-word cohort", asyn
   assert.deepEqual(wordIds(await queue(set)), [set.items[3].id]);
 });
 
-test("the saved study timezone resets at local midnight, including DST boundaries", async () => {
-  for (const midnight of ["2026-10-10T22:00:00Z", "2026-10-25T23:00:00Z"]) {
+test("the saved study timezone resets at resolved local 2 am, including DST boundaries", async () => {
+  for (const midnight of ["2026-03-29T01:00:00Z", "2026-10-25T01:00:00Z"]) {
     await settings(1, "Europe/Berlin");
     const set = await makeSet(2);
     const beforeMidnight = new Date(new Date(midnight).getTime() - 60_000);

@@ -5,6 +5,7 @@ import { FsrsCardState } from "@/lib/review/model";
 import { DEFAULT_NEW_WORDS_PER_DAY } from "@/lib/review/settings";
 import { studySetCondition, studySetSelection } from "@/db/studyScope";
 import type { StudyScope } from "@/lib/review/scope";
+import { studyDayQuery } from "@/db/studyDay";
 
 // Select a stable word cohort before applying card exclusions or fetch limits.
 // Prefetching never consumes an allowance or opens a second cohort. A word's
@@ -23,10 +24,11 @@ export function studyWordAvailabilityCondition(input: {
       ne(fsrsCardState.state, FsrsCardState.New),
     ),
     sql`${wordSetItem.id} IN (
-      WITH settings AS (
+      WITH study_day AS (${studyDayQuery(input.userId, input.now)}), settings AS (
         SELECT coalesce(preference.new_words_per_day, ${DEFAULT_NEW_WORDS_PER_DAY}) AS daily_limit,
-          coalesce(preference.study_time_zone, 'UTC') AS time_zone
+          study_day.start_at, study_day.next_start_at
         FROM (SELECT 1) singleton
+        CROSS JOIN study_day
         LEFT JOIN user_preference preference ON preference.user_id = ${input.userId}
       ), progress AS (
         SELECT candidate.id, candidate.word_set_id, candidate.position,
@@ -47,9 +49,10 @@ export function studyWordAvailabilityCondition(input: {
         FROM word_set_item candidate
         INNER JOIN word_set owned_set ON owned_set.id = candidate.word_set_id
         LEFT JOIN (
-          SELECT sibling.word_set_item_id, min(history.reviewed_at) AS first_review_at
+          SELECT sibling.word_set_item_id, min(coalesce(activity.completed_at, history.reviewed_at)) AS first_review_at
           FROM review_event history
           INNER JOIN study_card sibling ON sibling.id = history.study_card_id
+          LEFT JOIN study_activity activity ON activity.review_id = history.id AND activity.user_id = history.user_id
           WHERE history.user_id = ${input.userId} AND history.source = 'gooseberry'
           GROUP BY sibling.word_set_item_id
         ) native ON native.word_set_item_id = candidate.id
@@ -59,7 +62,7 @@ export function studyWordAvailabilityCondition(input: {
         SELECT word_set_id, count(*) AS used
         FROM progress CROSS JOIN settings
         WHERE NOT imported_studied
-          AND (first_review_at AT TIME ZONE time_zone)::date = (${input.now}::timestamptz AT TIME ZONE time_zone)::date
+          AND first_review_at >= start_at AND first_review_at < next_start_at
         GROUP BY word_set_id
       ), unseen AS (
         SELECT progress.id, progress.word_set_id,

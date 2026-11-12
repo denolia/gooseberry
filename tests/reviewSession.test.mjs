@@ -244,6 +244,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
         nextDueAt: options.nextDueAt,
         studyDay: day(),
         exposureDeferredCount: options.exposureDeferredCount ?? 0,
+        allowanceBlockedCount: options.allowanceBlockedCount ?? 0,
       });
     }
     const body = (await options.loadQueue?.()) ?? { cards: [] };
@@ -295,6 +296,13 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
       "@/lib/review/formatInterval": { formatReviewInterval: () => "1 day" },
       "@/lib/review/retry": retries,
       "./useStudyExposure": exposureHook,
+      "./useStudyActivity": {
+        useStudyActivity: () => ({
+          data: options.activity?.(),
+          isError: false,
+        }),
+      },
+      "./StudyActivityPanel": { StudyActivitySummary: () => null },
       "@/lib/review/templates": templates,
       "./exercises": exercises,
       "./ReviewSession.module.css": {
@@ -1154,5 +1162,79 @@ test("completion explains deferred repetitions and their study-zone reset", asyn
   assert.match(
     text(await session.ready()),
     /Repetitions of words you’ve seen today resume after 2 am/,
+  );
+});
+
+test("pending saves stay silent and never block the next exercise or exit", async (t) => {
+  let finish;
+  const saving = new Promise((resolve) => {
+    finish = resolve;
+  });
+  const session = setup(
+    t,
+    [fixture, { ...fixture, id: "next", original: "next word" }],
+    ReviewMode.Simple,
+    {
+      saveReview: () => saving,
+    },
+  );
+  await session.ready();
+  session.key(" ");
+  session.render();
+  session.key("2");
+  let tree = await session.ready();
+  assert.doesNotMatch(
+    text(tree),
+    /review is saving|Saving progress|Finishing your saves/,
+  );
+  assert.deepEqual(nodes(tree, (node) => node.type === "h2").map(text), [
+    "next word",
+  ]);
+  const exit = nodes(tree, (node) => node.props?.href === "/anki")[0];
+  assert.equal(exit.props["aria-disabled"], undefined);
+  assert.equal(exit.props.onClick, undefined);
+  session.key(" ");
+  assert(text(session.render()).includes(fixture.translation));
+  finish({});
+  tree = await session.ready();
+  assert.doesNotMatch(text(tree), /review is saving/);
+  assert.deepEqual(nodes(tree, (node) => node.type === "h2").map(text), [
+    "next word",
+    fixture.translation,
+  ]);
+});
+
+test("confirmed leaf milestones leave the active answer and keyboard flow uninterrupted", async (t) => {
+  let activity = { today: { date: "2026-11-10", leaves: 0 } };
+  const session = setup(t, [fixture], ReviewMode.Simple, {
+    activity: () => activity,
+  });
+  await session.ready();
+  session.key(" ");
+  session.render();
+  activity = { today: { date: "2026-11-10", leaves: 1 } };
+  let tree = await session.ready();
+  assert.doesNotMatch(text(tree), /leaf earned today|Continue|Finish/);
+  assert(text(tree).includes(fixture.translation));
+  assert.equal(session.submissions.length, 0);
+  activity = { today: { date: "2026-11-11", leaves: 2 } };
+  assert.doesNotMatch(text(await session.ready()), /leaves earned today/);
+  session.key("2");
+  assert.equal(session.submissions.length, 1);
+});
+
+test("rejoining existing partial progress never announces an old milestone", async (t) => {
+  const activity = { today: { date: "2026-11-10", leaves: 2 } };
+  const session = setup(t, [fixture], ReviewMode.Simple, {
+    activity: () => activity,
+  });
+  assert.doesNotMatch(text(await session.ready()), /leaves earned today/);
+});
+
+test("completion explicitly identifies exhausted new-word allowances", async (t) => {
+  const session = setup(t, [], ReviewMode.Simple, { allowanceBlockedCount: 2 });
+  assert.match(
+    text(await session.ready()),
+    /daily new-word allowance has been reached/,
   );
 });

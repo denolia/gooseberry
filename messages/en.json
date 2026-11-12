@@ -469,13 +469,13 @@
     "newWordsPerDayPerSet": "New words per day per set",
     "eachWordCountsOnceAcrossItsExercisesDueReviewsCome": "Each word counts once across its exercises. Due reviews come first and have no daily limit. Set this to 0 to pause new words.",
     "useMyTimeZone": "Use my time zone",
-    "yourDailyAllowanceResetsAtMidnightInThisTimeZone": "Your daily allowance resets at midnight in this time zone. The same settings apply to each study set.",
     "settingsSaved": "Settings saved",
     "saveSettings": "Save settings",
     "backToLearning": "← Back to learning",
     "interfaceLanguage": "Interface language",
     "chooseTheLanguageForButtonsTabsAndOtherInterfaceTextYour": "Choose the language for buttons, tabs, and other interface text. Your choice is saved to your profile.",
-    "requestSent": "Sent {date}. You’ll receive access after an administrator approves it."
+    "requestSent": "Sent {date}. You’ll receive access after an administrator approves it.",
+    "studyDaySettingsHelp": "Your allowance, leaves and streaks reset at 2 am in this time zone. The allowance applies to each set. Time-zone changes take effect at the next study-day boundary."
   },
   "reviewSession": {
     "weHadAnIssueTryingToUpdateYourProgress": "We had an issue trying to update your progress.",
@@ -961,7 +961,10 @@
     "readerSaveConflict": "Could not save this text. Please start a new text.",
     "readerSearchTooLong": "Search must be 200 characters or fewer.",
     "readerTextNotFound": "Text not found.",
-    "studySetsUnavailable": "One or more study sets are unavailable"
+    "studySetsUnavailable": "One or more study sets are unavailable",
+    "invalidActivityRange": "Choose between 1 and 365 days.",
+    "failedToLoadActivity": "Could not load study activity.",
+    "reviewTimestampOutsideWindow": "The review time is outside the accepted window. Check your device clock and reload."
   },
   "common": {
     "ok": "Ok",
@@ -1091,5 +1094,24 @@
     "selectedCount": "{count, plural, one {# set selected} other {# sets selected}}",
     "studyAll": "Study all",
     "repeatAll": "Repeat all"
+  },
+  "studyActivity": {
+    "today": "Today’s study",
+    "leavesToday": "{count, plural, one {# leaf today} other {# leaves today}}",
+    "streak": "{count, plural, one {# day streak} other {# day streak}}",
+    "nextLeaf": "Progress toward the next leaf",
+    "progress": "{count, plural, one {# saved exercise today} other {# saved exercises today}} · {progress}/20 toward the next leaf",
+    "history": "Study history",
+    "unavailable": "Could not load your activity.",
+    "loading": "Loading activity…",
+    "stale": "Activity could not refresh. Showing the last confirmed progress.",
+    "lifetime": "{leaves, plural, one {# leaf earned} other {# leaves earned}} · Longest streak: {days, plural, one {# day} other {# days}}",
+    "dayPolicy": "Days reset at 2 am ({zone}). Every saved exercise counts, including Again. Partial leaves reset each day. Calendar shading shows saved exercise counts, from light to dark.",
+    "dayCount": "{date}: {count, plural, one {# saved exercise} other {# saved exercises}}",
+    "dailyList": "Daily counts (accessible table)",
+    "date": "Study date",
+    "completions": "Saved exercises",
+    "leaves": "Leaves",
+    "allowanceReached": "The daily new-word allowance has been reached for {count, plural, one {# available word} other {# available words}}. More new words unlock after 2 am."
   }
 }

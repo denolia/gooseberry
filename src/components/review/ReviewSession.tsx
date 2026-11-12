@@ -34,6 +34,8 @@ import {
 import { exerciseFieldLanguage, typedAnswerDiff } from "./exercises";
 import styles from "./ReviewSession.module.css";
 import { useStudyExposure, type ActivatedStudyCard } from "./useStudyExposure";
+import { useStudyActivity } from "./useStudyActivity";
+import { StudyActivitySummary } from "./StudyActivityPanel";
 
 type Rating = 1 | 2 | 3 | 4;
 
@@ -94,10 +96,12 @@ export function ReviewSession({
   const [nextDueAt, setNextDueAt] = useState<string | null>(null);
   const [studyDay, setStudyDay] = useState<StudyDay | null>(null);
   const [exposureDeferredCount, setExposureDeferredCount] = useState(0);
+  const [allowanceBlockedCount, setAllowanceBlockedCount] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [typedAnswer, setTypedAnswer] = useState("");
   const [error, setError] = useState<UiMessage | null>(null);
   const [failedReviews, setFailedReviews] = useState<ReviewSubmission[]>([]);
+  const activity = useStudyActivity();
   const cardsRef = useRef<ReviewCard[]>([]);
   const pendingReviewsRef = useRef(new Map<string, ReviewSubmission>());
   const failedReviewsRef = useRef<ReviewSubmission[]>([]);
@@ -262,6 +266,7 @@ export function ReviewSession({
           nextDueAt?: string | null;
           studyDay?: StudyDay;
           exposureDeferredCount?: number;
+          allowanceBlockedCount?: number;
         };
         // Answers can advance the queue while this request is in flight.
         // Merge against the live queue so they never reappear from a snapshot.
@@ -300,6 +305,7 @@ export function ReviewSession({
         upcoming.sort();
         setNextDueAt(upcoming[0] ?? null);
         setExposureDeferredCount(body.exposureDeferredCount ?? 0);
+        setAllowanceBlockedCount(body.allowanceBlockedCount ?? 0);
 
         if (replace || startsNewCard) {
           setRevealed(false);
@@ -531,7 +537,7 @@ export function ReviewSession({
         return;
       }
       if (
-        event.key === "Enter" &&
+        (event.key === "Enter" || event.key === " ") &&
         event.target instanceof Element &&
         event.target.closest("button, a")
       ) {
@@ -570,13 +576,26 @@ export function ReviewSession({
         </button>
       </div>
     </aside>
+  ) : activity.isError ? (
+    <aside className={styles.syncToast} role="status">
+      <p>
+        {t(activity.data ? "studyActivity.stale" : "studyActivity.unavailable")}
+      </p>
+    </aside>
   ) : null;
+
+  // Render the same HUD footprint even before the activity request completes.
+  const activitySummary = <StudyActivitySummary activity={activity.data} />;
 
   if (status === "loading" || loading || (!card && loadingMore)) {
     return (
-      <div className={styles.centered} aria-busy="true">
-        {t("reviewSession.loadingReview")}
-      </div>
+      <>
+        <div className={styles.centered} aria-busy="true">
+          {t("reviewSession.loadingReview")}
+          {activitySummary}
+        </div>
+        {failureToast}
+      </>
     );
   }
 
@@ -595,6 +614,7 @@ export function ReviewSession({
           >
             {t("moveWordDialog.tryAgain")}
           </button>
+          {activitySummary}
           <Link className={styles.textLink} href="/anki">
             {t("reviewSession.backToSets")}
           </Link>
@@ -631,6 +651,14 @@ export function ReviewSession({
               {t("reviewSession.repetitionsOfWordsYouVeSeenTodayResumeAfter2")}
             </p>
           )}
+          {allowanceBlockedCount > 0 && (
+            <p>
+              {t("studyActivity.allowanceReached", {
+                count: allowanceBlockedCount,
+              })}
+            </p>
+          )}
+          {activitySummary}
           <Link className={styles.textLink} href="/profile">
             {t("studyScope.settings")}
           </Link>
@@ -740,6 +768,7 @@ export function ReviewSession({
               {filter === "due_only" ? ` · ${t("studyScope.dueOnly")}` : ""}
             </p>
           </div>
+          <div className={styles.headerHud}>{activitySummary}</div>
           <Link
             className={styles.exitButton}
             href="/anki"

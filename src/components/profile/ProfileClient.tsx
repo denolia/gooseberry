@@ -325,9 +325,7 @@ export function ProfileClient({ initialProfile }: { initialProfile: Profile }) {
               {t("profileClient.useMyTimeZone")}
             </button>
             <p className={styles.intro}>
-              {t(
-                "profileClient.yourDailyAllowanceResetsAtMidnightInThisTimeZone",
-              )}
+              {t("profileClient.studyDaySettingsHelp")}
             </p>
           </fieldset>
           <div className={styles.formFooter}>

@@ -1,4 +1,5 @@
 "use client";
+import { StudyActivityPanel } from "@/components/review/StudyActivityPanel";
 import { formatError, MessageError } from "@/i18n/errors";
 import {
   languageLabelKey,
@@ -185,6 +186,8 @@ export function WordSetList() {
           </button>
         </div>
       </div>
+
+      <StudyActivityPanel />
 
       {showCreateForm && (
         <form onSubmit={handleCreate} className={styles.createForm}>
