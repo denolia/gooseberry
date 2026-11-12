@@ -6,6 +6,7 @@ const fixture = await createPostgresFixture();
 const { client, load } = fixture;
 const repo = load("@/db/reviewRepo");
 const activity = load("@/db/studyActivityRepo");
+const writeQueries = load("@/db/reviewWriteQueries");
 const userId = "11111111-1111-4111-8111-111111111111";
 const otherId = "22222222-2222-4222-8222-222222222222";
 const now = new Date("2026-11-10T12:00:00Z");
@@ -380,4 +381,131 @@ test("an old undo receipt cannot resume a sibling after its prerequisite has als
   await undo(production);
   await undo(recognition);
   assert.equal((await undo(production)).resumable, false);
+});
+
+test("the shared state writer preserves update-only grading and missing-projection restoration", async () => {
+  const set = await makeSet();
+  const input = submission(set);
+  const state = await repo.recordReview(input);
+  const readProjection = async () =>
+    (
+      await client.query(
+        "SELECT * FROM fsrs_card_state WHERE user_id=$1 AND study_card_id=$2",
+        [userId, input.studyCardId],
+      )
+    ).rows[0];
+  const before = await readProjection();
+  const write = {
+    userId,
+    studyCardId: input.studyCardId,
+    state,
+    lastReviewEventId: input.reviewEventId,
+    expectedRevision: before.revision,
+  };
+
+  await fixture.database.execute(writeQueries.writeCardStateIfUnchanged(write));
+  const updated = await readProjection();
+  assert.deepEqual(updated, {
+    ...before,
+    revision: before.revision + 1,
+    updated_at: updated.updated_at,
+  });
+
+  await client.query("DELETE FROM fsrs_card_state WHERE study_card_id=$1", [
+    input.studyCardId,
+  ]);
+  await assert.rejects(
+    fixture.database.execute(writeQueries.writeCardStateIfUnchanged(write)),
+  );
+  assert.equal(
+    await readProjection(),
+    undefined,
+    "grading must not recreate a projection that disappeared",
+  );
+
+  await fixture.database.execute(
+    writeQueries.writeCardStateIfUnchanged({
+      ...write,
+      rebuildMissingProjection: true,
+    }),
+  );
+  const restored = await readProjection();
+  assert.deepEqual(restored, {
+    ...before,
+    revision: 1,
+    updated_at: restored.updated_at,
+  });
+
+  await fixture.database.execute(
+    writeQueries.writeCardStateIfUnchanged({
+      ...write,
+      expectedRevision: restored.revision,
+      rebuildMissingProjection: true,
+    }),
+  );
+  const restoredAgain = await readProjection();
+  assert.deepEqual(restoredAgain, {
+    ...before,
+    revision: 2,
+    updated_at: restoredAgain.updated_at,
+  });
+});
+
+test("the shared state writer rolls back the batch on stale revisions and competing creates", async () => {
+  const set = await makeSet();
+  const input = submission(set);
+  const state = await repo.recordReview(input);
+  const day = await load("@/db/studyDay").getStudyDay(userId, now);
+  const before = (
+    await client.query("SELECT * FROM fsrs_card_state WHERE study_card_id=$1", [
+      input.studyCardId,
+    ])
+  ).rows[0];
+  for (const condition of [
+    { expectedRevision: before.revision + 1 },
+    { expectedRevision: before.revision + 1, rebuildMissingProjection: true },
+    { expectedRevision: null },
+    { expectedRevision: null, rebuildMissingProjection: true },
+  ]) {
+    const replacementExposureId = crypto.randomUUID();
+    await assert.rejects(
+      fixture.database.batch([
+        fixture.database.execute(
+          writeQueries.createReplacementPresentation({
+            ...input,
+            replacementExposureId,
+            wordSetItemId: set.itemId,
+            state,
+            day,
+          }),
+        ),
+        fixture.database.execute(
+          writeQueries.writeCardStateIfUnchanged({
+            userId,
+            studyCardId: input.studyCardId,
+            state,
+            lastReviewEventId: input.reviewEventId,
+            ...condition,
+          }),
+        ),
+      ]),
+    );
+    assert.deepEqual(
+      (
+        await client.query(
+          "SELECT * FROM fsrs_card_state WHERE study_card_id=$1",
+          [input.studyCardId],
+        )
+      ).rows[0],
+      before,
+    );
+    assert.equal(
+      (
+        await client.query("SELECT count(*) FROM study_exposure WHERE id=$1", [
+          replacementExposureId,
+        ])
+      ).rows[0].count,
+      0,
+    );
+  }
 });

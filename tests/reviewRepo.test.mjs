@@ -3,6 +3,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "@typescript/typescript6";
+import { loadSourceModule } from "./helpers/sourceModule.mjs";
+
+const statementValues = (statement) =>
+  statement.values.flatMap((value) =>
+    value?.values ? statementValues(value) : [value],
+  );
 
 const reviewedAt = new Date("2026-01-01T12:00:00.000Z");
 const nextState = {
@@ -242,6 +248,8 @@ function loadRepo({
         ],
       },
     };
+    if (name === "@/db/reviewWriteQueries")
+      return loadSourceModule("src/db/reviewWriteQueries.ts", mocks);
     if (!(name in mocks)) throw new Error(`Unexpected dependency ${name}`);
     return mocks[name];
   }, exports);
@@ -302,7 +310,7 @@ test("records a production exercise using its own card identity", async () => {
     "11111111-1111-4111-8111-111111111111",
   );
   assert(
-    calls.batches[0][3].statement.values.includes(
+    statementValues(calls.batches[0][3].statement).includes(
       "11111111-1111-4111-8111-111111111111",
     ),
   );

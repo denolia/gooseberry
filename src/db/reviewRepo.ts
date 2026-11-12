@@ -33,6 +33,12 @@ import {
 } from "@/db/studyCardRepo";
 import { STUDY_CARD_INTRODUCTION_ORDER } from "@/lib/review/policy";
 import { ensureReviewProjections } from "@/db/reviewProjectionRepo";
+import {
+  lockStudyNote,
+  cancelReviewIfUnchanged,
+  writeCardStateIfUnchanged,
+  createReplacementPresentation,
+} from "@/db/reviewWriteQueries";
 import { studyWordAvailabilityCondition } from "@/db/studyAllowance";
 import { studyCardIntroductionCondition } from "@/db/studyPolicy";
 import { getStudyDay, type StudyDayContext } from "@/db/studyDay";
@@ -592,76 +598,23 @@ export async function undoReview(input: UndoReviewInput) {
       })),
       row.baseline ? deserializeFsrsState(row.baseline) : null,
     );
-    const currentState = toDueReviewCard(row).state;
-    const day = await getStudyDay(input.userId, input.now);
-    const expectedRevision = row.projection?.revision ?? null;
+    const undoWrite = {
+      ...input,
+      wordSetItemId: row.wordSetItemId,
+      targetReview: target,
+      currentState: toDueReviewCard(row).state,
+      state,
+      day: await getStudyDay(input.userId, input.now),
+      expectedRevision: row.projection?.revision ?? null,
+      lastReviewEventId: history.at(-1)?.id ?? null,
+      rebuildMissingProjection: true,
+    };
     try {
       await db.batch([
-        db.execute(
-          sql`SELECT id FROM word_set_item WHERE id = ${row.wordSetItemId} FOR UPDATE`,
-        ),
-        db.execute(sql`WITH cancelled AS (
-          INSERT INTO study_review_undo
-            (review_id,user_id,study_card_id,session_id,exposure_id,replacement_exposure_id,rating,reviewed_at,undone_at)
-          SELECT ${input.reviewEventId},${input.userId},${input.studyCardId},${input.sessionId},
-            ${input.exposureId},${input.replacementExposureId},${input.rating},${input.reviewedAt},${input.now}
-          WHERE ${
-            target
-              ? sql`EXISTS (SELECT 1 FROM review_event WHERE id = ${input.reviewEventId})`
-              : sql`NOT EXISTS (SELECT 1 FROM review_event WHERE id = ${input.reviewEventId})`
-          }
-            AND EXISTS (SELECT 1 FROM study_card WHERE id = ${input.studyCardId} AND NOT is_suspended
-              AND (buried_until IS NULL OR buried_until <= ${input.now}))
-            AND NOT EXISTS (SELECT 1 FROM study_review_undo WHERE review_id = ${input.reviewEventId})
-            AND NOT EXISTS (SELECT 1 FROM study_exposure WHERE id = ${input.exposureId}
-              AND (user_id <> ${input.userId} OR study_card_id <> ${input.studyCardId}))
-            AND EXISTS (SELECT 1 FROM word_set_item item INNER JOIN word_set owned_set ON owned_set.id = item.word_set_id
-              WHERE item.id = ${row.wordSetItemId} AND owned_set.id = ${input.wordSetId} AND owned_set.user_id = ${input.userId})
-            AND NOT EXISTS (
-              SELECT 1 FROM review_event later INNER JOIN study_card sibling ON sibling.id = later.study_card_id
-              WHERE sibling.word_set_item_id = ${row.wordSetItemId} AND later.user_id = ${input.userId}
-                AND later.source = 'gooseberry' AND later.id <> ${input.reviewEventId}
-                AND NOT EXISTS (SELECT 1 FROM study_review_undo undo WHERE undo.review_id = later.id)
-                AND ${
-                  target
-                    ? sql`later.sequence > ${target.sequence}`
-                    : sql`later.created_at > coalesce(
-                  (SELECT activated_at FROM study_exposure WHERE id = ${input.exposureId}), ${input.reviewedAt})`
-                }
-            )
-            AND ${
-              target
-                ? sql`true`
-                : sql`NOT EXISTS (SELECT 1 FROM study_exposure WHERE id = ${input.exposureId}
-              AND (review_event_id IS NOT NULL OR state_before <> ${currentState.state} OR reps_before <> ${currentState.reps}))`
-            }
-          RETURNING 1
-        ) SELECT 1 / count(*)::integer AS committed FROM cancelled`),
-        db.execute(sql`WITH written AS (
-          INSERT INTO fsrs_card_state (user_id,study_card_id,due_at,stability,difficulty,elapsed_days,scheduled_days,
-            learning_steps,reps,lapses,state,revision,last_review_at,last_review_event_id,scheduler_version,updated_at)
-          VALUES (${input.userId},${input.studyCardId},${state.dueAt},${state.stability},${state.difficulty},${state.elapsedDays},
-            ${state.scheduledDays},${state.learningSteps},${state.reps},${state.lapses},${state.state},1,
-            ${state.lastReviewAt},${history.at(-1)?.id ?? null},${state.schedulerVersion},now())
-          ON CONFLICT (user_id,study_card_id) DO UPDATE SET due_at=excluded.due_at,stability=excluded.stability,
-            difficulty=excluded.difficulty,elapsed_days=excluded.elapsed_days,scheduled_days=excluded.scheduled_days,
-            learning_steps=excluded.learning_steps,reps=excluded.reps,lapses=excluded.lapses,state=excluded.state,
-            revision=fsrs_card_state.revision+1,last_review_at=excluded.last_review_at,
-            last_review_event_id=excluded.last_review_event_id,scheduler_version=excluded.scheduler_version,updated_at=now()
-          WHERE ${expectedRevision === null ? sql`false` : sql`fsrs_card_state.revision = ${expectedRevision}`}
-          RETURNING 1
-        ) SELECT 1 / count(*)::integer AS committed FROM written`),
-        db.insert(studyExposure).values({
-          id: input.replacementExposureId,
-          userId: input.userId,
-          studyCardId: input.studyCardId,
-          wordSetItemId: row.wordSetItemId,
-          stateBefore: state.state,
-          repsBefore: state.reps,
-          activatedAt: input.now,
-          studyDayStart: day.startAt,
-          studyTimeZone: day.timeZone,
-        }),
+        db.execute(lockStudyNote(undoWrite.wordSetItemId)),
+        db.execute(cancelReviewIfUnchanged(undoWrite)),
+        db.execute(writeCardStateIfUnchanged(undoWrite)),
+        db.execute(createReplacementPresentation(undoWrite)),
       ]);
       return result(input.replacementExposureId);
     } catch (error) {
@@ -1058,57 +1011,18 @@ async function persistReview(input: {
       ...(input.sessionId ? { sessionId: input.sessionId } : {}),
     },
   });
-  const state = input.nextState;
-  const stateWrite =
-    input.expectedRevision === null
-      ? db.execute(sql`
-          WITH written AS (
-            INSERT INTO fsrs_card_state (
-              user_id, study_card_id, due_at, stability, difficulty,
-              elapsed_days, scheduled_days, learning_steps, reps, lapses,
-              state, revision, last_review_at, last_review_event_id,
-              scheduler_version, updated_at
-            ) VALUES (
-              ${input.userId}, ${input.studyCardId}, ${state.dueAt},
-              ${state.stability}, ${state.difficulty}, ${state.elapsedDays},
-              ${state.scheduledDays}, ${state.learningSteps}, ${state.reps},
-              ${state.lapses}, ${state.state}, 1, ${state.lastReviewAt},
-              ${input.reviewEventId}, ${state.schedulerVersion}, now()
-            )
-            ON CONFLICT (user_id, study_card_id) DO NOTHING
-            RETURNING 1
-          )
-          SELECT 1 / count(*)::integer AS committed FROM written
-        `)
-      : db.execute(sql`
-          WITH written AS (
-            UPDATE fsrs_card_state SET
-              due_at = ${state.dueAt},
-              stability = ${state.stability},
-              difficulty = ${state.difficulty},
-              elapsed_days = ${state.elapsedDays},
-              scheduled_days = ${state.scheduledDays},
-              learning_steps = ${state.learningSteps},
-              reps = ${state.reps},
-              lapses = ${state.lapses},
-              state = ${state.state},
-              revision = revision + 1,
-              last_review_at = ${state.lastReviewAt},
-              last_review_event_id = ${input.reviewEventId},
-              scheduler_version = ${state.schedulerVersion},
-              updated_at = now()
-            WHERE user_id = ${input.userId}
-              AND study_card_id = ${input.studyCardId}
-              AND revision = ${input.expectedRevision}
-            RETURNING 1
-          )
-          SELECT 1 / count(*)::integer AS committed FROM written
-        `);
+  const stateWrite = db.execute(
+    writeCardStateIfUnchanged({
+      userId: input.userId,
+      studyCardId: input.studyCardId,
+      state: input.nextState,
+      expectedRevision: input.expectedRevision,
+      lastReviewEventId: input.reviewEventId,
+    }),
+  );
 
   await db.batch([
-    db.execute(
-      sql`SELECT id FROM word_set_item WHERE id = ${input.wordSetItemId} FOR UPDATE`,
-    ),
+    db.execute(lockStudyNote(input.wordSetItemId)),
     // Share the note lock with undo and recheck prerequisites after acquiring it.
     db.execute(sql`SELECT 1 / CASE WHEN
       NOT EXISTS (SELECT 1 FROM study_review_undo WHERE review_id = ${input.reviewEventId} OR exposure_id = ${input.exposureId})
