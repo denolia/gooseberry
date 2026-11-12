@@ -576,8 +576,13 @@
 @media (max-width: 640px) {
   .sessionHeader {
     grid-template-columns: minmax(0, 1fr) 44px;
-    grid-template-areas: "info exit" "hud hud";
+    grid-template-areas: "hud hud" "info exit";
     gap: 0.75rem 1rem;
+  }
+
+  .headerHud {
+    justify-content: center;
+    min-height: 1.875rem;
   }
 
   .session {

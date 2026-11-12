@@ -761,10 +761,11 @@ export function ReviewSession({
             <h1 title={card.wordSetName}>{card.wordSetName}</h1>
             <p className={styles.languagePair}>
               {promptLanguage.toUpperCase()} → {answerLanguage.toUpperCase()}
-              {" · "}
               {scope.kind === "all"
-                ? t("studyScope.allSets")
-                : t("studyScope.setCount", { count: scope.setIds.length })}
+                ? ` · ${t("studyScope.allSets")}`
+                : scope.setIds.length > 1
+                  ? ` · ${t("studyScope.setCount", { count: scope.setIds.length })}`
+                  : ""}
               {filter === "due_only" ? ` · ${t("studyScope.dueOnly")}` : ""}
             </p>
           </div>
