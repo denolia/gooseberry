@@ -26,6 +26,15 @@
 .heading span {
   color: var(--text-secondary);
 }
+.backLink {
+  display: inline-block;
+  margin-top: 1.5rem;
+  color: var(--text-secondary);
+}
+.backLink:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 @media (max-width: 640px) {
   .heading {
     margin-top: 2rem;

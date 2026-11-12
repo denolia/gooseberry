@@ -510,6 +510,7 @@
     "source": "Source",
     "target": "Target",
     "profile": "Profile",
+    "stats": "Stats",
     "admin": "Admin",
     "signOut": "Sign out",
     "signIn": "Sign in",
@@ -1095,6 +1096,11 @@
     "selectedCount": "{count, plural, one {# set selected} other {# sets selected}}",
     "studyAll": "Study all",
     "repeatAll": "Repeat all"
+  },
+  "stats": {
+    "pageTitle": "Stats · Learn.words",
+    "learnWordsStats": "LEARN.words / STATS",
+    "description": "See your study history and daily progress."
   },
   "studyActivity": {
     "today": "Today’s study",

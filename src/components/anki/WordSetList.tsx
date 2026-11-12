@@ -1,5 +1,5 @@
 "use client";
-import { StudyActivityPanel } from "@/components/review/StudyActivityPanel";
+import { StudyActivityCounters } from "@/components/review/StudyActivityPanel";
 import { formatError, MessageError } from "@/i18n/errors";
 import {
   languageLabelKey,
@@ -160,6 +160,9 @@ export function WordSetList() {
 
   return (
     <div className={styles.container}>
+      <div className={styles.activitySummary}>
+        <StudyActivityCounters />
+      </div>
       <div className={styles.toolbar}>
         <StudyScopeActions sets={wordSets} />
         <div className={`${styles.headerActions} ${styles.managementActions}`}>
@@ -214,8 +217,6 @@ export function WordSetList() {
           </button>
         </div>
       </div>
-
-      <StudyActivityPanel />
 
       {showCreateForm && (
         <form onSubmit={handleCreate} className={styles.createForm}>

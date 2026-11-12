@@ -4,6 +4,12 @@
   background: var(--surface-raised);
 }
 
+.activitySummary {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
 .studyActions {
   display: flex;
   min-width: 0;

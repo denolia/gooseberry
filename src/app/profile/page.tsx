@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { getUserProfile } from "@/db/profileRepo";
 import { Header } from "@/components/ui/Header";
 import { ProfileClient } from "@/components/profile/ProfileClient";
-import styles from "./page.module.css";
+import styles from "@/styles/accountPage.module.css";
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata() {

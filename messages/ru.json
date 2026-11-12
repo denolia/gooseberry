@@ -510,6 +510,7 @@
     "source": "Исходный язык",
     "target": "Язык перевода",
     "profile": "Профиль",
+    "stats": "Статистика",
     "admin": "Администрирование",
     "signOut": "Выйти",
     "signIn": "Войти",
@@ -1095,6 +1096,11 @@
     "selectedCount": "{count, plural, one {Выбран # набор} few {Выбрано # набора} many {Выбрано # наборов} other {Выбрано # набора}}",
     "studyAll": "Учить всё",
     "repeatAll": "Повторить всё"
+  },
+  "stats": {
+    "pageTitle": "Статистика · Learn.words",
+    "learnWordsStats": "LEARN.words / СТАТИСТИКА",
+    "description": "История занятий и прогресс по дням."
   },
   "studyActivity": {
     "today": "Занятия сегодня",

@@ -222,6 +222,9 @@ export function Header() {
                 <Link href="/profile" onClick={() => setShowAccountMenu(false)}>
                   {t("header.profile")}
                 </Link>
+                <Link href="/stats" onClick={() => setShowAccountMenu(false)}>
+                  {t("header.stats")}
+                </Link>
                 {session.user.isAdmin && (
                   <Link href="/admin" onClick={() => setShowAccountMenu(false)}>
                     {t("header.admin")}
@@ -288,6 +291,9 @@ export function Header() {
               <>
                 <Link href="/profile" onClick={() => setShowMobileMenu(false)}>
                   {t("header.profile")}
+                </Link>
+                <Link href="/stats" onClick={() => setShowMobileMenu(false)}>
+                  {t("header.stats")}
                 </Link>
                 {session.user.isAdmin && (
                   <Link href="/admin" onClick={() => setShowMobileMenu(false)}>

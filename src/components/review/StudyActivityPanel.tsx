@@ -12,8 +12,10 @@ import styles from "./StudyActivityPanel.module.css";
 
 export function StudyActivitySummary({
   activity,
+  showProgress = true,
 }: {
   activity?: StudyActivity;
+  showProgress?: boolean;
 }) {
   const { t } = useI18n();
   const counterRef = useRef<HTMLSpanElement>(null);
@@ -57,38 +59,42 @@ export function StudyActivitySummary({
   const progressCycle = activity ? `${date}:${leaves}` : "loading";
   return (
     <section
-      className={styles.summary}
+      className={`${styles.summary} ${showProgress ? "" : styles.countersOnly}`}
       aria-label={t("studyActivity.today")}
       aria-busy={!activity}
     >
-      <div className={styles.leafProgress}>
-        <span className={styles.fraction} aria-hidden="true">
-          <strong>{activity ? progress : "—"}</strong>
-          <span>/ {COMPLETIONS_PER_LEAF}</span>
-        </span>
-        <div
-          className={styles.progressTrack}
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={COMPLETIONS_PER_LEAF}
-          aria-valuenow={activity ? progress : undefined}
-          aria-label={t("studyActivity.nextLeaf")}
-          aria-valuetext={
-            activity
-              ? t("studyActivity.progress", {
-                  count: activity.today.completions,
-                  progress,
-                })
-              : t("studyActivity.loading")
-          }
-        >
-          <span
-            key={progressCycle}
-            className={styles.progressFill}
-            style={{ transform: `scaleX(${progress / COMPLETIONS_PER_LEAF})` }}
-          />
+      {showProgress && (
+        <div className={styles.leafProgress}>
+          <span className={styles.fraction} aria-hidden="true">
+            <strong>{activity ? progress : "—"}</strong>
+            <span>/ {COMPLETIONS_PER_LEAF}</span>
+          </span>
+          <div
+            className={styles.progressTrack}
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={COMPLETIONS_PER_LEAF}
+            aria-valuenow={activity ? progress : undefined}
+            aria-label={t("studyActivity.nextLeaf")}
+            aria-valuetext={
+              activity
+                ? t("studyActivity.progress", {
+                    count: activity.today.completions,
+                    progress,
+                  })
+                : t("studyActivity.loading")
+            }
+          >
+            <span
+              key={progressCycle}
+              className={styles.progressFill}
+              style={{
+                transform: `scaleX(${progress / COMPLETIONS_PER_LEAF})`,
+              }}
+            />
+          </div>
         </div>
-      </div>
+      )}
       <span
         ref={counterRef}
         className={styles.leafCounter}
@@ -109,6 +115,30 @@ export function StudyActivitySummary({
         <strong aria-hidden="true">{activity?.currentStreak ?? "—"}</strong>
       </span>
     </section>
+  );
+}
+
+export function StudyActivityCounters() {
+  const { t } = useI18n();
+  const query = useStudyActivity();
+  return (
+    <div className={styles.counters}>
+      {(query.data || !query.isError) && (
+        <StudyActivitySummary activity={query.data} showProgress={false} />
+      )}
+      {query.isError && (
+        <div className={styles.counterError}>
+          <p role="status">
+            {t(
+              query.data ? "studyActivity.stale" : "studyActivity.unavailable",
+            )}
+          </p>
+          <button type="button" onClick={() => void query.refetch()}>
+            {t("reviewSession.retry")}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -134,13 +164,13 @@ export function StudyActivityPanel() {
     );
   const activity = query.data;
   return (
-    <section className={styles.panel}>
+    <section className={styles.panel} aria-labelledby="study-history-heading">
       <div className={styles.panelSummary}>
         <StudyActivitySummary activity={activity} />
       </div>
       {query.isError && <p role="status">{t("studyActivity.stale")}</p>}
-      <details>
-        <summary>{t("studyActivity.history")}</summary>
+      <div className={styles.history}>
+        <h2 id="study-history-heading">{t("studyActivity.history")}</h2>
         <p>
           {t("studyActivity.lifetime", {
             leaves: activity.totalLeaves,
@@ -198,7 +228,7 @@ export function StudyActivityPanel() {
             </table>
           </div>
         </details>
-      </details>
+      </div>
     </section>
   );
 }
