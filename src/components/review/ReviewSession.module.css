@@ -150,7 +150,7 @@
 }
 
 .wordRowWithAudio {
-  --listen-column-width: 7.5rem;
+  --listen-column-width: 9.5rem;
   grid-template-columns:
     var(--listen-column-width) minmax(0, 1fr)
     var(--listen-column-width);
