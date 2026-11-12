@@ -22,6 +22,7 @@ function introducedCardCondition(userId: string, identity: SQL) {
         WHERE introduction_event.study_card_id = introduction_card.id
           AND introduction_event.user_id = ${userId}
           AND introduction_event.source = 'gooseberry'
+          AND NOT EXISTS (SELECT 1 FROM study_review_undo undo WHERE undo.review_id = introduction_event.id)
       )
     )
   )`;

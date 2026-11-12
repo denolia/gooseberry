@@ -83,6 +83,9 @@ function createFixture({ complete = true, empty = false } = {}) {
       "2026-01-01T12:00:00.000Z",
     ],
   );
+  storage.run(
+    "CREATE TABLE study_review_undo (review_id TEXT PRIMARY KEY, exposure_id TEXT)",
+  );
   const database = drizzle(async (query, params) => {
     const adapted = query
       .replace(

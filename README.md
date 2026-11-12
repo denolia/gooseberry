@@ -126,6 +126,10 @@ before deploying the updated reader. Apply it through the existing SQL migration
 workflow; development, builds and tests do not apply it to a remote database.
 See [reader history](docs/reader-history.md) for behavior and a manual UI checklist.
 
+Study undo requires [`0017_study_undo.sql`](migrations/0017_study_undo.sql) before
+deploying the updated reviewer. See [study undo](docs/study-undo.md) for session
+boundaries, concurrency handling and the manual UI checklist.
+
 Install/dev/build prepares the local SQL.js WASM used by the import worker.
 `ENRICHMENT_DAILY_TOKEN_LIMIT` defaults to 100,000 reserved tokens per user per
 UTC day; zero disables new generation. `OPENAI_ENRICHMENT_MODEL` optionally

@@ -107,6 +107,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
   const keyboardListeners = new Set();
   const focusListeners = new Set();
   const submissions = [];
+  const undos = [];
   const activations = [];
   const requests = [];
   const invalidations = [];
@@ -239,6 +240,23 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
         },
       );
     }
+    if (url.endsWith("/reviews/undo")) {
+      const operation = JSON.parse(requestOptions.body);
+      undos.push(operation);
+      const result = await options.undoReview?.(operation);
+      if (result instanceof Response) return result;
+      return Response.json(
+        result ?? {
+          card: knownCards.get(operation.studyCardId),
+          studyDay: day(),
+          exposedAt: new Date().toISOString(),
+          exposure: {
+            id: operation.replacementExposureId,
+            studyCardId: operation.studyCardId,
+          },
+        },
+      );
+    }
     if (requestOptions?.method === "POST") {
       const submission = JSON.parse(requestOptions.body);
       submissions.push(submission);
@@ -289,7 +307,13 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
     {
       react,
       "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
-      "lucide-react": { BookOpen: "svg", Repeat2: "svg", X: "svg" },
+      "lucide-react": {
+        BookOpen: "svg",
+        Leaf: "svg",
+        Repeat2: "svg",
+        Undo2: "svg",
+        X: "svg",
+      },
       "next/link": { default: "a" },
       "next/navigation": { useRouter: () => router },
       "next-auth/react": { useSession: () => ({ status: "authenticated" }) },
@@ -321,6 +345,7 @@ function setup(t, cards, reviewMode = ReviewMode.Simple, options = {}) {
 
   return {
     submissions,
+    undos,
     activations,
     requests,
     invalidations,
@@ -1278,4 +1303,320 @@ test("completion explicitly identifies exhausted new-word allowances", async (t)
     text(await session.ready()),
     /daily new-word allowance has been reached/,
   );
+});
+
+const undoButton = (tree) =>
+  nodes(
+    tree,
+    (node) =>
+      node.type === "button" &&
+      /^Undo$|^Undoing…$|^Retry undo$/.test(text(node)),
+  )[0];
+
+test("Undo restores the previous answer and a fresh presentation, retaining the unfinished typed draft", async (t) => {
+  const first = { ...fixture, templateKey: "type_answer" };
+  const second = { ...first, id: "card-2", original: "talo" };
+  const session = setup(t, [first, second]);
+  let tree = await session.ready();
+  assert.equal(undoButton(tree).props.disabled, true);
+  nodes(tree, (node) => node.type === "input")[0].props.onChange({
+    target: { value: "moniko" },
+  });
+  session.render();
+  session.key(" ");
+  session.render();
+  session.key("2");
+  tree = await session.ready();
+  const originalExposure = session.submissions[0].exposureId;
+  nodes(tree, (node) => node.type === "input")[0].props.onChange({
+    target: { value: "unfinished draft" },
+  });
+  tree = session.render();
+  undoButton(tree).props.onClick();
+  tree = await session.ready();
+  assert.match(text(tree), /moniko/);
+  assert.equal(
+    nodes(tree, (node) => node.props?.["aria-label"] === "Your answer differs")
+      .length,
+    1,
+  );
+  assert.equal(session.undos.length, 1);
+  assert.equal(session.undos[0].reviewId, session.submissions[0].reviewId);
+  assert.equal(undoButton(tree).props.disabled, true);
+  session.key("2");
+  tree = await session.ready();
+  assert.notEqual(
+    session.submissions[1].reviewId,
+    session.submissions[0].reviewId,
+  );
+  assert.equal(
+    session.submissions[1].sessionId,
+    session.submissions[0].sessionId,
+  );
+  assert.equal(
+    session.submissions[1].exposureId,
+    session.undos[0].replacementExposureId,
+  );
+  assert.notEqual(session.submissions[1].exposureId, originalExposure);
+  assert.equal(
+    nodes(tree, (node) => node.type === "input")[0].props.value,
+    "unfinished draft",
+  );
+});
+
+test("every answer in a long session can be undone back to the first, including from completion", async (t) => {
+  const cards = Array.from({ length: 125 }, (_, i) => ({
+    ...fixture,
+    id: `card-${i}`,
+    original: `word ${i}`,
+  }));
+  const session = setup(t, cards);
+  let tree = await session.ready();
+  for (let i = 0; i < cards.length; i++) {
+    session.key(" ");
+    session.render();
+    session.key("2");
+    tree = await session.ready();
+  }
+  assert.match(text(tree), /caught up/);
+  assert.equal(session.submissions.length, 125);
+  for (let i = cards.length - 1; i >= 0; i--) {
+    undoButton(tree).props.onClick();
+    tree = await session.ready();
+    assert.equal(
+      nodes(tree, (node) => node.type === "h2").map(text)[0],
+      `word ${i}`,
+    );
+  }
+  assert.equal(session.undos.length, 125);
+  assert.equal(undoButton(tree).props.disabled, true);
+  assert.equal(
+    new Set(session.submissions.map((answer) => answer.sessionId)).size,
+    1,
+  );
+});
+
+test("Cmd/Ctrl+Z undoes answers outside editable fields and preserves native text undo", async (t) => {
+  const session = setup(t, [fixture]);
+  await session.ready();
+  session.key(" ");
+  session.render();
+  session.key("2");
+  await session.ready();
+  for (const tag of ["input", "textarea", "[contenteditable]"])
+    assert.equal(
+      session.key("z", { tag, ctrlKey: true }).defaultPrevented,
+      false,
+    );
+  assert.equal(
+    session.key("z", { metaKey: true, shiftKey: true }).defaultPrevented,
+    false,
+  );
+  assert.equal(session.key("z", { metaKey: true }).defaultPrevented, true);
+  const tree = await session.ready();
+  assert.equal(session.undos.length, 1);
+  assert.match(text(tree), /monikko/);
+});
+
+test("a late grade response after undo cannot restore provisional credit or a failed-save notice", async (t) => {
+  let finish;
+  const session = setup(t, [fixture], ReviewMode.Simple, {
+    saveReview: () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  });
+  await session.ready();
+  session.key(" ");
+  session.render();
+  session.key("2");
+  let tree = await session.ready();
+  undoButton(tree).props.onClick();
+  tree = await session.ready();
+  const reviewId = session.submissions[0].reviewId;
+  assert(session.activityActions.fail.includes(reviewId));
+  finish({
+    activityCredit: { creditedDate: "2026-11-12" },
+    nextAvailableAt: "2099-01-01T00:00:00Z",
+  });
+  tree = await session.ready();
+  assert(
+    !session.activityActions.complete.some((save) => save.id === reviewId),
+  );
+  assert.doesNotMatch(text(tree), /We had an issue/);
+  assert.match(text(tree), /monikko/);
+});
+
+test("an uncertain undo freezes grading until the same reversal is confirmed by Retry", async (t) => {
+  let attempts = 0;
+  const session = setup(t, [fixture], ReviewMode.Simple, {
+    undoReview: () => {
+      if (attempts++ === 0) throw new Error("Lost response");
+    },
+  });
+  await session.ready();
+  session.key(" ");
+  session.render();
+  session.key("2");
+  let tree = await session.ready();
+  undoButton(tree).props.onClick();
+  tree = await session.ready();
+  assert.match(text(tree), /Could not confirm the undo/);
+  assert.match(text(tree), /Retry undo/);
+  undoButton(tree).props.onClick();
+  tree = await session.ready();
+  assert.equal(
+    session.undos[0].replacementExposureId,
+    session.undos[1].replacementExposureId,
+  );
+  assert.equal(session.undos[0].reviewId, session.undos[1].reviewId);
+  assert.match(text(tree), /monikko/);
+  assert.equal(undoButton(tree).props.disabled, true);
+});
+
+test("undo invalidates stale queue responses and removes siblings of a reverted introduction", async (t) => {
+  let finish;
+  let loads = 0;
+  const initial = { ...fixture, state: { state: FsrsCardState.New } };
+  const sibling = {
+    ...fixture,
+    id: "production",
+    wordSetItemId: "note-card-1",
+    templateKey: "production",
+    state: { state: FsrsCardState.New },
+  };
+  const session = setup(t, [initial], ReviewMode.Simple, {
+    loadQueue: () => {
+      if (loads++ === 0)
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      return { cards: [] };
+    },
+  });
+  await session.ready();
+  session.key(" ");
+  session.render();
+  session.key(" ");
+  let tree = await session.ready();
+  undoButton(tree).props.onClick();
+  tree = await session.ready();
+  finish({ cards: [sibling] });
+  tree = await session.ready();
+  assert.match(text(tree), /monikko/);
+  assert.equal(
+    nodes(tree, (node) => node.type === "h2").map(text)[0],
+    "monikko",
+  );
+  assert.equal(session.undos.length, 1);
+});
+
+test("repeated occurrences of one exercise unwind without duplicate queued copies", async (t) => {
+  let repeat = false;
+  const second = { ...fixture, id: "card-2", original: "talo" };
+  const session = setup(t, [fixture, second], ReviewMode.Simple, {
+    loadQueue: () => {
+      if (!repeat) return { cards: [] };
+      repeat = false;
+      return {
+        cards: [{ ...fixture, state: { state: FsrsCardState.Learning } }],
+      };
+    },
+  });
+  await session.ready();
+  session.key(" ");
+  session.render();
+  session.key("2");
+  await session.ready();
+  repeat = true;
+  session.focus();
+  await session.ready();
+  session.key(" ");
+  session.render();
+  session.key("2");
+  await session.ready();
+  session.key(" ");
+  session.render();
+  session.key("2");
+  let tree = await session.ready();
+  assert.equal(session.submissions.length, 3);
+  for (let i = 0; i < 3; i++) {
+    undoButton(tree).props.onClick();
+    tree = await session.ready();
+  }
+  assert.deepEqual(
+    session.undos.map((entry) => entry.reviewId),
+    session.submissions
+      .slice(0, 3)
+      .reverse()
+      .map((entry) => entry.reviewId),
+  );
+  assert.equal(undoButton(tree).props.disabled, true);
+  session.key("2");
+  tree = await session.ready();
+  assert.equal(nodes(tree, (node) => node.type === "h2").map(text)[0], "talo");
+  session.key("2");
+  tree = await session.ready();
+  assert.match(text(tree), /caught up/);
+  assert.equal(session.submissions.length, 5);
+});
+
+test("an acknowledged undo with newer external progress preserves the next exercise instead of restoring a stale receipt", async (t) => {
+  const second = { ...fixture, id: "card-2", original: "talo" };
+  const session = setup(t, [fixture, second], ReviewMode.Simple, {
+    undoReview: (operation) => ({
+      card: fixture,
+      exposure: { id: operation.replacementExposureId },
+      studyDay: {
+        startAt: new Date().toISOString(),
+        nextStartAt: new Date(Date.now() + 86400000).toISOString(),
+        timeZone: "UTC",
+      },
+      resumable: false,
+    }),
+  });
+  await session.ready();
+  session.key(" ");
+  session.render();
+  session.key("2");
+  let tree = await session.ready();
+  undoButton(tree).props.onClick();
+  tree = await session.ready();
+  assert.equal(nodes(tree, (node) => node.type === "h2").map(text)[0], "talo");
+  assert.match(text(tree), /answer was undone.*changed elsewhere/);
+  assert.equal(undoButton(tree).props.disabled, true);
+});
+
+test("undoing an ignored failed save allows the corrected exercise back into later refills", async (t) => {
+  let saves = 0;
+  const session = setup(t, [fixture], ReviewMode.Simple, {
+    saveReview: () => {
+      if (saves++ === 0) throw new Error("Save unavailable");
+    },
+  });
+  await session.ready();
+  session.key(" ");
+  session.render();
+  session.key("2");
+  let tree = await session.ready();
+  nodes(
+    tree,
+    (node) => node.type === "button" && text(node) === "Ignore",
+  )[0].props.onClick();
+  tree = await session.ready();
+  undoButton(tree).props.onClick();
+  tree = await session.ready();
+  session.key("2");
+  await session.ready();
+  session.focus();
+  await session.ready();
+  const lastQueue = session.requests
+    .filter((request) => request.options?.method !== "POST")
+    .at(-1);
+  assert(
+    !new URL(lastQueue.url, "https://gooseberry.test").searchParams
+      .getAll("exclude")
+      .includes(fixture.id),
+  );
+  assert.equal(session.submissions.length, 2);
 });

@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BookOpen, Leaf, Repeat2, X } from "lucide-react";
+import { BookOpen, Leaf, Repeat2, Undo2, X } from "lucide-react";
 import { SourceAudioButton } from "@/components/ui/SourceAudioButton";
 import { BottomPanelLayout } from "@/components/ui/BottomPanelLayout";
 import { isNewState, reviewControls } from "@/lib/review/controls";
@@ -47,6 +47,8 @@ type RatingPreview = {
 };
 
 type ReviewCard = {
+  presentationId?: string;
+  resuming?: boolean;
   id: string;
   wordSetItemId: string;
   templateKey: StudyCardTemplateKey;
@@ -66,6 +68,7 @@ type ReviewCard = {
 };
 
 type ReviewSubmission = {
+  sessionId: string;
   reviewId: string;
   studyCardId: string;
   exposureId: string;
@@ -73,6 +76,13 @@ type ReviewSubmission = {
   reviewedAt: string;
   durationMs: number;
 };
+
+type AnswerHistoryEntry = {
+  card: ReviewCard;
+  submission: ReviewSubmission;
+  typedAnswer: string;
+};
+type ReviewDraft = { typedAnswer: string; revealed: boolean };
 
 const MAX_QUEUE_EXCLUSIONS = 100;
 
@@ -101,6 +111,20 @@ export function ReviewSession({
   const [typedAnswer, setTypedAnswer] = useState("");
   const [error, setError] = useState<UiMessage | null>(null);
   const [failedReviews, setFailedReviews] = useState<ReviewSubmission[]>([]);
+  const [undoCount, setUndoCount] = useState(0);
+  const [undoing, setUndoing] = useState(false);
+  const [undoPending, setUndoPending] = useState(false);
+  const [undoError, setUndoError] = useState<UiMessage | null>(null);
+  const historyRef = useRef<AnswerHistoryEntry[]>([]);
+  const draftsRef = useRef(new Map<string, ReviewDraft>());
+  const sessionIdRef = useRef<string | null>(null);
+  const cancelledReviewsRef = useRef(new Set<string>());
+  const undoRequestRef = useRef<{
+    entry: AnswerHistoryEntry;
+    replacementExposureId: string;
+  } | null>(null);
+  const undoRunningRef = useRef(false);
+  const queueGenerationRef = useRef(0);
   const activity = useStudyActivity(studyDay);
   const { addReview, startSave, completeSave, failSave } = activity;
   const cardsRef = useRef<ReviewCard[]>([]);
@@ -220,6 +244,7 @@ export function ReviewSession({
     async function loadQueue({
       replace = false,
     }: { replace?: boolean } = {}): Promise<void> {
+      if (undoRequestRef.current) return;
       if (loadingQueueRef.current) {
         queueRefreshPendingRef.current = true;
         return;
@@ -239,6 +264,7 @@ export function ReviewSession({
 
       loadingQueueRef.current = true;
       const requestedAt = Date.now();
+      const generation = queueGenerationRef.current;
       if (replace) {
         setLoading(true);
         setError(null);
@@ -269,6 +295,8 @@ export function ReviewSession({
           exposureDeferredCount?: number;
           allowanceBlockedCount?: number;
         };
+        if (generation !== queueGenerationRef.current || undoRequestRef.current)
+          return;
         // Answers can advance the queue while this request is in flight.
         // Merge against the live queue so they never reappear from a snapshot.
         const liveCards = replace ? [] : cardsRef.current;
@@ -309,12 +337,15 @@ export function ReviewSession({
         setAllowanceBlockedCount(body.allowanceBlockedCount ?? 0);
 
         if (replace || startsNewCard) {
-          setRevealed(false);
-          setTypedAnswer("");
-          revealedCardIdRef.current = null;
+          const draft = nextCards[0] && draftsRef.current.get(nextCards[0].id);
+          setRevealed(draft?.revealed ?? false);
+          setTypedAnswer(draft?.typedAnswer ?? "");
+          revealedCardIdRef.current = draft?.revealed ? nextCards[0].id : null;
           shownAt.current = performance.now();
         }
       } catch (loadError) {
+        if (generation !== queueGenerationRef.current || undoRequestRef.current)
+          return;
         if (replace || currentCards.length === 0) {
           setError(
             messageFromError(loadError, "errors.couldNotLoadTheNextReview"),
@@ -341,18 +372,21 @@ export function ReviewSession({
     renew: renewExposure,
   } = useStudyExposure<ReviewCard>({
     studyCardId: card?.id,
+    presentationId: card?.presentationId,
     onPresented,
     onRecorded,
   });
 
   const sendReview = useCallback(
     async (submission: ReviewSubmission) => {
+      if (cancelledReviewsRef.current.has(submission.reviewId)) return;
       pendingReviewsRef.current.set(submission.reviewId, submission);
       startSave(submission.reviewId);
 
       try {
         let creditedDate: string | undefined;
         await withAutomaticRetries(async () => {
+          if (cancelledReviewsRef.current.has(submission.reviewId)) return;
           const response = await fetch("/api/study/reviews", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -364,6 +398,7 @@ export function ReviewSession({
             throw errorFromResponse(body, "errors.couldNotSaveThisReview");
           }
           const body = await response.json();
+          if (cancelledReviewsRef.current.has(submission.reviewId)) return;
           creditedDate = body.activityCredit?.creditedDate;
           const dueAt = (body.nextAvailableAt ?? body.state?.dueAt) as
             string | undefined;
@@ -375,10 +410,12 @@ export function ReviewSession({
           }
         });
         pendingReviewsRef.current.delete(submission.reviewId);
+        if (cancelledReviewsRef.current.has(submission.reviewId)) return;
         completeSave(submission.reviewId, creditedDate);
         void queryClient.invalidateQueries({ queryKey: ["wordSets"] });
       } catch {
         pendingReviewsRef.current.delete(submission.reviewId);
+        if (cancelledReviewsRef.current.has(submission.reviewId)) return;
         failSave(submission.reviewId);
         updateFailedReviews((current) =>
           current.some(({ reviewId }) => reviewId === submission.reviewId)
@@ -462,14 +499,19 @@ export function ReviewSession({
   }, [studyDay, loadCards, renewExposure, status]);
 
   const revealAnswer = useCallback(() => {
-    if (!card) return;
+    if (!card || undoRequestRef.current) return;
     revealedCardIdRef.current = card.id;
     setRevealed(true);
   }, [card]);
 
   const submitRating = useCallback(
     (rating: Rating) => {
-      if (!card || revealedCardIdRef.current !== card.id) return;
+      if (
+        !card ||
+        undoRequestRef.current ||
+        revealedCardIdRef.current !== card.id
+      )
+        return;
 
       onPresented(card.id);
       const presentationId = getPresentationId();
@@ -477,6 +519,7 @@ export function ReviewSession({
 
       revealedCardIdRef.current = null;
       const submission: ReviewSubmission = {
+        sessionId: (sessionIdRef.current ??= crypto.randomUUID()),
         reviewId: crypto.randomUUID(),
         studyCardId: card.id,
         exposureId: presentationId,
@@ -487,13 +530,20 @@ export function ReviewSession({
           Math.round(performance.now() - shownAt.current),
         ),
       };
+      historyRef.current.push({ card, submission, typedAnswer });
+      setUndoCount(historyRef.current.length);
+      setUndoError(null);
+      draftsRef.current.delete(card.id);
       const remainingCards = cardsRef.current.slice(1);
+      const draft =
+        remainingCards[0] && draftsRef.current.get(remainingCards[0].id);
+      revealedCardIdRef.current = draft?.revealed ? remainingCards[0].id : null;
       addReview(submission.reviewId);
       presentedCardIdRef.current = null;
       clearExposure();
       updateCards(remainingCards);
-      setRevealed(false);
-      setTypedAnswer("");
+      setRevealed(draft?.revealed ?? false);
+      setTypedAnswer(draft?.typedAnswer ?? "");
       setError(null);
       shownAt.current = performance.now();
       window.scrollTo({ top: 0, behavior: "instant" });
@@ -507,6 +557,7 @@ export function ReviewSession({
     },
     [
       card,
+      typedAnswer,
       addReview,
       clearExposure,
       getPresentationId,
@@ -518,6 +569,7 @@ export function ReviewSession({
   );
 
   const retryFailedReview = useCallback(() => {
+    if (undoRequestRef.current) return;
     const failed = failedReviewsRef.current[0];
     if (!failed) return;
     updateFailedReviews((current) => current.slice(1));
@@ -525,6 +577,7 @@ export function ReviewSession({
   }, [sendReview, updateFailedReviews]);
 
   const ignoreFailedReview = useCallback(() => {
+    if (undoRequestRef.current) return;
     const failed = failedReviewsRef.current[0];
     if (!failed) return;
     ignoredCardIdsRef.current.add(failed.studyCardId);
@@ -532,8 +585,174 @@ export function ReviewSession({
     if (shouldRefillReviewQueue(cardsRef.current)) void loadCards();
   }, [loadCards, updateFailedReviews]);
 
+  const undoLastAnswer = useCallback(async () => {
+    if (undoRunningRef.current) return;
+    const entry = undoRequestRef.current?.entry ?? historyRef.current.at(-1);
+    if (!entry) return;
+    if (!undoRequestRef.current) {
+      const visible = cardsRef.current[0];
+      if (visible) {
+        draftsRef.current.set(visible.id, { typedAnswer, revealed });
+        updateCards([
+          {
+            ...visible,
+            presentationId: getPresentationId() ?? undefined,
+            resuming: true,
+          },
+          ...cardsRef.current.slice(1),
+        ]);
+      }
+      undoRequestRef.current = {
+        entry,
+        replacementExposureId: crypto.randomUUID(),
+      };
+      setUndoPending(true);
+      queueGenerationRef.current++;
+    }
+    const operation = undoRequestRef.current;
+    startSave(`undo:${entry.submission.reviewId}`);
+    undoRunningRef.current = true;
+    setUndoing(true);
+    setUndoError(null);
+    try {
+      const outcome = await withAutomaticRetries(async () => {
+        const response = await fetch("/api/study/reviews/undo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          keepalive: true,
+          body: JSON.stringify({
+            ...entry.submission,
+            replacementExposureId: operation.replacementExposureId,
+          }),
+        });
+        const body = await response.json();
+        if (!response.ok) {
+          const error = errorFromResponse(body, "errors.couldNotUndoReview");
+          if (response.status >= 400 && response.status < 500)
+            return { rejected: error } as const;
+          throw error;
+        }
+        if (
+          !body.card ||
+          !body.studyDay ||
+          body.exposure?.id !== operation.replacementExposureId ||
+          body.card.id !== entry.card.id
+        )
+          throw new Error("Invalid undo response");
+        return {
+          result: body as ActivatedStudyCard<ReviewCard> & {
+            resumable?: boolean;
+          },
+        } as const;
+      });
+      if (outcome.rejected) {
+        undoRequestRef.current = null;
+        setUndoPending(false);
+        completeSave(`undo:${entry.submission.reviewId}`);
+        setUndoError(
+          messageFromError(
+            outcome.rejected,
+            "errors.couldNotUndoChangedReview",
+          ),
+        );
+        void loadCards();
+        return;
+      }
+      const result = outcome.result;
+      cancelledReviewsRef.current.add(entry.submission.reviewId);
+      pendingReviewsRef.current.delete(entry.submission.reviewId);
+      updateFailedReviews((current) =>
+        current.filter(
+          (review) => review.reviewId !== entry.submission.reviewId,
+        ),
+      );
+      failSave(entry.submission.reviewId);
+      completeSave(`undo:${entry.submission.reviewId}`);
+      scheduledReviewsRef.current.delete(entry.card.id);
+      ignoredCardIdsRef.current.delete(entry.card.id);
+      historyRef.current.pop();
+      setUndoCount(historyRef.current.length);
+      const restored = {
+        ...result.card,
+        presentationId: result.exposure.id,
+        resuming: true,
+      };
+      if (result.resumable !== false)
+        draftsRef.current.set(restored.id, {
+          typedAnswer: entry.typedAnswer,
+          revealed: true,
+        });
+      // The undone introduction can invalidate waiting siblings. Fetch them
+      // again after their prerequisites are saved, retaining any typed draft.
+      const waiting = cardsRef.current.filter(
+        (candidate) =>
+          candidate.id !== restored.id &&
+          candidate.wordSetItemId !== restored.wordSetItemId,
+      );
+      presentedCardIdRef.current = null;
+      clearExposure();
+      acceptStudyDay(result.studyDay);
+      const nextCards =
+        result.resumable === false ? waiting : [restored, ...waiting];
+      const next = nextCards[0];
+      const draft = next && draftsRef.current.get(next.id);
+      updateCards(nextCards);
+      setTypedAnswer(draft?.typedAnswer ?? "");
+      setRevealed(draft?.revealed ?? false);
+      revealedCardIdRef.current = next && draft?.revealed ? next.id : null;
+      if (result.resumable === false)
+        setUndoError({ key: "errors.studyChangedAfterUndo" });
+      shownAt.current = performance.now();
+      setError(null);
+      undoRequestRef.current = null;
+      setUndoPending(false);
+      window.scrollTo({ top: 0, behavior: "instant" });
+      void queryClient.invalidateQueries({ queryKey: ["wordSets"] });
+      void queryClient.invalidateQueries({ queryKey: ["studyActivity"] });
+      void loadCards();
+    } catch (error) {
+      // An unavailable response does not prove the reversal failed. Keep the
+      // same operation UUID and block grading until a retry confirms its result.
+      completeSave(`undo:${entry.submission.reviewId}`);
+      setUndoError(messageFromError(error, "errors.couldNotUndoReview"));
+    } finally {
+      undoRunningRef.current = false;
+      setUndoing(false);
+    }
+  }, [
+    typedAnswer,
+    revealed,
+    updateCards,
+    getPresentationId,
+    startSave,
+    completeSave,
+    failSave,
+    updateFailedReviews,
+    clearExposure,
+    acceptStudyDay,
+    queryClient,
+    loadCards,
+  ]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const editing =
+        event.target instanceof Element &&
+        event.target.closest("input, select, textarea, [contenteditable]");
+      if (
+        !editing &&
+        !event.isComposing &&
+        !event.altKey &&
+        !event.shiftKey &&
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === "z"
+      ) {
+        if (historyRef.current.length) {
+          event.preventDefault();
+          if (!event.repeat) void undoLastAnswer();
+        }
+        return;
+      }
       if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing) {
         return;
       }
@@ -578,9 +797,35 @@ export function ReviewSession({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [card, revealAnswer, revealed, reviewMode, submitRating]);
+  }, [card, revealAnswer, revealed, reviewMode, submitRating, undoLastAnswer]);
 
-  const failureToast = failedReviews[0] ? (
+  const undoButton = (
+    <button
+      type="button"
+      className={styles.undoButton}
+      onClick={() => void undoLastAnswer()}
+      disabled={undoCount === 0 || undoing}
+      title={t("reviewSession.undoHint")}
+      aria-keyshortcuts="Control+z Meta+z"
+      aria-busy={undoing}
+    >
+      <Undo2 size={18} aria-hidden="true" />
+      {t(
+        undoing
+          ? "reviewSession.undoing"
+          : undoError && undoPending
+            ? "reviewSession.retryUndo"
+            : "reviewSession.undo",
+      )}
+    </button>
+  );
+
+  const failureToast = undoError ? (
+    <aside className={styles.syncToast} role="alert">
+      <p>{t(undoError.key, undoError.values)}</p>
+      {undoPending && <div>{undoButton}</div>}
+    </aside>
+  ) : failedReviews[0] ? (
     <aside className={styles.syncToast} role="alert" aria-live="assertive">
       <p>{t("reviewSession.weHadAnIssueTryingToUpdateYourProgress")}</p>
       <div>
@@ -607,6 +852,9 @@ export function ReviewSession({
             {t("reviewSession.loadingReview")}
           </span>
         </div>
+        {undoCount > 0 && (
+          <div className={styles.undoRecovery}>{undoButton}</div>
+        )}
         {failureToast}
       </>
     );
@@ -631,6 +879,7 @@ export function ReviewSession({
             {t("moveWordDialog.tryAgain")}
           </button>
           {activitySummary}
+          {undoCount > 0 && undoButton}
           <Link className={styles.textLink} href="/anki">
             {t("reviewSession.backToSets")}
           </Link>
@@ -675,6 +924,7 @@ export function ReviewSession({
             </p>
           )}
           {activitySummary}
+          {undoCount > 0 && undoButton}
           <Link className={styles.textLink} href="/profile">
             {t("studyScope.settings")}
           </Link>
@@ -713,6 +963,7 @@ export function ReviewSession({
     <button
       className={styles.revealButton}
       onClick={revealAnswer}
+      disabled={undoPending}
       autoFocus={!template.requiresTyping}
     >
       {template.requiresTyping
@@ -747,6 +998,7 @@ export function ReviewSession({
               styles[`rating${control.rating}`]
             } ${newCard ? styles.okButton : ""}`}
             onClick={() => submitRating(control.rating)}
+            disabled={undoPending}
           >
             {control.shortcut && (
               <span className={styles.ratingKey}>
@@ -809,6 +1061,7 @@ export function ReviewSession({
                 : t("reviewSession.repeating")}
             </p>
             <p className={styles.exerciseLabel}>{t(template.labelKey)}</p>
+            {undoButton}
           </div>
           <div className={styles.promptSide}>
             <div
@@ -847,6 +1100,7 @@ export function ReviewSession({
                   lang={card.sourceLang}
                   type="text"
                   value={typedAnswer}
+                  disabled={undoPending}
                   onChange={(event) => setTypedAnswer(event.target.value)}
                   onKeyDown={(event) => {
                     if (

@@ -12,6 +12,7 @@ function loadRoute({ session = { user: { id: "user-1" } }, card = null } = {}) {
     ReviewCardNotFoundError: class ReviewCardNotFoundError extends Error {},
     ReviewCardNotDueError: class ReviewCardNotDueError extends Error {},
     ReviewWriteConflictError: class ReviewWriteConflictError extends Error {},
+    ReviewUndoneError: class ReviewUndoneError extends Error {},
   };
   const code = ts.transpileModule(
     readFileSync(

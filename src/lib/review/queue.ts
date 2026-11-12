@@ -3,6 +3,7 @@ import { isExposureSensitive } from "@/lib/review/policy";
 
 type QueueCard = {
   id: string;
+  resuming?: boolean;
   state: { state: number; dueAt?: string };
 };
 
@@ -17,6 +18,7 @@ export function filterExposedReviewQueue<
   return cards.filter(
     (card, index) =>
       (preserveDisplayed && index === 0) ||
+      card.resuming ||
       !isExposureSensitive(card.templateKey, card.state.state) ||
       (lastSeen.get(card.wordSetItemId) ?? -Infinity) < dayStart,
   );
@@ -47,6 +49,8 @@ export function mergeReviewQueue<T extends QueueCard>(
   const displayed = current[0];
   const waiting = displayed ? cards.slice(1) : cards;
   waiting.sort((left, right) => {
+    if (!!left.resuming !== !!right.resuming) return left.resuming ? -1 : 1;
+    if (left.resuming && right.resuming) return 0;
     const leftNew = left.state.state === FsrsCardState.New;
     const rightNew = right.state.state === FsrsCardState.New;
     if (leftNew !== rightNew) return leftNew ? 1 : -1;

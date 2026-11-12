@@ -434,6 +434,30 @@ export const studyExposure = pgTable(
   ],
 );
 
+// Retain cancellations independently of content and late review delivery.
+export const studyReviewUndo = pgTable(
+  "study_review_undo",
+  {
+    reviewId: uuid("review_id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id, { onDelete: "cascade" }),
+    studyCardId: uuid("study_card_id").notNull(),
+    sessionId: uuid("session_id").notNull(),
+    exposureId: uuid("exposure_id").notNull().unique(),
+    replacementExposureId: uuid("replacement_exposure_id").notNull().unique(),
+    rating: smallint("rating").notNull(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }).notNull(),
+    undoneAt: timestamp("undone_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("study_review_undo_user_session_idx").on(t.userId, t.sessionId),
+    check("study_review_undo_rating_check", sql`${t.rating} BETWEEN 1 AND 4`),
+  ],
+);
+
 // Immutable credit, independent of content and replaceable scheduler history.
 // Attribution UUIDs deliberately have no content foreign keys.
 export const studyActivity = pgTable(

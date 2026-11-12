@@ -3,6 +3,8 @@ import { getDb } from "@/db/drizzle";
 import {
   fsrsCardState,
   reviewEvent,
+  studyReviewUndo,
+  studyExposure,
   studyCard,
   studyCardImportBaseline,
   wordSet,
@@ -61,6 +63,7 @@ const MAX_REVIEW_WRITE_ATTEMPTS = 3;
 export class ReviewCardNotFoundError extends MessageError {}
 export class ReviewCardNotDueError extends MessageError {}
 export class ReviewWriteConflictError extends MessageError {}
+export class ReviewUndoneError extends ReviewWriteConflictError {}
 export class ReviewWordSeenTodayError extends ReviewCardNotDueError {}
 
 export type DueReviewCard = {
@@ -438,6 +441,238 @@ function exerciseIntroductionOrder() {
   )} ELSE ${STUDY_CARD_INTRODUCTION_ORDER.length}::integer END`;
 }
 
+async function assertReviewNotUndone(input: {
+  reviewEventId: string;
+  exposureId: string;
+}) {
+  const result = await getDb().execute(sql`SELECT 1 FROM study_review_undo
+    WHERE review_id = ${input.reviewEventId} OR exposure_id = ${input.exposureId ?? null} LIMIT 1`);
+  if (result.rows?.length)
+    throw new ReviewUndoneError("errors.reviewWasUndone");
+}
+
+type UndoReviewInput = {
+  userId: string;
+  wordSetId: string;
+  studyCardId: string;
+  reviewEventId: string;
+  sessionId: string;
+  exposureId: string;
+  replacementExposureId: string;
+  rating: ReviewRatingValue;
+  reviewedAt: Date;
+  now: Date;
+};
+
+// The UUID-keyed tombstone is deliberately written even when the grade has not
+// arrived yet. Both writes lock the note and check cancellation inside the batch.
+export async function undoReview(input: UndoReviewInput) {
+  const db = getDb();
+  const previousUndo = async () => {
+    const [entry] = await db
+      .select()
+      .from(studyReviewUndo)
+      .where(eq(studyReviewUndo.reviewId, input.reviewEventId))
+      .limit(1);
+    if (
+      entry &&
+      (entry.userId !== input.userId ||
+        entry.studyCardId !== input.studyCardId ||
+        entry.sessionId !== input.sessionId ||
+        entry.exposureId !== input.exposureId ||
+        entry.rating !== input.rating ||
+        entry.reviewedAt.getTime() !== input.reviewedAt.getTime())
+    ) {
+      throw new ReviewWriteConflictError("errors.couldNotUndoChangedReview");
+    }
+    return entry;
+  };
+  const result = async (replacementExposureId: string) => {
+    const row = await getOwnedReviewCard(
+      input.userId,
+      input.wordSetId,
+      input.studyCardId,
+      input.now,
+    );
+    if (!row) throw new ReviewCardNotFoundError("errors.reviewCardNotFound");
+    const [exposure] = await db
+      .select()
+      .from(studyExposure)
+      .where(
+        and(
+          eq(studyExposure.id, replacementExposureId),
+          eq(studyExposure.userId, input.userId),
+        ),
+      )
+      .limit(1);
+    const card = toDueReviewCard(row);
+    return {
+      card,
+      exposure,
+      resumable:
+        !!exposure &&
+        !exposure.reviewEventId &&
+        !row.isSuspended &&
+        row.introductionAllowed &&
+        card.state.dueAt <= input.now &&
+        (!row.buriedUntil || row.buriedUntil <= input.now) &&
+        exposure.stateBefore === card.state.state &&
+        exposure.repsBefore === card.state.reps,
+      studyDay: await getStudyDay(input.userId, input.now),
+    };
+  };
+  const existing = await previousUndo();
+  if (existing) return result(existing.replacementExposureId);
+
+  for (let attempt = 0; attempt < MAX_REVIEW_WRITE_ATTEMPTS; attempt++) {
+    await ensureReviewProjections(
+      input.userId,
+      input.wordSetId,
+      input.studyCardId,
+    );
+    const row = await getOwnedReviewCard(
+      input.userId,
+      input.wordSetId,
+      input.studyCardId,
+      input.now,
+    );
+    if (!row) throw new ReviewCardNotFoundError("errors.reviewCardNotFound");
+    if (row.isSuspended || (row.buriedUntil && row.buriedUntil > input.now))
+      throw new ReviewWriteConflictError("errors.couldNotUndoChangedReview");
+    const [target] = await db
+      .select()
+      .from(reviewEvent)
+      .where(eq(reviewEvent.id, input.reviewEventId))
+      .limit(1);
+    if (
+      target &&
+      (target.userId !== input.userId ||
+        target.studyCardId !== input.studyCardId ||
+        target.source !== "gooseberry" ||
+        target.rating !== input.rating ||
+        target.reviewedAt.getTime() !== input.reviewedAt.getTime() ||
+        target.sourceMetadata?.sessionId !== input.sessionId ||
+        target.sourceMetadata?.exposureId !== input.exposureId)
+    ) {
+      throw new ReviewWriteConflictError("errors.couldNotUndoChangedReview");
+    }
+    if (!target) {
+      const permission = await getStudyExposure(input.userId, input.exposureId);
+      if (
+        !row.introductionAllowed ||
+        (!permission &&
+          (!row.allowanceAllowed ||
+            toDueReviewCard(row).state.dueAt > input.now))
+      )
+        throw new ReviewWriteConflictError("errors.couldNotUndoChangedReview");
+    }
+    const history = await db
+      .select({
+        id: reviewEvent.id,
+        rating: reviewEvent.rating,
+        reviewedAt: reviewEvent.reviewedAt,
+        sequence: reviewEvent.sequence,
+      })
+      .from(reviewEvent)
+      .where(
+        and(
+          eq(reviewEvent.userId, input.userId),
+          eq(reviewEvent.studyCardId, input.studyCardId),
+          eq(reviewEvent.source, "gooseberry"),
+          sql`${reviewEvent.id} <> ${input.reviewEventId}`,
+          sql`NOT EXISTS (SELECT 1 FROM study_review_undo undo WHERE undo.review_id = ${reviewEvent.id})`,
+        ),
+      )
+      .orderBy(asc(reviewEvent.reviewedAt), asc(reviewEvent.sequence));
+    const state = replayReviewHistory(
+      row.introducedAt,
+      history.map((event) => ({
+        ...event,
+        rating: ReviewRatingSchema.parse(event.rating),
+      })),
+      row.baseline ? deserializeFsrsState(row.baseline) : null,
+    );
+    const currentState = toDueReviewCard(row).state;
+    const day = await getStudyDay(input.userId, input.now);
+    const expectedRevision = row.projection?.revision ?? null;
+    try {
+      await db.batch([
+        db.execute(
+          sql`SELECT id FROM word_set_item WHERE id = ${row.wordSetItemId} FOR UPDATE`,
+        ),
+        db.execute(sql`WITH cancelled AS (
+          INSERT INTO study_review_undo
+            (review_id,user_id,study_card_id,session_id,exposure_id,replacement_exposure_id,rating,reviewed_at,undone_at)
+          SELECT ${input.reviewEventId},${input.userId},${input.studyCardId},${input.sessionId},
+            ${input.exposureId},${input.replacementExposureId},${input.rating},${input.reviewedAt},${input.now}
+          WHERE ${
+            target
+              ? sql`EXISTS (SELECT 1 FROM review_event WHERE id = ${input.reviewEventId})`
+              : sql`NOT EXISTS (SELECT 1 FROM review_event WHERE id = ${input.reviewEventId})`
+          }
+            AND EXISTS (SELECT 1 FROM study_card WHERE id = ${input.studyCardId} AND NOT is_suspended
+              AND (buried_until IS NULL OR buried_until <= ${input.now}))
+            AND NOT EXISTS (SELECT 1 FROM study_review_undo WHERE review_id = ${input.reviewEventId})
+            AND NOT EXISTS (SELECT 1 FROM study_exposure WHERE id = ${input.exposureId}
+              AND (user_id <> ${input.userId} OR study_card_id <> ${input.studyCardId}))
+            AND EXISTS (SELECT 1 FROM word_set_item item INNER JOIN word_set owned_set ON owned_set.id = item.word_set_id
+              WHERE item.id = ${row.wordSetItemId} AND owned_set.id = ${input.wordSetId} AND owned_set.user_id = ${input.userId})
+            AND NOT EXISTS (
+              SELECT 1 FROM review_event later INNER JOIN study_card sibling ON sibling.id = later.study_card_id
+              WHERE sibling.word_set_item_id = ${row.wordSetItemId} AND later.user_id = ${input.userId}
+                AND later.source = 'gooseberry' AND later.id <> ${input.reviewEventId}
+                AND NOT EXISTS (SELECT 1 FROM study_review_undo undo WHERE undo.review_id = later.id)
+                AND ${
+                  target
+                    ? sql`later.sequence > ${target.sequence}`
+                    : sql`later.created_at > coalesce(
+                  (SELECT activated_at FROM study_exposure WHERE id = ${input.exposureId}), ${input.reviewedAt})`
+                }
+            )
+            AND ${
+              target
+                ? sql`true`
+                : sql`NOT EXISTS (SELECT 1 FROM study_exposure WHERE id = ${input.exposureId}
+              AND (review_event_id IS NOT NULL OR state_before <> ${currentState.state} OR reps_before <> ${currentState.reps}))`
+            }
+          RETURNING 1
+        ) SELECT 1 / count(*)::integer AS committed FROM cancelled`),
+        db.execute(sql`WITH written AS (
+          INSERT INTO fsrs_card_state (user_id,study_card_id,due_at,stability,difficulty,elapsed_days,scheduled_days,
+            learning_steps,reps,lapses,state,revision,last_review_at,last_review_event_id,scheduler_version,updated_at)
+          VALUES (${input.userId},${input.studyCardId},${state.dueAt},${state.stability},${state.difficulty},${state.elapsedDays},
+            ${state.scheduledDays},${state.learningSteps},${state.reps},${state.lapses},${state.state},1,
+            ${state.lastReviewAt},${history.at(-1)?.id ?? null},${state.schedulerVersion},now())
+          ON CONFLICT (user_id,study_card_id) DO UPDATE SET due_at=excluded.due_at,stability=excluded.stability,
+            difficulty=excluded.difficulty,elapsed_days=excluded.elapsed_days,scheduled_days=excluded.scheduled_days,
+            learning_steps=excluded.learning_steps,reps=excluded.reps,lapses=excluded.lapses,state=excluded.state,
+            revision=fsrs_card_state.revision+1,last_review_at=excluded.last_review_at,
+            last_review_event_id=excluded.last_review_event_id,scheduler_version=excluded.scheduler_version,updated_at=now()
+          WHERE ${expectedRevision === null ? sql`false` : sql`fsrs_card_state.revision = ${expectedRevision}`}
+          RETURNING 1
+        ) SELECT 1 / count(*)::integer AS committed FROM written`),
+        db.insert(studyExposure).values({
+          id: input.replacementExposureId,
+          userId: input.userId,
+          studyCardId: input.studyCardId,
+          wordSetItemId: row.wordSetItemId,
+          stateBefore: state.state,
+          repsBefore: state.reps,
+          activatedAt: input.now,
+          studyDayStart: day.startAt,
+          studyTimeZone: day.timeZone,
+        }),
+      ]);
+      return result(input.replacementExposureId);
+    } catch (error) {
+      const completed = await previousUndo();
+      if (completed) return result(completed.replacementExposureId);
+      if (!isRevisionConflict(error)) throw error;
+    }
+  }
+  throw new ReviewWriteConflictError("errors.couldNotUndoChangedReview");
+}
+
 export async function recordReview(input: {
   userId: string;
   wordSetId: string;
@@ -448,7 +683,9 @@ export async function recordReview(input: {
   durationMs?: number;
   exposureId: string;
   now?: Date;
+  sessionId?: string;
 }): Promise<FsrsStateProjection> {
+  await assertReviewNotUndone(input);
   const recordedState = await getRecordedReviewState(input);
   if (recordedState) return recordedState;
   const now = input.now ?? input.reviewedAt;
@@ -566,6 +803,7 @@ export async function recordReview(input: {
       });
       return nextState;
     } catch (error) {
+      await assertReviewNotUndone(input);
       const alreadyRecorded = await getRecordedReviewState(input);
       if (alreadyRecorded) return alreadyRecorded;
       if (!isRevisionConflict(error)) throw error;
@@ -775,6 +1013,7 @@ async function rebuildCardState(
         eq(reviewEvent.userId, userId),
         eq(reviewEvent.studyCardId, studyCardId),
         eq(reviewEvent.source, "gooseberry"),
+        sql`NOT EXISTS (SELECT 1 FROM study_review_undo undo WHERE undo.review_id = ${reviewEvent.id})`,
       ),
     )
     .orderBy(asc(reviewEvent.reviewedAt), asc(reviewEvent.sequence));
@@ -804,6 +1043,7 @@ async function persistReview(input: {
   templateKey: string;
   wordSetItemId: string;
   wordSetId: string;
+  sessionId?: string;
 }) {
   const db = getDb();
   const eventWrite = db.insert(reviewEvent).values({
@@ -813,7 +1053,10 @@ async function persistReview(input: {
     rating: input.rating,
     reviewedAt: input.reviewedAt,
     durationMs: input.durationMs,
-    sourceMetadata: { exposureId: input.exposureId },
+    sourceMetadata: {
+      exposureId: input.exposureId,
+      ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+    },
   });
   const state = input.nextState;
   const stateWrite =
@@ -863,6 +1106,16 @@ async function persistReview(input: {
         `);
 
   await db.batch([
+    db.execute(
+      sql`SELECT id FROM word_set_item WHERE id = ${input.wordSetItemId} FOR UPDATE`,
+    ),
+    // Share the note lock with undo and recheck prerequisites after acquiring it.
+    db.execute(sql`SELECT 1 / CASE WHEN
+      NOT EXISTS (SELECT 1 FROM study_review_undo WHERE review_id = ${input.reviewEventId} OR exposure_id = ${input.exposureId})
+      AND EXISTS (SELECT 1 FROM study_card
+        INNER JOIN word_set_item ON word_set_item.id = study_card.word_set_item_id
+        WHERE study_card.id = ${input.studyCardId} AND ${studyCardIntroductionCondition(input.userId)})
+      THEN 1 ELSE 0 END AS committed`),
     eventWrite,
     stateWrite,
     db.execute(consumeStudyExposure(input)),
@@ -921,6 +1174,7 @@ function projectionFromRow(
 function isRevisionConflict(error: unknown): boolean {
   return (
     error instanceof Error &&
-    error.message.toLowerCase().includes("division by zero")
+    (error.message.toLowerCase().includes("division by zero") ||
+      (error.cause !== undefined && isRevisionConflict(error.cause)))
   );
 }

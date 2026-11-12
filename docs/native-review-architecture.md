@@ -74,6 +74,19 @@ Only the type-in answer field requests disabled autocomplete, autocorrection, ca
 
 The browser prefetches exercises and saves ratings in the background. A local exposure map filters late refill responses. Focus and the 2 am timer refresh the visible prompt's exposure and queue availability independently. Exposure errors do not affect the interface; failed grade writes retain their existing retry/ignore toast. Pending writes live only in memory; see [review request handling and durability](optimistic-review-updates.md). Synthetic pronunciation is a separate user action.
 
+## Session undo
+
+The reviewer retains every rating and New-card Ok in the current mounted session,
+with no step cap. Undo and Ctrl/Cmd+Z outside editable fields restore the previous
+exercise and its typed answer; completion retains undo history. Navigation,
+reload, and a new scope/filter start fresh history. Migration `0017` adds durable
+UUID-keyed cancellations covering both saved and still-pending grades. Original
+review/activity receipts remain; active replay, prerequisites, allowances and
+activity totals exclude cancellations. Undo atomically restores the projection
+and grants a replacement presentation, preserving actual exposure. Grade and undo
+writes share a note lock and revision guards; stale retries cannot resurrect an
+answer. See [study undo](study-undo.md) for details and manual verification.
+
 ## Import and content edits
 
 [APKG import](anki-import.md) publishes notes, all five card identities and eligible converted progress in one atomic batch. Progress import defaults on, with editable source-template matches and study timezone. Due dates, intervals and counters carry over only to matching exercise types; additional modes start new. Valid source FSRS memory is reused, or SM2 interval/ease estimate it. Private source tables retain original notes/cards, schedules, review logs and collection/preset configuration separately from native events.

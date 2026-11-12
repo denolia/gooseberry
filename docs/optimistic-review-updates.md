@@ -99,6 +99,18 @@ sensitive repetition still waits until the next study day.
 
 Successful saves invalidate set readiness. The HUD projects a small UUID-keyed optimistic ledger over the last server activity snapshot, incrementing on a valid rating without awaiting either the save or a history fetch. Retrying the same review does not add another completion. Failed saves roll back only their own provisional credit. Activity reads are cancelled before new optimistic changes and wait until pending saves settle, so stale snapshots cannot erase clicks or double-count committed reviews. One refresh after a one-second quiet period replaces the projection with authoritative totals and clears its ledger. Focus and rollover refreshes use the same coordinator. Unknown initial totals stay unknown until the first load. Durable leaves, partial daily effort and streaks come from committed activity receipts across every scope/session. Twenty saves earn one leaf; every rating counts. Exposure alone earns nothing. The save response returns the original `activityCredit`, including on retries after rollover. Both APIs require a stable review UUID and timestamp; first writes accept timestamps up to 24 hours old or 5 minutes ahead, while committed retries remain valid indefinitely.
 
+## Undo
+
+The reviewer retains the entire session's answer history in memory. Undo cancels
+its latest answer, including an in-flight save, through the idempotent
+`POST /api/study/reviews/undo` endpoint. Durable cancellation records prevent late
+POSTs and retries from restoring the answer. Original exposure remains recorded;
+a replacement presentation allows a corrected rating. Stale queue responses and
+cancelled save callbacks cannot replace restored exercises or re-add their credit.
+The activity tracker removes provisional credit and refreshes authoritative totals
+after pending writes settle. An unconfirmed undo retains the same operation for
+Retry undo and temporarily blocks grading. See [study undo](study-undo.md).
+
 ## Navigating away
 
 Routine saves remain silent: the reviewer adds no saving message, exit hold, unload prompt, or temporary completion heading. The next buffered exercise stays immediately usable. The fixed HUD reserves its size before activity loads and across counter changes; rating clicks animate provisional progress immediately, then reconcile silently with the server. New leaves get a brief in-place pulse instead of a milestone banner or Continue/Finish prompt, with reduced-motion support. Actual failures retain a fixed Retry/Ignore notice, and activity-query errors also stay outside document flow.

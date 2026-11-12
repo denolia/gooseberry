@@ -503,7 +503,11 @@
     "yourAnswerDiffers": "Ваш ответ отличается",
     "yourAnswer": "Ваш ответ",
     "noAnswerEntered": "Ответ не введён",
-    "answerLanguage": "Ваш ответ на языке «{language}»"
+    "answerLanguage": "Ваш ответ на языке «{language}»",
+    "undo": "Отменить",
+    "undoing": "Отмена…",
+    "retryUndo": "Повторить отмену",
+    "undoHint": "Отменить последний ответ (Ctrl/Cmd+Z)"
   },
   "header": {
     "swapSourceAndTargetLanguages": "Поменять местами исходный язык и язык перевода",
@@ -966,7 +970,11 @@
     "studySetsUnavailable": "Один или несколько наборов недоступны",
     "invalidActivityRange": "Выберите от 1 до 365 дней.",
     "failedToLoadActivity": "Не удалось загрузить историю занятий.",
-    "reviewTimestampOutsideWindow": "Время ответа вне допустимого диапазона. Проверьте часы устройства и обновите страницу."
+    "reviewTimestampOutsideWindow": "Время ответа вне допустимого диапазона. Проверьте часы устройства и обновите страницу.",
+    "couldNotUndoReview": "Не удалось подтвердить отмену. Повторите попытку, чтобы продолжить занятие.",
+    "couldNotUndoChangedReview": "Это упражнение изменилось в другом сеансе, поэтому отменить ответ не удалось.",
+    "reviewWasUndone": "Этот ответ отменён.",
+    "studyChangedAfterUndo": "Ответ отменён, но упражнение изменилось в другом сеансе. Продолжайте со следующего упражнения."
   },
   "common": {
     "ok": "Ок",

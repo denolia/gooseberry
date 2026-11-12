@@ -71,7 +71,8 @@ export async function ensureReviewProjections(
             or(
               isNotNull(studyCardImportBaseline.studyCardId),
               sql`EXISTS (SELECT 1 FROM review_event history WHERE history.study_card_id = ${studyCard.id}
-            AND history.user_id = ${userId} AND history.source = 'gooseberry')`,
+            AND history.user_id = ${userId} AND history.source = 'gooseberry'
+            AND NOT EXISTS (SELECT 1 FROM study_review_undo undo WHERE undo.review_id = history.id))`,
             ),
           ),
         ),
@@ -93,6 +94,7 @@ export async function ensureReviewProjections(
         and(
           eq(reviewEvent.userId, userId),
           eq(reviewEvent.source, "gooseberry"),
+          sql`NOT EXISTS (SELECT 1 FROM study_review_undo undo WHERE undo.review_id = ${reviewEvent.id})`,
           inArray(
             reviewEvent.studyCardId,
             cards.map((card) => card.id),

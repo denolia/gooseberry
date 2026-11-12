@@ -325,3 +325,57 @@ test("projection repair cannot overwrite an actual review committed during recov
     client.query = originalQuery;
   }
 });
+
+test("undo restores an imported schedule without erasing its baseline or reopening the exposure gate", async () => {
+  const card = await importedCard();
+  const input = {
+    userId,
+    wordSetId: card.setId,
+    studyCardId: card.cardId,
+    reviewEventId: crypto.randomUUID(),
+    exposureId: crypto.randomUUID(),
+    sessionId: crypto.randomUUID(),
+    reviewedAt: now,
+    now,
+    rating: 1,
+  };
+  await repo.recordReview(input);
+  const restored = await repo.undoReview({
+    ...input,
+    replacementExposureId: crypto.randomUUID(),
+  });
+  assert.deepEqual(restored.card.state, {
+    ...baseline,
+    schedulerVersion: fsrs.FSRS_SCHEDULER_VERSION,
+  });
+  assert(!(await due(card.setId)).some((entry) => entry.id === card.cardId));
+  await repo.recordReview({
+    ...input,
+    reviewEventId: crypto.randomUUID(),
+    exposureId: restored.exposure.id,
+    rating: 4,
+  });
+  assert.equal(
+    (await fixture.load("@/db/studyActivityRepo").getStudyActivity(userId, now))
+      .today.completions,
+    1,
+  );
+  assert.equal(
+    (
+      await client.query(
+        "SELECT reps FROM fsrs_card_state WHERE study_card_id=$1",
+        [card.cardId],
+      )
+    ).rows[0].reps,
+    baseline.reps + 1,
+  );
+  assert.equal(
+    (
+      await client.query(
+        "SELECT count(*) FROM study_card_import_baseline WHERE study_card_id=$1",
+        [card.cardId],
+      )
+    ).rows[0].count,
+    1,
+  );
+});

@@ -10,7 +10,8 @@ export async function getStudyActivityCredit(userId: string, reviewId: string) {
   const result = await getDb()
     .execute(sql`SELECT credited_date::text AS "creditedDate",
     study_time_zone AS "timeZone", completed_at AS "completedAt"
-    FROM study_activity WHERE user_id = ${userId} AND review_id = ${reviewId}`);
+    FROM study_activity WHERE user_id = ${userId} AND review_id = ${reviewId}
+      AND NOT EXISTS (SELECT 1 FROM study_review_undo undo WHERE undo.review_id = study_activity.review_id)`);
   return result.rows[0] ?? null;
 }
 
@@ -25,7 +26,9 @@ export async function getStudyActivity(
     WITH daily AS (
       SELECT credited_date, count(*)::integer AS completions,
         (count(*) / ${COMPLETIONS_PER_LEAF})::integer AS leaves
-      FROM study_activity WHERE user_id = ${userId} GROUP BY credited_date
+      FROM study_activity WHERE user_id = ${userId}
+        AND NOT EXISTS (SELECT 1 FROM study_review_undo undo WHERE undo.review_id = study_activity.review_id)
+      GROUP BY credited_date
     ), islands AS (
       SELECT credited_date, credited_date - row_number() OVER (ORDER BY credited_date)::integer AS island
       FROM daily

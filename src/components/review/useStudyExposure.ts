@@ -48,10 +48,12 @@ async function recordPresentation<T>(
 
 export function useStudyExposure<T>({
   studyCardId,
+  presentationId,
   onPresented,
   onRecorded,
 }: {
   studyCardId?: string;
+  presentationId?: string;
   onPresented: (studyCardId: string) => void;
   onRecorded: (result: ActivatedStudyCard<T>) => void;
 }) {
@@ -60,11 +62,17 @@ export function useStudyExposure<T>({
 
   const getPresentation = useCallback(() => {
     if (!studyCardId) return null;
-    if (attemptRef.current?.studyCardId !== studyCardId) {
-      attemptRef.current = { id: crypto.randomUUID(), studyCardId };
+    if (
+      attemptRef.current?.studyCardId !== studyCardId ||
+      (presentationId && attemptRef.current?.id !== presentationId)
+    ) {
+      attemptRef.current = {
+        id: presentationId ?? crypto.randomUUID(),
+        studyCardId,
+      };
     }
     return attemptRef.current;
-  }, [studyCardId]);
+  }, [studyCardId, presentationId]);
 
   useEffect(() => {
     const attempt = getPresentation();

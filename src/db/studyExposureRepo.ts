@@ -14,7 +14,13 @@ export async function getStudyExposure(
   const [receipt] = await getDb()
     .select()
     .from(studyExposure)
-    .where(and(eq(studyExposure.userId, userId), eq(studyExposure.id, id)))
+    .where(
+      and(
+        eq(studyExposure.userId, userId),
+        eq(studyExposure.id, id),
+        sql`NOT EXISTS (SELECT 1 FROM study_review_undo undo WHERE undo.exposure_id = ${studyExposure.id})`,
+      ),
+    )
     .limit(1);
   return receipt ?? null;
 }
@@ -44,6 +50,7 @@ export async function persistStudyExposure(input: {
         UPDATE word_set_item SET last_exposed_at = greatest(last_exposed_at, ${input.now}::timestamptz)
         WHERE id = ${input.wordSetItemId}
           AND NOT EXISTS (SELECT 1 FROM study_exposure WHERE id = ${input.exposureId})
+          AND NOT EXISTS (SELECT 1 FROM study_review_undo WHERE exposure_id = ${input.exposureId})
           AND EXISTS (
             SELECT 1 FROM study_card
             INNER JOIN word_set ON word_set.id = word_set_item.word_set_id

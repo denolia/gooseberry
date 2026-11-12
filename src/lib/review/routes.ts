@@ -8,6 +8,8 @@ import {
   exposureAwareRatingPreviews,
   getRecordedCardAvailableAt,
   recordReview,
+  undoReview,
+  ReviewUndoneError,
   ReviewCardNotDueError,
   ReviewCardNotFoundError,
   ReviewWriteConflictError,
@@ -28,6 +30,7 @@ import { getStudyActivityCredit } from "@/db/studyActivityRepo";
 
 const SubmitReviewSchema = z.object({
   reviewId: z.string().uuid(),
+  sessionId: z.string().uuid().optional(),
   studyCardId: z.string().uuid(),
   exposureId: z.string().uuid(),
   rating: ReviewRatingSchema,
@@ -156,6 +159,7 @@ export async function submitStudyReview(request: Request, wordSetId?: string) {
       now,
       reviewEventId: input.reviewId,
       rating: input.rating,
+      sessionId: input.sessionId,
       durationMs: input.durationMs,
       reviewedAt: new Date(input.reviewedAt),
     });
@@ -200,6 +204,12 @@ export async function submitStudyReview(request: Request, wordSetId?: string) {
         { status: 409 },
       );
     }
+    if (error instanceof ReviewUndoneError) {
+      return NextResponse.json(
+        { errorCode: "errors.reviewWasUndone" },
+        { status: 409 },
+      );
+    }
     if (error instanceof ReviewWriteConflictError) {
       return NextResponse.json(
         { errorCode: "errors.theCardChangedPleaseTryAgain" },
@@ -210,6 +220,77 @@ export async function submitStudyReview(request: Request, wordSetId?: string) {
     console.error("Error recording review:", error);
     return NextResponse.json(
       { errorCode: "errors.failedToRecordReview" },
+      { status: 500 },
+    );
+  }
+}
+
+const UndoReviewSchema = SubmitReviewSchema.omit({ durationMs: true }).extend({
+  sessionId: z.string().uuid(),
+  replacementExposureId: z.string().uuid(),
+});
+
+export async function undoStudyReview(request: Request) {
+  const session = await auth();
+  if (!session?.user?.id)
+    return NextResponse.json(
+      { errorCode: "errors.unauthorized" },
+      { status: 401 },
+    );
+  try {
+    const input = UndoReviewSchema.parse(
+      await request.json().catch(() => null),
+    );
+    const wordSetId = await getOwnedStudyCardSet(
+      session.user.id,
+      input.studyCardId,
+    );
+    const now = new Date();
+    const result = await undoReview({
+      ...input,
+      userId: session.user.id,
+      wordSetId,
+      reviewEventId: input.reviewId,
+      reviewedAt: new Date(input.reviewedAt),
+      now,
+    });
+    return NextResponse.json({
+      card: {
+        ...result.card,
+        ratings: exposureAwareRatingPreviews(
+          result.card.templateKey,
+          previewRatings(result.card.state, now),
+          now,
+          result.studyDay,
+        ),
+      },
+      exposure: result.exposure,
+      resumable: result.resumable,
+      exposedAt: now,
+      studyDay: serializeStudyDay(result.studyDay, now),
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError)
+      return NextResponse.json(
+        { errorCode: "errors.invalidReview" },
+        { status: 400 },
+      );
+    if (
+      error instanceof ReviewCardNotFoundError ||
+      error instanceof StudyScopeNotFoundError
+    )
+      return NextResponse.json(
+        { errorCode: "errors.reviewCardNotFound" },
+        { status: 404 },
+      );
+    if (error instanceof ReviewWriteConflictError)
+      return NextResponse.json(
+        { errorCode: "errors.couldNotUndoChangedReview" },
+        { status: 409 },
+      );
+    console.error("Error undoing review:", error);
+    return NextResponse.json(
+      { errorCode: "errors.couldNotUndoReview" },
       { status: 500 },
     );
   }

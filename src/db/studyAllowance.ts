@@ -54,6 +54,7 @@ export function studyWordAvailabilityCondition(input: {
           INNER JOIN study_card sibling ON sibling.id = history.study_card_id
           LEFT JOIN study_activity activity ON activity.review_id = history.id AND activity.user_id = history.user_id
           WHERE history.user_id = ${input.userId} AND history.source = 'gooseberry'
+            AND NOT EXISTS (SELECT 1 FROM study_review_undo undo WHERE undo.review_id = history.id)
           GROUP BY sibling.word_set_item_id
         ) native ON native.word_set_item_id = candidate.id
         WHERE owned_set.user_id = ${input.userId}

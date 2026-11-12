@@ -503,7 +503,11 @@
     "yourAnswerDiffers": "Your answer differs",
     "yourAnswer": "Your answer",
     "noAnswerEntered": "No answer entered",
-    "answerLanguage": "Your answer in {language}"
+    "answerLanguage": "Your answer in {language}",
+    "undo": "Undo",
+    "undoing": "Undoing…",
+    "retryUndo": "Retry undo",
+    "undoHint": "Undo last answer (Ctrl/Cmd+Z)"
   },
   "header": {
     "swapSourceAndTargetLanguages": "Swap source and target languages",
@@ -966,7 +970,11 @@
     "studySetsUnavailable": "One or more study sets are unavailable",
     "invalidActivityRange": "Choose between 1 and 365 days.",
     "failedToLoadActivity": "Could not load study activity.",
-    "reviewTimestampOutsideWindow": "The review time is outside the accepted window. Check your device clock and reload."
+    "reviewTimestampOutsideWindow": "The review time is outside the accepted window. Check your device clock and reload.",
+    "couldNotUndoReview": "Could not confirm the undo. Retry to continue studying.",
+    "couldNotUndoChangedReview": "This exercise changed elsewhere and could not be undone.",
+    "reviewWasUndone": "This answer has been undone.",
+    "studyChangedAfterUndo": "The answer was undone, but this exercise changed elsewhere. Continue with the next exercise."
   },
   "common": {
     "ok": "Ok",

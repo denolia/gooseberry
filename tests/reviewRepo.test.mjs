@@ -281,9 +281,9 @@ test("records the review event and state projection in one atomic batch", async 
 
   assert.equal(result, nextState);
   assert.equal(calls.batches.length, 1);
-  assert.equal(calls.batches[0][0].kind, "event");
-  assert.equal(calls.batches[0][0].values.rating, 3);
-  assert.equal(calls.batches[0][1].kind, "state");
+  assert.equal(calls.batches[0][2].kind, "event");
+  assert.equal(calls.batches[0][2].values.rating, 3);
+  assert.equal(calls.batches[0][3].kind, "state");
 });
 
 test("records a production exercise using its own card identity", async () => {
@@ -298,11 +298,11 @@ test("records a production exercise using its own card identity", async () => {
   });
 
   assert.equal(
-    calls.batches[0][0].values.studyCardId,
+    calls.batches[0][2].values.studyCardId,
     "11111111-1111-4111-8111-111111111111",
   );
   assert(
-    calls.batches[0][1].statement.values.includes(
+    calls.batches[0][3].statement.values.includes(
       "11111111-1111-4111-8111-111111111111",
     ),
   );
@@ -337,7 +337,7 @@ test("reloads and retries after an optimistic revision conflict", async () => {
 
   assert.equal(calls.batches.length, 2);
   assert.equal(calls.ownedCardReads, 2);
-  assert.equal(calls.batches[0][0].values.id, calls.batches[1][0].values.id);
+  assert.equal(calls.batches[0][2].values.id, calls.batches[1][2].values.id);
 });
 
 test("returns an already-recorded review without writing it twice", async () => {
