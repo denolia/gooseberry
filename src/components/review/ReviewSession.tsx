@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BookOpen, Repeat2, X } from "lucide-react";
+import { BookOpen, Leaf, Repeat2, X } from "lucide-react";
 import { SourceAudioButton } from "@/components/ui/SourceAudioButton";
 import { BottomPanelLayout } from "@/components/ui/BottomPanelLayout";
 import { isNewState, reviewControls } from "@/lib/review/controls";
@@ -598,15 +598,14 @@ export function ReviewSession({
     </aside>
   ) : null;
 
-  // Render the same HUD footprint even before the activity request completes.
-  const activitySummary = <StudyActivitySummary activity={activity.data} />;
-
   if (status === "loading" || loading || (!card && loadingMore)) {
     return (
       <>
-        <div className={styles.centered} aria-busy="true">
-          {t("reviewSession.loadingReview")}
-          {activitySummary}
+        <div className={styles.centered} role="status">
+          <Leaf className={styles.loadingLeaf} size={40} aria-hidden="true" />
+          <span className={styles.loadingLabel}>
+            {t("reviewSession.loadingReview")}
+          </span>
         </div>
         {failureToast}
       </>
@@ -614,6 +613,9 @@ export function ReviewSession({
   }
 
   if (status !== "authenticated") return null;
+
+  // Keep the HUD footprint stable while the activity request completes.
+  const activitySummary = <StudyActivitySummary activity={activity.data} />;
 
   if (error && !card) {
     return (
